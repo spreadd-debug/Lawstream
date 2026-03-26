@@ -102,6 +102,23 @@ export interface MatterTemplate {
   notasOperativas?: string;
 }
 
+export interface LegalTemplate {
+  id: string;
+  title: string;
+  category: MatterType;
+  subcategory: string;
+  description: string;
+  tags: string[];
+  content: string;
+  placeholders: {
+    key: string;
+    label: string;
+    type: 'text' | 'date' | 'number' | 'textarea';
+    defaultValue?: string;
+  }[];
+  legalBasis: string;
+}
+
 export interface TimelineEvent {
   id: string;
   matterId: string;
