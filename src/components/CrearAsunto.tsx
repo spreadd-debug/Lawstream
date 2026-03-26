@@ -1,0 +1,1170 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import { Card, Button, Input, Badge, Label, Textarea } from './UI';
+import { 
+  ArrowLeft, 
+  ArrowRight, 
+  CheckCircle2, 
+  User, 
+  Briefcase, 
+  Calendar, 
+  FileText, 
+  ShieldAlert, 
+  Zap,
+  Info,
+  Search,
+  Plus,
+  X,
+  Check,
+  ChevronRight,
+  UserPlus,
+  Clock,
+  LayoutDashboard,
+  Target,
+  FileCheck,
+  AlertCircle,
+  Mail,
+  Phone,
+  Building2,
+  MapPin
+} from 'lucide-react';
+import { cn } from '../lib/utils';
+import { format, addDays } from 'date-fns';
+import { es } from 'date-fns/locale';
+import { MATTER_TEMPLATES } from '../data/templates';
+import { MatterTemplate, Priority } from '../types';
+
+interface CrearAsuntoProps {
+  onBack: () => void;
+  onSave: (data: any) => void;
+  prefilledData?: {
+    title?: string;
+    client?: string;
+    type?: string;
+    description?: string;
+    fromConsultationId?: string;
+  } | null;
+}
+
+// Mock data for intelligence by type
+const SUGGESTIONS_BY_TYPE: Record<string, {
+  checklist: string[];
+  docs: string[];
+  milestones: string[];
+  nextAction: string;
+}> = {
+  'Laboral': {
+    checklist: ['Verificar fecha de ingreso', 'Validar recibos de sueldo', 'Cálculo de liquidación', 'Enviar TCL de intimación'],
+    docs: ['DNI Cliente', 'Recibos de sueldo (últimos 12)', 'Certificado de servicios', 'Intercambio telegráfico'],
+    milestones: ['Audiencia SECLO', 'Presentación Demanda', 'Apertura a Prueba', 'Sentencia'],
+    nextAction: 'Redactar TCL de intimación'
+  },
+  'Familia': {
+    checklist: ['Partidas actualizadas', 'Certificado de matrimonio', 'DNI de los menores', 'Propuesta reguladora'],
+    docs: ['Partidas de nacimiento', 'Acta de matrimonio', 'Títulos de propiedad', 'DNI partes'],
+    milestones: ['Mediación Previa', 'Presentación Demanda', 'Audiencia de Vista de Causa', 'Sentencia'],
+    nextAction: 'Solicitar partidas actualizadas'
+  },
+  'Daños': {
+    checklist: ['Denuncia administrativa', 'Fotos del siniestro', 'Presupuestos de reparación', 'Historia clínica'],
+    docs: ['Título automotor', 'Licencia de conducir', 'Póliza de seguro', 'Fotos y videos'],
+    milestones: ['Mediación', 'Demanda', 'Pericias', 'Alegatos'],
+    nextAction: 'Solicitar presupuestos de reparación'
+  },
+  'Comercial': {
+    checklist: ['Revisión de contrato', 'Verificación de personería', 'Intimación de pago', 'Análisis de mora'],
+    docs: ['Contrato social', 'Poderes', 'Facturas adeudadas', 'Resumen de cuenta'],
+    milestones: ['Mediación', 'Demanda Ejecutiva', 'Embargo', 'Remate'],
+    nextAction: 'Analizar cláusulas de rescisión'
+  },
+  'Sucesiones': {
+    checklist: ['Partida de defunción', 'Títulos de bienes', 'Listado de herederos', 'Valuación fiscal'],
+    docs: ['Acta de defunción', 'Títulos de propiedad', 'Partidas de nacimiento herederos', 'Testamento (si hay)'],
+    milestones: ['Apertura Sucesorio', 'Publicación Edictos', 'Declaratoria Herederos', 'Inscripción Bienes'],
+    nextAction: 'Solicitar informe de anotaciones personales'
+  }
+};
+
+const MOCK_CLIENTS = [
+  { id: '1', name: 'Juan Pérez', type: 'Persona', email: 'juan@perez.com' },
+  { id: '2', name: 'Techint S.A.', type: 'Empresa', email: 'legal@techint.com' },
+  { id: '3', name: 'María García', type: 'Persona', email: 'mgarcia@gmail.com' },
+  { id: '4', name: 'Banco Galicia', type: 'Empresa', email: 'legales@galicia.com' },
+];
+
+export const CrearAsunto = ({ onBack, onSave, prefilledData }: CrearAsuntoProps) => {
+  const [step, setStep] = useState(1);
+  const [isCreatingClient, setIsCreatingClient] = useState(false);
+  const [clientSearch, setClientSearch] = useState('');
+  const [selectedClient, setSelectedClient] = useState<any>(null);
+  
+  const [formData, setFormData] = useState({
+    title: '',
+    type: '' as any,
+    subtype: '',
+    jurisdiction: '',
+    via: '',
+    etapaInicial: '',
+    expediente: '',
+    description: '',
+    responsible: 'Dr. Ricardo Darín',
+    priority: 'Media' as Priority,
+    nextAction: '',
+    nextActionDate: format(addDays(new Date(), 7), 'yyyy-MM-dd'),
+    checklist: [] as { task: string; priority: string; completed?: boolean }[],
+    docs: [] as { name: string; required: boolean; uploaded?: boolean }[],
+    milestones: [] as string[],
+    blockers: [] as string[],
+    notes: '',
+    selectedTemplateId: ''
+  });
+
+  // Handle prefilled data from consultation
+  useEffect(() => {
+    if (prefilledData) {
+      setFormData(prev => ({
+        ...prev,
+        title: prefilledData.title || prev.title,
+        type: prefilledData.type || prev.type,
+        description: prefilledData.description || prev.description,
+      }));
+
+      if (prefilledData.client) {
+        const existingClient = MOCK_CLIENTS.find(c => 
+          c.name.toLowerCase() === prefilledData.client?.toLowerCase()
+        );
+        if (existingClient) {
+          setSelectedClient(existingClient);
+        } else {
+          // If no match, we could pre-fill the "New Client" form or just search for it
+          setClientSearch(prefilledData.client);
+        }
+      }
+    }
+  }, [prefilledData]);
+
+  const [newClientData, setNewClientData] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    type: 'Persona' as 'Persona' | 'Empresa'
+  });
+
+  const validateStep = (currentStep: number) => {
+    switch (currentStep) {
+      case 1:
+        return formData.title && formData.type && selectedClient;
+      case 2:
+        return formData.responsible && formData.nextAction && formData.nextActionDate;
+      case 3:
+        return true; // Optional structural step
+      default:
+        return true;
+    }
+  };
+
+  const handleCreateClient = () => {
+    if (!newClientData.name) return;
+    const newClient = {
+      id: Math.random().toString(36).substr(2, 9),
+      ...newClientData
+    };
+    setSelectedClient(newClient);
+    setIsCreatingClient(false);
+    setNewClientData({ name: '', email: '', phone: '', type: 'Persona' });
+  };
+
+  // Update suggestions when template changes
+  useEffect(() => {
+    if (step === 3 && formData.checklist.length === 0) {
+      let template = null;
+      const subtypeLower = formData.subtype.toLowerCase();
+      
+      if (formData.subtype) {
+        template = MATTER_TEMPLATES.find(t => 
+          t.rama === formData.type && 
+          t.subtipo.toLowerCase().includes(subtypeLower)
+        );
+      }
+      
+      if (!template && formData.type) {
+        // Default for branch
+        if (formData.type === 'Comercial') {
+          template = MATTER_TEMPLATES.find(t => t.id === 'com-incumplimiento');
+        }
+      }
+
+      if (template) {
+        setFormData(prev => ({
+          ...prev,
+          selectedTemplateId: template.id,
+          checklist: template.checklistBase.map(c => ({ ...c, completed: false })),
+          docs: template.documentosBase.map(d => ({ ...d, uploaded: false })),
+          milestones: template.hitosProyectados,
+          blockers: template.bloqueantesTipicos,
+          nextAction: prev.nextAction || template.proximaAccionSugerida,
+          nextActionDate: prev.nextActionDate || format(addDays(new Date(), template.fechaSeguimientoSugeridaDays), 'yyyy-MM-dd'),
+          priority: prev.priority === 'Media' ? template.prioridadSugerida : prev.priority,
+          notes: prev.notes || template.notasOperativas || ''
+        }));
+      }
+    }
+  }, [step, formData.type, formData.subtype]);
+
+  const filteredClients = MOCK_CLIENTS.filter(c => 
+    c.name.toLowerCase().includes(clientSearch.toLowerCase())
+  );
+
+  const steps = [
+    { id: 1, label: 'Identificación', icon: Briefcase },
+    { id: 2, label: 'Operatividad', icon: Zap },
+    { id: 3, label: 'Estructura Operativa', icon: LayoutDashboard },
+    { id: 4, label: 'Revisión', icon: CheckCircle2 },
+  ];
+
+  const nextStep = () => setStep(s => Math.min(s + 1, 4));
+  const prevStep = () => setStep(s => Math.max(s - 1, 1));
+
+  const handleToggleItem = (list: 'checklist' | 'docs', itemName: string) => {
+    setFormData(prev => ({
+      ...prev,
+      [list]: prev[list].map((item: any) => {
+        if (list === 'checklist' && item.task === itemName) {
+          return { ...item, completed: !item.completed };
+        }
+        if (list === 'docs' && item.name === itemName) {
+          return { ...item, uploaded: !item.uploaded };
+        }
+        return item;
+      })
+    }));
+  };
+
+  const handleRemoveItem = (list: 'checklist' | 'docs', itemName: string) => {
+    setFormData(prev => ({
+      ...prev,
+      [list]: prev[list].filter((item: any) => {
+        if (list === 'checklist') return item.task !== itemName;
+        if (list === 'docs') return item.name !== itemName;
+        return true;
+      })
+    }));
+  };
+
+  const handleAddItem = (list: 'checklist' | 'docs' | 'milestones') => {
+    if (list === 'checklist') {
+      const task = window.prompt('Nombre de la nueva tarea:');
+      if (task) {
+        setFormData(prev => ({
+          ...prev,
+          checklist: [...prev.checklist, { task, priority: 'recomendado', completed: false }]
+        }));
+      }
+    } else if (list === 'docs') {
+      const name = window.prompt('Nombre del nuevo documento:');
+      if (name) {
+        setFormData(prev => ({
+          ...prev,
+          docs: [...prev.docs, { name, required: false, uploaded: false }]
+        }));
+      }
+    } else if (list === 'milestones') {
+      const name = window.prompt('Nombre del nuevo hito:');
+      if (name) {
+        setFormData(prev => ({
+          ...prev,
+          milestones: [...prev.milestones, name]
+        }));
+      }
+    }
+  };
+
+  const renderStep = () => {
+    switch (step) {
+      case 1:
+        return (
+          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <h2 className="text-2xl font-black tracking-tighter text-foreground">Identificación del Asunto</h2>
+                {prefilledData && (
+                  <Badge className="bg-primary/10 text-primary border-primary/20 gap-1.5 py-1 px-3 animate-pulse">
+                    <Zap size={12} className="fill-primary" />
+                    <span className="text-[10px] font-black uppercase tracking-widest">Datos heredados de consulta</span>
+                  </Badge>
+                )}
+              </div>
+              <p className="text-sm text-muted-foreground font-medium">
+                Sentemos las bases del asunto. ¿De qué se trata y para quién es?
+              </p>
+            </div>
+            
+            <div className="space-y-6">
+              <div className="space-y-2">
+                <Label>Título / Carátula del Asunto</Label>
+                <Input 
+                  placeholder="Ej: García c/ Techint - Despido Incausado" 
+                  className="bg-muted/30 border-border/50 text-lg font-bold h-14 focus:bg-card transition-all"
+                  value={formData.title}
+                  onChange={e => setFormData({...formData, title: e.target.value})}
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Cliente Principal</Label>
+                {isCreatingClient ? (
+                  <Card className="p-6 border-primary/30 bg-primary/5 space-y-4 animate-in zoom-in-95 duration-200">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <UserPlus size={18} className="text-primary" />
+                        <span className="text-sm font-black uppercase tracking-widest">Nuevo Cliente</span>
+                      </div>
+                      <Button variant="ghost" size="sm" onClick={() => setIsCreatingClient(false)}>
+                        <X size={16} />
+                      </Button>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label className="text-[9px]">Nombre Completo / Razón Social</Label>
+                        <Input 
+                          value={newClientData.name}
+                          onChange={e => setNewClientData({...newClientData, name: e.target.value})}
+                          placeholder="Nombre del cliente..."
+                          className="bg-background h-10"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-[9px]">Tipo de Cliente</Label>
+                        <div className="flex gap-2">
+                          {['Persona', 'Empresa'].map(t => (
+                            <button
+                              key={t}
+                              onClick={() => setNewClientData({...newClientData, type: t as any})}
+                              className={cn(
+                                "flex-1 h-10 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all",
+                                newClientData.type === t ? "bg-primary border-primary text-white" : "bg-background border-border text-muted-foreground hover:border-primary/30"
+                              )}
+                            >
+                              {t}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-[9px]">Email</Label>
+                        <Input 
+                          value={newClientData.email}
+                          onChange={e => setNewClientData({...newClientData, email: e.target.value})}
+                          placeholder="email@ejemplo.com"
+                          className="bg-background h-10"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-[9px]">Teléfono</Label>
+                        <Input 
+                          value={newClientData.phone}
+                          onChange={e => setNewClientData({...newClientData, phone: e.target.value})}
+                          placeholder="+54 9 11..."
+                          className="bg-background h-10"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex justify-end pt-2">
+                      <Button size="sm" onClick={handleCreateClient} disabled={!newClientData.name} className="gap-2">
+                        <Check size={14} />
+                        Crear y Seleccionar
+                      </Button>
+                    </div>
+                  </Card>
+                ) : selectedClient ? (
+                  <div className="p-4 rounded-xl border border-primary bg-primary/5 flex items-center justify-between animate-in zoom-in-95 duration-200">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white font-black">
+                        {selectedClient.name[0]}
+                      </div>
+                      <div>
+                        <div className="font-bold text-foreground">{selectedClient.name}</div>
+                        <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                          {selectedClient.type} {selectedClient.email && `• ${selectedClient.email}`}
+                        </div>
+                      </div>
+                    </div>
+                    <Button variant="ghost" size="sm" onClick={() => setSelectedClient(null)}>
+                      <X size={16} />
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="relative">
+                      <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
+                      <Input 
+                        placeholder="Buscar cliente por nombre o DNI..." 
+                        className="pl-12 bg-muted/30 border-border/50 h-14"
+                        value={clientSearch}
+                        onChange={e => setClientSearch(e.target.value)}
+                      />
+                    </div>
+                    {clientSearch && (
+                      <Card className="p-2 border border-border/50 shadow-xl max-h-48 overflow-y-auto">
+                        {filteredClients.map(client => (
+                          <button
+                            key={client.id}
+                            onClick={() => setSelectedClient(client)}
+                            className="w-full p-3 flex items-center gap-3 hover:bg-muted rounded-lg transition-colors text-left"
+                          >
+                            <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-[10px] font-black">
+                              {client.name[0]}
+                            </div>
+                            <div>
+                              <div className="text-sm font-bold">{client.name}</div>
+                              <div className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">{client.type}</div>
+                            </div>
+                          </button>
+                        ))}
+                        <button 
+                          className="w-full p-3 flex items-center gap-3 text-primary hover:bg-primary/5 rounded-lg transition-colors text-left border-t border-border/50 mt-1"
+                          onClick={() => setIsCreatingClient(true)}
+                        >
+                          <UserPlus size={16} />
+                          <span className="text-sm font-bold">Crear nuevo cliente "{clientSearch}"</span>
+                        </button>
+                      </Card>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <Label>Tipo de Asunto</Label>
+                  <select 
+                    className="w-full h-14 bg-muted/30 border border-border/50 rounded-xl px-4 text-sm font-bold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all appearance-none"
+                    value={formData.type}
+                    onChange={e => setFormData({...formData, type: e.target.value})}
+                  >
+                    <option value="">Seleccionar tipo...</option>
+                    <option value="Laboral">Laboral</option>
+                    <option value="Familia">Familia</option>
+                    <option value="Daños">Daños y Perjuicios</option>
+                    <option value="Comercial">Comercial</option>
+                    <option value="Sucesiones">Sucesiones</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Subtipo / Materia</Label>
+                  <Input 
+                    placeholder="Ej: Despido, Divorcio, Accidente..." 
+                    className="bg-muted/30 border-border/50 font-bold h-14"
+                    value={formData.subtype}
+                    onChange={e => setFormData({...formData, subtype: e.target.value})}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="md:col-span-1 space-y-2">
+                  <Label>Expediente</Label>
+                  <Input 
+                    placeholder="Ej: CNT 123/2024" 
+                    className="bg-muted/30 border-border/50 font-mono text-sm h-14"
+                    value={formData.expediente}
+                    onChange={e => setFormData({...formData, expediente: e.target.value})}
+                  />
+                </div>
+                <div className="md:col-span-2 space-y-2">
+                  <Label>Descripción Breve</Label>
+                  <Input 
+                    placeholder="Resumen rápido del conflicto..." 
+                    className="bg-muted/30 border-border/50 font-medium h-14"
+                    value={formData.description}
+                    onChange={e => setFormData({...formData, description: e.target.value})}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      case 2:
+        return (
+          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="space-y-2">
+              <h2 className="text-2xl font-black tracking-tighter text-foreground">Operatividad Inicial</h2>
+              <p className="text-sm text-muted-foreground font-medium">
+                Todo asunto en Lawstream debe tener un motor: responsable y próxima acción.
+              </p>
+            </div>
+
+            <div className="space-y-8">
+              <div className="space-y-4">
+                <Label>Responsable del Asunto</Label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {['Dr. Ricardo Darín', 'Dra. Mercedes Morán', 'Dr. Guillermo Francella'].map(name => (
+                    <button
+                      key={name}
+                      onClick={() => setFormData({...formData, responsible: name})}
+                      className={cn(
+                        "p-4 rounded-xl border flex items-center gap-3 transition-all text-left",
+                        formData.responsible === name 
+                          ? "bg-primary/5 border-primary shadow-sm ring-1 ring-primary/20" 
+                          : "bg-muted/30 border-border/50 hover:border-primary/30"
+                      )}
+                    >
+                      <div className={cn(
+                        "w-10 h-10 rounded-full flex items-center justify-center text-[10px] font-black border",
+                        formData.responsible === name ? "bg-primary text-white border-primary" : "bg-background text-muted-foreground border-border"
+                      )}>
+                        {name.split(' ').map(n => n[0]).join('')}
+                      </div>
+                      <div>
+                        <div className="text-sm font-bold text-foreground">{name}</div>
+                        <div className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Socio Principal</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="space-y-4">
+                  <Label>Prioridad Operativa</Label>
+                  <div className="flex flex-col gap-2">
+                    {[
+                      { id: 'Baja', label: 'Baja', desc: 'De fondo', color: 'sky' },
+                      { id: 'Media', label: 'Media', desc: 'Estándar', color: 'amber' },
+                      { id: 'Alta', label: 'Alta', desc: 'Crítico', color: 'rose' }
+                    ].map(p => (
+                      <button
+                        key={p.id}
+                        onClick={() => setFormData({...formData, priority: p.id})}
+                        className={cn(
+                          "p-3 rounded-xl border flex items-center justify-between transition-all",
+                          formData.priority === p.id 
+                            ? `bg-${p.color}-500/5 border-${p.color}-500/50 shadow-sm` 
+                            : "bg-muted/30 border-border/50 hover:border-primary/30"
+                        )}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={cn("w-2 h-2 rounded-full", `bg-${p.color}-500`)} />
+                          <span className="text-sm font-bold">{p.label}</span>
+                        </div>
+                        <span className="text-[9px] font-black uppercase tracking-widest opacity-50">{p.desc}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <Label>Próxima Acción Inicial</Label>
+                  <div className="space-y-4">
+                    <Input 
+                      placeholder="¿Qué es lo primero que hay que hacer?" 
+                      className="bg-muted/30 border-border/50 font-bold h-12"
+                      value={formData.nextAction}
+                      onChange={e => setFormData({...formData, nextAction: e.target.value})}
+                    />
+                    <div className="space-y-2">
+                      <Label className="text-[9px]">Fecha de Seguimiento</Label>
+                      <div className="relative">
+                        <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
+                        <Input 
+                          type="date"
+                          className="pl-10 bg-muted/30 border-border/50 font-bold h-12"
+                          value={formData.nextActionDate}
+                          onChange={e => setFormData({...formData, nextActionDate: e.target.value})}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      case 3:
+        return (
+          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="space-y-2">
+              <h2 className="text-2xl font-black tracking-tighter text-foreground">Estructura Operativa</h2>
+              <p className="text-sm text-muted-foreground font-medium">
+                LawStream sugiere una base según el tipo de asunto. Podés ajustarla ahora o después.
+              </p>
+            </div>
+
+            <div className="space-y-8">
+              {(!formData.type && !formData.subtype) ? (
+                <div className="p-12 border-2 border-dashed border-border rounded-3xl flex flex-col items-center justify-center text-center space-y-4">
+                  <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center text-muted-foreground">
+                    <LayoutDashboard size={32} />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-base font-bold text-foreground">Sin estructura sugerida</p>
+                    <p className="text-sm text-muted-foreground max-w-xs">
+                      Seleccioná tipo o subtipo para sugerir una estructura operativa inicial.
+                    </p>
+                  </div>
+                  <Button variant="outline" onClick={() => setStep(1)} className="mt-4">
+                    Volver a Identificación
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  {!formData.selectedTemplateId && (
+                    <div className="p-6 bg-amber-500/5 border border-amber-500/20 rounded-2xl flex items-start gap-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                      <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-600 shrink-0">
+                        <Info size={20} />
+                      </div>
+                      <div className="space-y-1">
+                        <h4 className="text-sm font-black text-amber-700 uppercase tracking-tight">No hay una plantilla específica para "{formData.subtype || formData.type}"</h4>
+                        <p className="text-xs text-amber-700/70 font-medium leading-relaxed">
+                          Podés continuar manualmente agregando las tareas, documentos e hitos que consideres necesarios para este asunto.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <Label>Checklist Inicial</Label>
+                        <Badge variant="outline" className="text-[9px]">Sugerido</Badge>
+                      </div>
+                      <div className="space-y-2">
+                        {formData.checklist.map(item => (
+                          <div
+                            key={item.task}
+                            onClick={() => handleToggleItem('checklist', item.task)}
+                            className="w-full p-3 rounded-xl border border-border/50 bg-muted/20 flex items-center justify-between hover:bg-muted/40 transition-all text-left group cursor-pointer"
+                            role="button"
+                            tabIndex={0}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                handleToggleItem('checklist', item.task);
+                              }
+                            }}
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className={cn(
+                                "w-5 h-5 rounded border flex items-center justify-center transition-all",
+                                item.completed ? "bg-primary border-primary" : "bg-background border-border"
+                              )}>
+                                {item.completed && <Check size={12} className="text-white" />}
+                              </div>
+                              <div className="flex flex-col">
+                                <span className={cn(
+                                  "text-xs font-medium transition-all",
+                                  item.completed ? "text-foreground line-through opacity-50" : "text-foreground"
+                                )}>{item.task}</span>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Badge 
+                                variant="outline" 
+                                className={cn(
+                                  "text-[8px] uppercase tracking-widest px-1.5 py-0 h-4",
+                                  item.priority === 'crítico' ? "border-rose-500/50 text-rose-500 bg-rose-500/5" :
+                                  item.priority === 'recomendado' ? "border-amber-500/50 text-amber-500 bg-amber-500/5" :
+                                  "border-muted-foreground/30 text-muted-foreground"
+                                )}
+                              >
+                                {item.priority}
+                              </Badge>
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleRemoveItem('checklist', item.task);
+                                }}
+                                className="opacity-0 group-hover:opacity-100 p-1 hover:bg-rose-500/10 hover:text-rose-500 rounded transition-all"
+                              >
+                                <X size={14} />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                        <button 
+                          onClick={() => handleAddItem('checklist')}
+                          className="w-full p-3 rounded-xl border border-dashed border-border hover:border-primary/50 hover:bg-primary/5 transition-all flex items-center gap-2 text-muted-foreground hover:text-primary"
+                        >
+                          <Plus size={14} />
+                          <span className="text-xs font-bold uppercase tracking-widest">Agregar item</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <Label>Hitos del Camino</Label>
+                        <Badge variant="outline" className="text-[9px]">Proyectado</Badge>
+                      </div>
+                      <div className="space-y-2">
+                        {formData.milestones.map((m, idx) => (
+                          <div
+                            key={m}
+                            className="w-full p-3 rounded-xl border border-border/50 bg-muted/20 flex items-center gap-3 relative overflow-hidden group"
+                          >
+                            <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary/20" />
+                            <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-black text-primary">
+                              {idx + 1}
+                            </div>
+                            <span className="text-xs font-medium text-foreground flex-1">{m}</span>
+                            <button 
+                              onClick={() => {
+                                setFormData(prev => ({
+                                  ...prev,
+                                  milestones: prev.milestones.filter(item => item !== m)
+                                }));
+                              }}
+                              className="opacity-0 group-hover:opacity-100 p-1 hover:bg-rose-500/10 hover:text-rose-500 rounded transition-all"
+                            >
+                              <X size={14} />
+                            </button>
+                          </div>
+                        ))}
+                        <button 
+                          onClick={() => handleAddItem('milestones')}
+                          className="w-full p-3 rounded-xl border border-dashed border-border hover:border-primary/50 hover:bg-primary/5 transition-all flex items-center gap-2 text-muted-foreground hover:text-primary"
+                        >
+                          <Plus size={14} />
+                          <span className="text-xs font-bold uppercase tracking-widest">Agregar hito</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <Label>Documentación Requerida</Label>
+                        <Badge variant="outline" className="text-[9px]">Base</Badge>
+                      </div>
+                      <div className="space-y-2">
+                        {formData.docs.map(doc => (
+                          <div
+                            key={doc.name}
+                            className="w-full p-3 rounded-xl border border-border/50 bg-muted/20 flex items-center justify-between group"
+                          >
+                            <div className="flex items-center gap-3">
+                              <FileText size={16} className={cn(
+                                "transition-colors",
+                                doc.uploaded ? "text-emerald-500" : "text-muted-foreground"
+                              )} />
+                              <div className="flex flex-col">
+                                <span className="text-xs font-medium text-foreground">{doc.name}</span>
+                                {doc.required && <span className="text-[8px] font-black uppercase tracking-widest text-rose-500">Requerido</span>}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button 
+                                onClick={() => handleToggleItem('docs', doc.name)}
+                                className={cn(
+                                  "p-1.5 rounded-lg transition-all",
+                                  doc.uploaded ? "bg-emerald-500/10 text-emerald-500" : "bg-muted hover:bg-primary/10 hover:text-primary"
+                                )}
+                              >
+                                {doc.uploaded ? <Check size={14} /> : <Plus size={14} />}
+                              </button>
+                              <button 
+                                onClick={() => handleRemoveItem('docs', doc.name)}
+                                className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-rose-500/10 hover:text-rose-500 rounded-lg transition-all"
+                              >
+                                <X size={14} />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                        <button 
+                          onClick={() => handleAddItem('docs')}
+                          className="w-full p-3 rounded-xl border border-dashed border-border hover:border-primary/50 hover:bg-primary/5 transition-all flex items-center gap-2 text-muted-foreground hover:text-primary"
+                        >
+                          <Plus size={14} />
+                          <span className="text-xs font-bold uppercase tracking-widest">Agregar documento</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <Label>Notas Internas / Observaciones</Label>
+                      <Textarea 
+                        placeholder="Cualquier detalle relevante para el equipo..."
+                        value={formData.notes}
+                        onChange={e => setFormData({...formData, notes: e.target.value})}
+                        className="min-h-[140px]"
+                      />
+                    </div>
+                  </div>
+
+                  {formData.blockers.length > 0 && (
+                    <div className="p-4 bg-rose-500/5 border border-rose-500/20 rounded-2xl space-y-3">
+                      <div className="flex items-center gap-2 text-rose-600">
+                        <ShieldAlert size={18} />
+                        <span className="text-xs font-black uppercase tracking-widest">Bloqueos Típicos Detectados</span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {formData.blockers.map(blocker => (
+                          <div key={blocker} className="flex items-center gap-2 text-xs font-medium text-rose-700/70">
+                            <div className="w-1 h-1 rounded-full bg-rose-500" />
+                            {blocker}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        );
+      case 4:
+        return (
+          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="space-y-2">
+              <h2 className="text-2xl font-black tracking-tighter text-foreground">Revisión y Alta</h2>
+              <p className="text-sm text-muted-foreground font-medium">
+                Todo listo. El asunto entrará al flujo operativo inmediatamente.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <Card className="p-6 border border-border/50 bg-muted/10 space-y-6">
+                <div className="space-y-4">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <div className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-1">Asunto</div>
+                      <div className="text-lg font-black tracking-tight text-foreground">{formData.title || 'Sin título'}</div>
+                      {formData.subtype && <div className="text-xs font-bold text-primary mt-0.5">{formData.subtype}</div>}
+                    </div>
+                    {formData.selectedTemplateId && (
+                      <Badge variant="outline" className="bg-primary/5 border-primary/20 text-primary text-[8px] font-black uppercase tracking-widest">
+                        Template Activo
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div>
+                      <div className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-1">Tipo</div>
+                      <Badge variant="outline" className="font-bold">{formData.type || 'No definido'}</Badge>
+                    </div>
+                    <div>
+                      <div className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-1">Prioridad</div>
+                      <div className={cn(
+                        "text-xs font-bold",
+                        formData.priority === 'Alta' ? "text-rose-600" : formData.priority === 'Media' ? "text-amber-600" : "text-sky-600"
+                      )}>{formData.priority}</div>
+                    </div>
+                    {formData.expediente && (
+                      <div>
+                        <div className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-1">Expediente</div>
+                        <div className="text-xs font-mono font-bold">{formData.expediente}</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-border/50 flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-black border border-primary/20">
+                    {formData.responsible.split(' ').map(n => n[0]).join('')}
+                  </div>
+                  <div>
+                    <div className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.2em]">Responsable</div>
+                    <div className="text-sm font-bold">{formData.responsible}</div>
+                  </div>
+                </div>
+              </Card>
+
+              <Card className="p-6 border border-primary/20 bg-primary/5 space-y-6">
+                <div className="flex items-center gap-2 text-primary">
+                  <Zap size={18} className="fill-primary" />
+                  <span className="text-xs font-black uppercase tracking-widest">Motor Operativo</span>
+                </div>
+                
+                <div className="space-y-4">
+                  <div>
+                    <div className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-1">Próxima Acción</div>
+                    <div className="text-base font-bold text-foreground">{formData.nextAction || 'Falta definir'}</div>
+                  </div>
+                  <div>
+                    <div className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-1">Fecha de Seguimiento</div>
+                    <div className="flex items-center gap-2 text-sm font-black text-foreground">
+                      <Calendar size={16} className="text-primary" />
+                      {formData.nextActionDate ? format(new Date(formData.nextActionDate), "d 'de' MMMM", { locale: es }) : '--'}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-primary/10">
+                  <div className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-2">Estructura Inicial</div>
+                  <div className="flex gap-4">
+                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground">
+                      <CheckCircle2 size={14} className="text-emerald-500" />
+                      {formData.checklist.length} Tareas
+                    </div>
+                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground">
+                      <FileText size={14} className="text-sky-500" />
+                      {formData.docs.length} Documentos
+                    </div>
+                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground">
+                      <Target size={14} className="text-amber-500" />
+                      {formData.milestones.length} Hitos
+                    </div>
+                    {formData.blockers.length > 0 && (
+                      <div className="flex items-center gap-1.5 text-[10px] font-bold text-rose-500">
+                        <ShieldAlert size={14} />
+                        {formData.blockers.length} Riesgos
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </Card>
+            </div>
+
+            <div className="p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-2xl flex items-center gap-4">
+              <div className="w-12 h-12 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-600">
+                <CheckCircle2 size={24} />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-foreground">Listo para el flujo</p>
+                <p className="text-xs text-muted-foreground font-medium">Al confirmar, el asunto se activará en la mesa de control de {formData.responsible.split(' ').pop()}.</p>
+              </div>
+            </div>
+          </div>
+        );
+    }
+  };
+
+  return (
+    <div className="max-w-7xl mx-auto py-8 px-4 lg:px-8">
+      <div className="flex flex-col lg:flex-row gap-12">
+        {/* Main Wizard Area */}
+        <div className="flex-1 max-w-3xl">
+          <header className="flex items-center justify-between mb-12">
+            <div className="flex items-center gap-4">
+              <button 
+                onClick={onBack}
+                className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all border border-transparent hover:border-border"
+              >
+                <ArrowLeft size={20} />
+              </button>
+              <div>
+                <h1 className="text-xs font-black uppercase tracking-[0.3em] text-primary">Nuevo Asunto</h1>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-2xl font-black tracking-tighter">LawStream</span>
+                  <span className="text-2xl font-light text-muted-foreground">/</span>
+                  <span className="text-2xl font-bold tracking-tighter text-muted-foreground">Alta Asistida</span>
+                </div>
+              </div>
+            </div>
+            
+            <button 
+              onClick={onBack}
+              className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all"
+            >
+              <X size={20} />
+            </button>
+          </header>
+
+          {/* Stepper */}
+          <div className="flex items-center justify-between mb-12 relative">
+            <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-[1px] bg-border -z-10" />
+            {steps.map((s) => {
+              const Icon = s.icon;
+              const isActive = step === s.id;
+              const isCompleted = step > s.id;
+              
+              return (
+                <div key={s.id} className="flex flex-col items-center gap-3 bg-background px-4">
+                  <div className={cn(
+                    "w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-500 border-2",
+                    isActive ? "bg-primary border-primary text-white shadow-lg shadow-primary/20 scale-110" : 
+                    isCompleted ? "bg-emerald-500 border-emerald-500 text-white" : 
+                    "bg-background border-border text-muted-foreground"
+                  )}>
+                    {isCompleted ? <Check size={20} /> : <Icon size={20} />}
+                  </div>
+                  <span className={cn(
+                    "text-[10px] font-black uppercase tracking-widest transition-colors",
+                    isActive ? "text-primary" : "text-muted-foreground"
+                  )}>
+                    {s.label}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="min-h-[450px]">
+            {renderStep()}
+          </div>
+
+          <footer className="mt-12 flex items-center justify-between pt-8 border-t border-border">
+            <Button 
+              variant="ghost" 
+              onClick={prevStep}
+              disabled={step === 1}
+              className="gap-2"
+            >
+              <ArrowLeft size={16} />
+              Anterior
+            </Button>
+            
+            <div className="flex items-center gap-4">
+              <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Paso {step} de 4</span>
+              {step < 4 ? (
+                <Button 
+                  onClick={nextStep}
+                  disabled={!validateStep(step)}
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2 px-8"
+                >
+                  Continuar
+                  <ArrowRight size={16} />
+                </Button>
+              ) : (
+                <Button 
+                  onClick={() => onSave({ ...formData, client: selectedClient?.name || '' })}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2 px-8"
+                >
+                  Confirmar y Activar
+                  <CheckCircle2 size={16} />
+                </Button>
+              )}
+            </div>
+          </footer>
+        </div>
+
+        {/* Live Summary Sidebar */}
+        <aside className="hidden lg:block w-80 shrink-0">
+          <div className="sticky top-8 space-y-6">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Resumen en vivo</span>
+            </div>
+
+            <Card className="p-6 border border-border/50 bg-card/50 backdrop-blur-sm space-y-8 relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full -mr-16 -mt-16 blur-3xl" />
+              
+              <div className="space-y-6 relative">
+                {/* Matter Identity */}
+                <div className="space-y-4">
+                  <div className="space-y-1">
+                    <div className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.2em]">Asunto</div>
+                    <div className={cn(
+                      "text-base font-black tracking-tight transition-all",
+                      formData.title ? "text-foreground" : "text-muted-foreground/30 italic"
+                    )}>
+                      {formData.title || 'Sin título aún'}
+                    </div>
+                    {formData.subtype && (
+                      <div className="text-[10px] font-bold text-primary animate-in fade-in slide-in-from-left-2">
+                        {formData.subtype}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 space-y-1">
+                      <div className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.2em]">Cliente</div>
+                      <div className={cn(
+                        "text-xs font-bold transition-all",
+                        selectedClient ? "text-foreground" : "text-muted-foreground/30"
+                      )}>
+                        {selectedClient?.name || 'No seleccionado'}
+                      </div>
+                    </div>
+                    {formData.type && (
+                      <Badge variant="outline" className="bg-primary/5 border-primary/20 text-primary font-bold">
+                        {formData.type}
+                      </Badge>
+                    )}
+                  </div>
+
+                  {formData.description && (
+                    <div className="p-3 rounded-xl bg-muted/20 border border-border/50 animate-in fade-in slide-in-from-top-2">
+                      <div className="text-[8px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-1">Descripción</div>
+                      <p className="text-[10px] font-medium text-foreground line-clamp-2 leading-relaxed italic">
+                        "{formData.description}"
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Operational Motor */}
+                <div className="space-y-4 pt-6 border-t border-border/50">
+                  <div className="space-y-1">
+                    <div className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.2em]">Responsable</div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center text-[8px] font-black text-primary border border-primary/20">
+                        {formData.responsible.split(' ').map(n => n[0]).join('')}
+                      </div>
+                      <span className="text-xs font-bold text-foreground">{formData.responsible}</span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <div className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.2em]">Próxima Acción</div>
+                    <div className={cn(
+                      "text-xs font-bold transition-all",
+                      formData.nextAction ? "text-primary" : "text-muted-foreground/30"
+                    )}>
+                      {formData.nextAction || 'Pendiente de definir'}
+                    </div>
+                    {formData.nextActionDate && (
+                      <div className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground mt-1">
+                        <Calendar size={12} />
+                        {format(new Date(formData.nextActionDate), "d 'de' MMM", { locale: es })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Structure Progress */}
+                <div className="space-y-4 pt-6 border-t border-border/50">
+                  <div className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-3">Estructura Operativa</div>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-[10px] font-bold">
+                      <span className="text-muted-foreground">Tareas iniciales</span>
+                      <span className="text-foreground">{formData.checklist.length}</span>
+                    </div>
+                    <div className="w-full h-1 bg-muted rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-emerald-500 transition-all duration-500" 
+                        style={{ width: `${(formData.checklist.length / 5) * 100}%` }} 
+                      />
+                    </div>
+                    <div className="flex items-center justify-between text-[10px] font-bold">
+                      <span className="text-muted-foreground">Documentación</span>
+                      <span className="text-foreground">{formData.docs.length}</span>
+                    </div>
+                    <div className="w-full h-1 bg-muted rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-sky-500 transition-all duration-500" 
+                        style={{ width: `${(formData.docs.length / 5) * 100}%` }} 
+                      />
+                    </div>
+                    <div className="flex items-center justify-between text-[10px] font-bold">
+                      <span className="text-muted-foreground">Hitos proyectados</span>
+                      <span className="text-foreground">{formData.milestones.length}</span>
+                    </div>
+                    <div className="w-full h-1 bg-muted rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-amber-500 transition-all duration-500" 
+                        style={{ width: `${(formData.milestones.length / 4) * 100}%` }} 
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </Card>
+
+            <div className="p-4 rounded-2xl bg-muted/30 border border-border/50">
+              <div className="flex items-center gap-2 mb-2">
+                <Info size={14} className="text-primary" />
+                <span className="text-[10px] font-black uppercase tracking-widest text-foreground">Tip Lawstream</span>
+              </div>
+              <p className="text-[10px] text-muted-foreground leading-relaxed font-medium">
+                Un asunto con responsable y próxima acción clara tiene un 80% más de probabilidades de avanzar sin bloqueos.
+              </p>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>
+  );
+};
