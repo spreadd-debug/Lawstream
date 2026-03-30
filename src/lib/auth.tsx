@@ -29,13 +29,33 @@ const toProfile = (row: any): UserProfile => ({
 });
 
 async function fetchProfile(userId: string): Promise<UserProfile | null> {
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', userId)
-    .single();
-  if (error || !data) return null;
-  return toProfile(data);
+  try {
+    const result = await Promise.race([
+      supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single(),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Timeout cargando profile')), 8000)
+      ),
+    ]);
+
+    const { data, error } = result as {
+      data: any;
+      error: any;
+    };
+
+    if (error || !data) {
+      console.error('fetchProfile error:', error);
+      return null;
+    }
+
+    return toProfile(data);
+  } catch (err) {
+    console.error('fetchProfile excepción:', err);
+    return null;
+  }
 }
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -47,58 +67,165 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
 
   useEffect(() => {
-    // Obtener sesión actual
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (session?.user) {
-        const profile = await fetchProfile(session.user.id);
-        setState({ session, user: session.user, profile, isLoading: false });
-      } else {
-        setState({ session: null, user: null, profile: null, isLoading: false });
-      }
-    });
+    let mounted = true;
 
-    // Escuchar cambios de auth
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+    const safeSetState = (next: AuthState) => {
+      if (!mounted) return;
+      setState(next);
+    };
+
+    const applySession = async (session: Session | null) => {
+      try {
+        // Primero destrabamos la app rápido
+        safeSetState({
+          session,
+          user: session?.user ?? null,
+          profile: null,
+          isLoading: false,
+        });
+
+        // Después intentamos cargar profile, pero sin bloquear toda la app
         if (session?.user) {
           const profile = await fetchProfile(session.user.id);
-          setState({ session, user: session.user, profile, isLoading: false });
-        } else {
-          setState({ session: null, user: null, profile: null, isLoading: false });
-        }
-      }
-    );
 
-    return () => subscription.unsubscribe();
+          if (!mounted) return;
+
+          setState(prev => ({
+            ...prev,
+            session,
+            user: session.user,
+            profile,
+            isLoading: false,
+          }));
+        }
+      } catch (err) {
+        console.error('Error applying session:', err);
+
+        safeSetState({
+          session,
+          user: session?.user ?? null,
+          profile: null,
+          isLoading: false,
+        });
+      }
+    };
+
+    const init = async () => {
+      try {
+        const { data, error } = await supabase.auth.getSession();
+
+        if (error) {
+          console.error('getSession error:', error);
+          safeSetState({
+            session: null,
+            user: null,
+            profile: null,
+            isLoading: false,
+          });
+          return;
+        }
+
+        await applySession(data.session ?? null);
+      } catch (err) {
+        console.error('Error initializing auth:', err);
+
+        safeSetState({
+          session: null,
+          user: null,
+          profile: null,
+          isLoading: false,
+        });
+      }
+    };
+
+    void init();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('onAuthStateChange:', event);
+
+      // Importante: no hacer await directo acá con otras calls de Supabase
+      window.setTimeout(() => {
+        void applySession(session ?? null);
+      }, 0);
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return { error: error?.message ?? null };
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      return { error: error?.message ?? null };
+    } catch (err) {
+      console.error('signIn error:', err);
+      return {
+        error: err instanceof Error ? err.message : 'No se pudo iniciar sesión.',
+      };
+    }
   };
 
   const signUp = async (email: string, password: string, fullName: string) => {
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { data: { full_name: fullName } },
-    });
-    return { error: error?.message ?? null };
+    try {
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { data: { full_name: fullName } },
+      });
+
+      return { error: error?.message ?? null };
+    } catch (err) {
+      console.error('signUp error:', err);
+      return {
+        error: err instanceof Error ? err.message : 'No se pudo crear la cuenta.',
+      };
+    }
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    try {
+      await supabase.auth.signOut();
+
+      setState({
+        session: null,
+        user: null,
+        profile: null,
+        isLoading: false,
+      });
+    } catch (err) {
+      console.error('signOut error:', err);
+    }
   };
 
   const refreshProfile = async () => {
-    if (state.user) {
+    try {
+      if (!state.user) return;
+
       const profile = await fetchProfile(state.user.id);
-      setState(prev => ({ ...prev, profile }));
+
+      setState(prev => ({
+        ...prev,
+        profile,
+      }));
+    } catch (err) {
+      console.error('refreshProfile error:', err);
     }
   };
 
   return (
-    <AuthContext.Provider value={{ ...state, signIn, signUp, signOut, refreshProfile }}>
+    <AuthContext.Provider
+      value={{
+        ...state,
+        signIn,
+        signUp,
+        signOut,
+        refreshProfile,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
