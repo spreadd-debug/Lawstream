@@ -255,6 +255,29 @@ export const updateConsultation = async (id: string, changes: Partial<Consultati
   if (error) throw error;
 };
 
+export const createConsultation = async (c: Omit<Consultation, 'id'>): Promise<Consultation> => {
+  const { data, error } = await supabase
+    .from('consultations')
+    .insert({
+      name:                 c.name,
+      status:               c.status,
+      date:                 c.date,
+      origin:               c.origin,
+      next_step:            c.nextStep,
+      responsible:          c.responsible ?? null,
+      type:                 c.type ?? null,
+      description:          c.description ?? null,
+      email:                c.email ?? null,
+      phone:                c.phone ?? null,
+      notes:                c.notes ?? null,
+      consultation_fee_paid: c.consultationFeePaid ?? false,
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return toConsultation(data);
+};
+
 export const fetchConsultations = async (): Promise<Consultation[]> => {
   const { data, error } = await supabase
     .from('consultations')

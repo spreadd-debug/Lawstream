@@ -319,6 +319,20 @@ export default function App() {
               setPrefilledMatter(data);
               setActiveTab('crear_asunto');
             }}
+            onUpdateConsultation={(id, changes) => {
+              setConsultations(prev => prev.map(c => c.id === id ? { ...c, ...changes } : c));
+            }}
+            onCreateConsultation={async (data) => {
+              const optimistic = { ...data, id: crypto.randomUUID() };
+              setConsultations(prev => [optimistic, ...prev]);
+              try {
+                const saved = await db.createConsultation(data);
+                setConsultations(prev => prev.map(c => c.id === optimistic.id ? saved : c));
+              } catch (err) {
+                console.error('Error creando consulta:', err);
+                setConsultations(prev => prev.filter(c => c.id !== optimistic.id));
+              }
+            }}
           />
         );
       case 'asuntos':

@@ -26,20 +26,23 @@ import { cn } from '../lib/utils';
 import { fetchPresupuestoByConsultation, updateConsultation } from '../lib/db';
 import { PresupuestoEditor } from './PresupuestoEditor';
 import { PresupuestoDetail } from './PresupuestoDetail';
+import { NuevaConsultaForm } from './NuevaConsultaForm';
 
 interface ConsultasProps {
   consultations: Consultation[];
   onConvertToMatter: (data: any) => void;
   onUpdateConsultation?: (id: string, changes: Partial<Consultation>) => void;
+  onCreateConsultation?: (data: Omit<Consultation, 'id'>) => Promise<void>;
 }
 
-export const Consultas = ({ consultations, onConvertToMatter, onUpdateConsultation }: ConsultasProps) => {
+export const Consultas = ({ consultations, onConvertToMatter, onUpdateConsultation, onCreateConsultation }: ConsultasProps) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('Todas');
   const [selectedConsultation, setSelectedConsultation] = useState<Consultation | null>(null);
   const [presupuesto, setPresupuesto] = useState<Presupuesto | null>(null);
   const [loadingPresupuesto, setLoadingPresupuesto] = useState(false);
   const [showPresupuestoForm, setShowPresupuestoForm] = useState(false);
+  const [showNuevaConsulta, setShowNuevaConsulta] = useState(false);
 
   useEffect(() => {
     if (!selectedConsultation) { setPresupuesto(null); return; }
@@ -90,7 +93,10 @@ export const Consultas = ({ consultations, onConvertToMatter, onUpdateConsultati
             Gestión de leads y nuevos asuntos potenciales
           </p>
         </div>
-        <Button className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2">
+        <Button
+          className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2"
+          onClick={() => setShowNuevaConsulta(true)}
+        >
           <Plus size={16} />
           <span>Nueva Consulta</span>
         </Button>
@@ -158,6 +164,7 @@ export const Consultas = ({ consultations, onConvertToMatter, onUpdateConsultati
                 </p>
                 <Button
                   className="mt-8 bg-primary hover:bg-primary/90 text-primary-foreground gap-2 h-10 px-6 rounded-xl text-[11px] font-black uppercase tracking-widest"
+                  onClick={() => setShowNuevaConsulta(true)}
                 >
                   <Plus size={14} />
                   Nueva Consulta
@@ -194,13 +201,34 @@ export const Consultas = ({ consultations, onConvertToMatter, onUpdateConsultati
           />
           <div className="relative w-full max-w-xl bg-card border-l border-border shadow-2xl animate-in slide-in-from-right duration-300 flex flex-col">
             <header className="p-6 border-b border-border flex items-center justify-between">
-              <div>
-                <StatusBadge status={selectedConsultation.status} />
-                <h2 className="text-xl font-black tracking-tight mt-2">{selectedConsultation.name}</h2>
+              <div className="flex-1 min-w-0">
+                <h2 className="text-xl font-black tracking-tight">{selectedConsultation.name}</h2>
+                {/* Status selector */}
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {(['Nueva', 'Contactada', 'Esperando info', 'Evaluando viabilidad', 'Presupuestada', 'Aceptada', 'Rechazada', 'Archivada'] as Consultation['status'][]).map(s => (
+                    <button
+                      key={s}
+                      onClick={async () => {
+                        await updateConsultation(selectedConsultation.id, { status: s });
+                        const updated = { ...selectedConsultation, status: s };
+                        setSelectedConsultation(updated);
+                        onUpdateConsultation?.(selectedConsultation.id, { status: s });
+                      }}
+                      className={cn(
+                        'px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-[0.15em] border transition-all',
+                        selectedConsultation.status === s
+                          ? 'ring-2 ring-primary ring-offset-1 opacity-100'
+                          : 'opacity-40 hover:opacity-70'
+                      )}
+                    >
+                      <StatusBadge status={s} />
+                    </button>
+                  ))}
+                </div>
               </div>
-              <button 
+              <button
                 onClick={() => setSelectedConsultation(null)}
-                className="p-2 hover:bg-muted rounded-full transition-colors"
+                className="p-2 hover:bg-muted rounded-full transition-colors ml-2 shrink-0"
               >
                 <X size={20} />
               </button>
@@ -407,6 +435,17 @@ export const Consultas = ({ consultations, onConvertToMatter, onUpdateConsultati
           onSaved={(saved) => {
             setPresupuesto(saved);
             setShowPresupuestoForm(false);
+          }}
+        />
+      )}
+
+      {/* Nueva Consulta Modal */}
+      {showNuevaConsulta && (
+        <NuevaConsultaForm
+          onClose={() => setShowNuevaConsulta(false)}
+          onSave={async (data) => {
+            await onCreateConsultation?.(data);
+            setShowNuevaConsulta(false);
           }}
         />
       )}
