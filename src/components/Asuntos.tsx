@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, Badge, Button, Input } from './UI';
-import { Matter } from '../types';
+import { Matter, Expediente } from '../types';
+import { fetchAllExpedientes } from '../lib/db';
+import { ESTADO_COLORS } from '../data/juzgados';
 import { 
   Search, 
   Filter, 
@@ -47,7 +49,17 @@ export const Asuntos = ({ matters, onSelectMatter, onCreateMatter }: AsuntosProp
   const [filterType, setFilterType] = useState<string>('Todos');
   const [filterSubtype, setFilterSubtype] = useState<string>('Todos');
   const [filterPriority, setFilterPriority] = useState<string>('Todos');
+  const [filterEstado, setFilterEstado] = useState<string>('Todos');
   const [showFilters, setShowFilters] = useState(false);
+  const [expedientesMap, setExpedientesMap] = useState<Record<string, Expediente>>({});
+
+  useEffect(() => {
+    fetchAllExpedientes().then(list => {
+      const map: Record<string, Expediente> = {};
+      list.forEach(e => { map[e.matterId] = e; });
+      setExpedientesMap(map);
+    });
+  }, []);
   const [activeQuickFilters, setActiveQuickFilters] = useState<string[]>([]);
 
   const responsibles = Array.from(new Set(matters.map(m => m.responsible))).filter(Boolean);
@@ -80,7 +92,9 @@ export const Asuntos = ({ matters, onSelectMatter, onCreateMatter }: AsuntosProp
     if (activeQuickFilters.includes('Sin Responsable') && m.responsible !== '') matchesQuickFilters = false;
     if (activeQuickFilters.includes('Inactivos') && m.status !== 'Pausado' && m.status !== 'Suspendido') matchesQuickFilters = false;
     
-    return matchesSearch && matchesHealth && matchesResponsible && matchesType && matchesSubtype && matchesPriority && matchesQuickFilters;
+    const exp = expedientesMap[m.id];
+    const matchesEstado = filterEstado === 'Todos' || exp?.estadoTroncal === filterEstado;
+    return matchesSearch && matchesHealth && matchesResponsible && matchesType && matchesSubtype && matchesPriority && matchesQuickFilters && matchesEstado;
   });
 
   return (
@@ -173,6 +187,24 @@ export const Asuntos = ({ matters, onSelectMatter, onCreateMatter }: AsuntosProp
                 <option value="En espera">En espera</option>
               </select>
             </div>
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Estado Procesal (MEV)</label>
+              <select
+                className="w-full h-10 bg-background border border-border rounded-lg px-3 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary/20"
+                value={filterEstado}
+                onChange={(e) => setFilterEstado(e.target.value)}
+              >
+                <option value="Todos">Todos</option>
+                <option value="Sin presentar">Sin presentar</option>
+                <option value="Presentado en MEV">Presentado en MEV</option>
+                <option value="Sorteado">Sorteado</option>
+                <option value="A Despacho">A Despacho</option>
+                <option value="En Letra">En Letra</option>
+                <option value="Fuera de Letra">Fuera de Letra</option>
+                <option value="Fuera del Organismo">Fuera del Organismo</option>
+                <option value="Paralizado">Paralizado</option>
+              </select>
+            </div>
           </div>
           <div className="mt-6 pt-4 border-t border-border/50 flex flex-wrap gap-2">
              <FilterBadge 
@@ -253,11 +285,12 @@ export const Asuntos = ({ matters, onSelectMatter, onCreateMatter }: AsuntosProp
       )}>
         {filteredMatters.length > 0 ? (
           filteredMatters.map((matter) => (
-            <MatterItem 
-              key={matter.id} 
-              matter={matter} 
+            <MatterItem
+              key={matter.id}
+              matter={matter}
               viewMode={viewMode}
               onClick={() => onSelectMatter(matter.id)}
+              expediente={expedientesMap[matter.id]}
             />
           ))
         ) : (
@@ -268,26 +301,44 @@ export const Asuntos = ({ matters, onSelectMatter, onCreateMatter }: AsuntosProp
             <div className="w-20 h-20 bg-muted/50 rounded-full flex items-center justify-center mx-auto mb-6">
               <ShieldAlert className="text-muted-foreground/30" size={40} />
             </div>
-            <h3 className="text-lg font-black text-foreground uppercase tracking-tight">No se encontraron asuntos</h3>
-            <p className="text-sm font-medium text-muted-foreground max-w-xs mx-auto mt-2">
-              No hay asuntos que coincidan con los filtros seleccionados.
-            </p>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="mt-8 text-[10px] font-black uppercase tracking-widest h-10 px-6 rounded-xl"
-              onClick={() => {
-                setFilterHealth('Todos');
-                setFilterResponsible('Todos');
-                setFilterType('Todos');
-                setFilterSubtype('Todos');
-                setFilterPriority('Todos');
-                setSearchTerm('');
-                setActiveQuickFilters([]);
-              }}
-            >
-              Limpiar Filtros
-            </Button>
+            {matters.length === 0 ? (
+              <>
+                <h3 className="text-lg font-black text-foreground uppercase tracking-tight">Sin asuntos aún</h3>
+                <p className="text-sm font-medium text-muted-foreground max-w-xs mx-auto mt-2">
+                  Creá el primer asunto para empezar a gestionar tu cartera.
+                </p>
+                <Button
+                  className="mt-8 bg-primary hover:bg-primary/90 text-primary-foreground gap-2 h-10 px-6 rounded-xl text-[11px] font-black uppercase tracking-widest"
+                  onClick={onCreateMatter}
+                >
+                  <Plus size={14} />
+                  Nuevo Asunto
+                </Button>
+              </>
+            ) : (
+              <>
+                <h3 className="text-lg font-black text-foreground uppercase tracking-tight">Sin resultados</h3>
+                <p className="text-sm font-medium text-muted-foreground max-w-xs mx-auto mt-2">
+                  {searchTerm ? `No hay asuntos que coincidan con "${searchTerm}".` : 'No hay asuntos que coincidan con los filtros activos.'}
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-8 text-[10px] font-black uppercase tracking-widest h-10 px-6 rounded-xl"
+                  onClick={() => {
+                    setFilterHealth('Todos');
+                    setFilterResponsible('Todos');
+                    setFilterType('Todos');
+                    setFilterSubtype('Todos');
+                    setFilterPriority('Todos');
+                    setSearchTerm('');
+                    setActiveQuickFilters([]);
+                  }}
+                >
+                  Limpiar Filtros
+                </Button>
+              </>
+            )}
           </div>
         )}
       </div>
@@ -313,9 +364,10 @@ interface MatterItemProps {
   matter: Matter;
   viewMode: 'list' | 'grid';
   onClick: () => void;
+  expediente?: Expediente;
 }
 
-const MatterItem: React.FC<MatterItemProps> = ({ matter, viewMode, onClick }) => {
+const MatterItem: React.FC<MatterItemProps> = ({ matter, viewMode, onClick, expediente }) => {
   const isOverdue = matter.nextActionDate && isPast(parseISO(matter.nextActionDate)) && !isToday(parseISO(matter.nextActionDate));
   const isTodayAction = matter.nextActionDate && isToday(parseISO(matter.nextActionDate));
   const daysSinceActivity = differenceInDays(new Date(), parseISO(matter.lastActivity));
@@ -435,12 +487,19 @@ const MatterItem: React.FC<MatterItemProps> = ({ matter, viewMode, onClick }) =>
         {/* Status & ID */}
         <div className="flex items-center gap-4 lg:w-40 shrink-0">
           <HealthBadge health={matter.health} />
-          <div className="flex flex-col">
+          <div className="flex flex-col gap-1">
             <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest leading-none">
               {matter.type}
             </span>
-            {matter.expediente && (
-              <span className="font-mono text-[9px] text-muted-foreground mt-1">{matter.expediente}</span>
+            {expediente ? (
+              <span className={cn(
+                'px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wide w-fit',
+                ESTADO_COLORS[expediente.estadoTroncal]
+              )}>
+                {expediente.estadoTroncal}
+              </span>
+            ) : (
+              <span className="text-[9px] text-muted-foreground/50">Sin exp.</span>
             )}
           </div>
         </div>
@@ -515,8 +574,8 @@ const MatterItem: React.FC<MatterItemProps> = ({ matter, viewMode, onClick }) =>
           </div>
         </div>
 
-        {/* Actions */}
-        <div className="flex items-center gap-1 shrink-0 border-l border-border/50 pl-4">
+        {/* Actions — visible only on row hover */}
+        <div className="flex items-center gap-1 shrink-0 border-l border-border/50 pl-4 opacity-0 group-hover:opacity-100 transition-opacity">
           <button className="p-2 text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-lg transition-all" title="Abrir Asunto" onClick={(e) => { e.stopPropagation(); onClick(); }}>
             <ExternalLink size={16} />
           </button>

@@ -1,12 +1,12 @@
-import React, { useState } from 'react';
-import { 
-  ArrowLeft, 
-  Calendar, 
-  Clock, 
-  User, 
-  FileText, 
-  CheckCircle2, 
-  MoreHorizontal, 
+import React, { useState, useEffect } from 'react';
+import {
+  ArrowLeft,
+  Calendar,
+  Clock,
+  User,
+  FileText,
+  CheckCircle2,
+  MoreHorizontal,
   Paperclip,
   MessageSquare,
   History,
@@ -27,12 +27,16 @@ import {
   Coins,
   Activity as ActivityIcon
 } from 'lucide-react';
-import { Matter, TimelineEvent, Task, LegalDocument } from '../types';
+import { Matter, TimelineEvent, Task, LegalDocument, Expediente } from '../types';
 import { Badge, Card, Button, Modal, Input, Textarea, Select } from './UI';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
+import { fetchExpediente } from '../lib/db';
+import { ExpedienteForm } from './ExpedienteForm';
+import { ExpedienteDetail } from './ExpedienteDetail';
+import { ESTADO_COLORS } from '../data/juzgados';
 
 interface MatterDetailProps {
   matter: Matter;
@@ -51,6 +55,12 @@ export const MatterDetail = ({ matter, timeline, tasks, documents, onBack, onNew
   const [isAddMilestoneOpen, setIsAddMilestoneOpen] = useState(false);
   const [showAllTasks, setShowAllTasks] = useState(false);
   const [showAllHistory, setShowAllHistory] = useState(false);
+  const [expediente, setExpediente] = useState<Expediente | null | undefined>(undefined);
+  const [showExpedienteForm, setShowExpedienteForm] = useState(false);
+
+  useEffect(() => {
+    fetchExpediente(matter.id).then(setExpediente);
+  }, [matter.id]);
 
   const missingDocs = documents.filter(d => d.status === 'Faltante');
   const criticalTasks = tasks.filter(t => t.priority === 'Alta' && t.status !== 'Completada');
@@ -80,11 +90,29 @@ export const MatterDetail = ({ matter, timeline, tasks, documents, onBack, onNew
 
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
           <div className="space-y-2">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
               <Badge variant="outline" className="text-[9px] font-black uppercase tracking-widest border-border/50">{matter.type}</Badge>
-              <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest opacity-40">Exp: {matter.expediente || 'S/D'}</span>
+              {expediente ? (
+                <>
+                  <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest opacity-60">
+                    Exp: {expediente.nroJuzgado || expediente.nroReceptoria || 'Sin número'}
+                  </span>
+                  <span className={cn(
+                    'px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wide',
+                    ESTADO_COLORS[expediente.estadoTroncal]
+                  )}>
+                    {expediente.estadoTroncal}
+                    {expediente.subestado ? ` · ${expediente.subestado}` : ''}
+                  </span>
+                </>
+              ) : (
+                <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest opacity-40">Sin expediente judicial</span>
+              )}
             </div>
-            <h1 className="text-3xl md:text-5xl font-black text-foreground tracking-tighter leading-[0.9]">{matter.title}</h1>
+            <h1
+              title={matter.title}
+              className="text-2xl md:text-4xl font-black text-foreground tracking-tighter leading-[0.95] line-clamp-2"
+            >{matter.title}</h1>
             <p className="text-sm font-bold text-muted-foreground uppercase tracking-tight">{matter.client}</p>
           </div>
 
@@ -483,13 +511,59 @@ export const MatterDetail = ({ matter, timeline, tasks, documents, onBack, onNew
             </Card>
           </section>
 
+          {/* EXPEDIENTE JUDICIAL */}
+          <section className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em]">Expediente Judicial</h3>
+            </div>
+            {expediente === undefined ? (
+              <div className="p-4 text-xs text-muted-foreground">Cargando...</div>
+            ) : expediente ? (
+              <Card className="p-5 bg-muted/30 border-border">
+                <ExpedienteDetail
+                  expediente={expediente}
+                  onUpdated={setExpediente}
+                  onEdit={() => setShowExpedienteForm(true)}
+                />
+              </Card>
+            ) : (
+              <button
+                onClick={() => setShowExpedienteForm(true)}
+                className="w-full flex items-center gap-4 p-5 rounded-2xl border-2 border-dashed border-border hover:border-primary hover:bg-primary/5 transition-colors group"
+              >
+                <div className="p-3 rounded-xl bg-muted group-hover:bg-primary/10 transition-colors">
+                  <Scale size={20} className="text-muted-foreground group-hover:text-primary" />
+                </div>
+                <div className="text-left">
+                  <p className="text-sm font-bold">Crear expediente judicial</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Carátula, fuero, juzgado, MEV y seguimiento de estados procesales</p>
+                </div>
+              </button>
+            )}
+          </section>
+
           {/* VÍNCULOS RÁPIDOS */}
-          <section className="space-y-6">
+          <section className="space-y-4">
             <h3 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em]">Consolas Externas</h3>
             <div className="grid grid-cols-1 gap-2">
-              <QuickLink icon={ExternalLink} label="PJN - Consulta de causas" />
-              <QuickLink icon={MessageSquare} label="WhatsApp Cliente" />
-              <QuickLink icon={Paperclip} label="Carpeta Drive" />
+              <QuickLink
+                icon={ExternalLink}
+                label="Consultar PJN"
+                description="Poder Judicial de la Nación — consulta de causas"
+                iconColor="text-primary bg-primary/10"
+              />
+              <QuickLink
+                icon={MessageSquare}
+                label="WhatsApp Cliente"
+                description="Abrir conversación directa con el cliente"
+                iconColor="text-emerald-600 bg-emerald-500/10"
+              />
+              <QuickLink
+                icon={Paperclip}
+                label="Carpeta Drive"
+                description="Documentación del asunto en Google Drive"
+                iconColor="text-amber-600 bg-amber-500/10"
+              />
             </div>
           </section>
 
@@ -509,6 +583,19 @@ export const MatterDetail = ({ matter, timeline, tasks, documents, onBack, onNew
           </section>
         </div>
       </div>
+
+      {/* ExpedienteForm Modal */}
+      {showExpedienteForm && (
+        <ExpedienteForm
+          matter={matter}
+          existing={expediente ?? undefined}
+          onClose={() => setShowExpedienteForm(false)}
+          onSaved={(saved) => {
+            setExpediente(saved);
+            setShowExpedienteForm(false);
+          }}
+        />
+      )}
 
       {/* Modals for Quick Actions */}
       <Modal
@@ -682,13 +769,18 @@ const HealthBadge = ({ health }: { health: Matter['health'] }) => {
   );
 };
 
-const QuickLink = ({ icon: Icon, label }: { icon: any, label: string }) => (
-  <button className="w-full flex items-center justify-between p-4 bg-card border border-border rounded-xl hover:border-primary/30 hover:shadow-md transition-all group">
+const QuickLink = ({ icon: Icon, label, description, iconColor }: { icon: any, label: string, description: string, iconColor: string }) => (
+  <button className="w-full flex items-center justify-between p-4 bg-card border border-border rounded-xl hover:border-primary/30 hover:bg-muted/20 hover:shadow-sm transition-all group cursor-pointer">
     <div className="flex items-center gap-4">
-      <Icon size={18} className="text-muted-foreground group-hover:text-primary transition-colors" />
-      <span className="text-sm font-bold text-foreground/80 group-hover:text-foreground transition-colors">{label}</span>
+      <div className={cn('w-9 h-9 rounded-lg flex items-center justify-center shrink-0', iconColor)}>
+        <Icon size={17} />
+      </div>
+      <div className="text-left">
+        <p className="text-sm font-bold text-foreground group-hover:text-primary transition-colors">{label} →</p>
+        <p className="text-[10px] font-medium text-muted-foreground mt-0.5">{description}</p>
+      </div>
     </div>
-    <ChevronRight size={16} className="text-muted-foreground/30 group-hover:text-primary transition-all group-hover:translate-x-1" />
+    <ChevronRight size={16} className="text-muted-foreground/30 group-hover:text-primary transition-all group-hover:translate-x-1 shrink-0" />
   </button>
 );
 

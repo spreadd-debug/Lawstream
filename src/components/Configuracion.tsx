@@ -1,25 +1,263 @@
-import React, { useState } from 'react';
-import { Card, Button } from './UI';
-import { User, Shield, Briefcase, FileText, Bell, CreditCard, ChevronRight, LogOut } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Card, Button, Input } from './UI';
+import { User, Shield, Briefcase, FileText, Bell, CreditCard, ChevronRight, LogOut, Calculator, Check, ArrowLeft, Upload, Building2 } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { UsuariosConfig } from './UsuariosConfig';
+import { fetchStudioConfig, upsertStudioConfig, fetchEstudioPerfil, upsertEstudioPerfil, uploadEstudioAsset } from '../lib/db';
+import { EstudioPerfil } from '../types';
+import { format, parseISO } from 'date-fns';
+import { es } from 'date-fns/locale';
+
+const EstudioPerfilConfig = ({ onBack }: { onBack: () => void }) => {
+  const [perfil, setPerfil] = useState<EstudioPerfil>({ nombre: '' });
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved]   = useState(false);
+  const [uploading, setUploading] = useState<'logo' | 'firma' | null>(null);
+
+  useEffect(() => {
+    fetchEstudioPerfil().then(setPerfil);
+  }, []);
+
+  const set = (field: keyof EstudioPerfil, value: string) =>
+    setPerfil(prev => ({ ...prev, [field]: value }));
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await upsertEstudioPerfil(perfil);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'firma') => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(type);
+    try {
+      const url = await uploadEstudioAsset(file, type);
+      if (type === 'logo')  set('logoUrl',  url);
+      if (type === 'firma') set('firmaUrl', url);
+    } catch {
+      alert('Error al subir la imagen. Verificá que el bucket "estudio-assets" existe en Supabase Storage.');
+    } finally {
+      setUploading(null);
+    }
+  };
+
+  const Field = ({ label, field, placeholder, hint }: { label: string, field: keyof EstudioPerfil, placeholder?: string, hint?: string }) => (
+    <div className="space-y-1.5">
+      <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">{label}</label>
+      <Input
+        value={(perfil[field] as string) ?? ''}
+        onChange={e => set(field, e.target.value)}
+        placeholder={placeholder}
+      />
+      {hint && <p className="text-[10px] text-muted-foreground">{hint}</p>}
+    </div>
+  );
+
+  return (
+    <div className="space-y-8 max-w-2xl mx-auto pb-20">
+      <header className="flex items-center gap-4">
+        <button onClick={onBack} className="p-2 hover:bg-muted rounded-xl transition-colors">
+          <ArrowLeft size={20} />
+        </button>
+        <div>
+          <h1 className="text-2xl font-black tracking-tighter">Datos del Estudio</h1>
+          <p className="text-xs text-muted-foreground uppercase tracking-widest font-bold mt-0.5">
+            Encabezado y datos de pago para presupuestos PDF
+          </p>
+        </div>
+      </header>
+
+      {/* Identidad */}
+      <Card className="p-6 space-y-5">
+        <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground border-b border-border pb-2">Identidad</h3>
+        <Field label="Nombre del estudio *" field="nombre" placeholder="Ej: López & Asociados" />
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="CUIT" field="cuit" placeholder="20-12345678-9" />
+          <Field label="Teléfono" field="telefono" placeholder="+54 11 1234-5678" />
+        </div>
+        <Field label="Email" field="email" placeholder="estudio@mail.com" />
+        <Field label="Dirección" field="direccion" placeholder="Av. Corrientes 1234, CABA" />
+      </Card>
+
+      {/* Logo */}
+      <Card className="p-6 space-y-5">
+        <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground border-b border-border pb-2">Logo</h3>
+        <div className="flex items-center gap-6">
+          {perfil.logoUrl
+            ? <img src={perfil.logoUrl} alt="Logo" className="h-20 w-auto object-contain border border-border rounded-xl p-2 bg-white" />
+            : <div className="w-20 h-20 rounded-xl border-2 border-dashed border-border flex items-center justify-center text-muted-foreground/40"><Building2 size={28} /></div>
+          }
+          <div className="space-y-2">
+            <label className="cursor-pointer flex items-center gap-2 px-4 py-2 border border-border rounded-xl text-sm font-bold hover:bg-muted transition-colors">
+              <Upload size={14} />
+              {uploading === 'logo' ? 'Subiendo...' : 'Subir logo'}
+              <input type="file" accept="image/*" className="hidden" onChange={e => handleUpload(e, 'logo')} disabled={uploading !== null} />
+            </label>
+            <p className="text-[10px] text-muted-foreground">PNG o JPG, máx. 2MB. Aparece en el encabezado del presupuesto.</p>
+          </div>
+        </div>
+      </Card>
+
+      {/* Datos de pago */}
+      <Card className="p-6 space-y-5">
+        <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground border-b border-border pb-2">Datos bancarios / Instrucciones de pago</h3>
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="Banco" field="banco" placeholder="Banco Galicia" />
+          <Field label="Titular de la cuenta" field="titularCuenta" placeholder="Juan Pérez" />
+        </div>
+        <Field label="CBU" field="cbu" placeholder="0000000000000000000000" />
+        <Field label="Alias CBU" field="aliasCbu" placeholder="ESTUDIO.LOPEZ" />
+      </Card>
+
+      {/* Firma y pie de página */}
+      <Card className="p-6 space-y-5">
+        <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground border-b border-border pb-2">Firma digital y pie de página</h3>
+        <div className="flex items-center gap-6">
+          {perfil.firmaUrl
+            ? <img src={perfil.firmaUrl} alt="Firma" className="h-16 w-auto object-contain border border-border rounded-xl p-2 bg-white" />
+            : <div className="w-32 h-16 rounded-xl border-2 border-dashed border-border flex items-center justify-center text-muted-foreground/40 text-xs">Sin firma</div>
+          }
+          <div className="space-y-2">
+            <label className="cursor-pointer flex items-center gap-2 px-4 py-2 border border-border rounded-xl text-sm font-bold hover:bg-muted transition-colors">
+              <Upload size={14} />
+              {uploading === 'firma' ? 'Subiendo...' : 'Subir firma'}
+              <input type="file" accept="image/png,image/jpeg" className="hidden" onChange={e => handleUpload(e, 'firma')} disabled={uploading !== null} />
+            </label>
+            <p className="text-[10px] text-muted-foreground">PNG con fondo transparente recomendado.</p>
+          </div>
+        </div>
+        <Field
+          label="Texto de pie de página"
+          field="footerText"
+          placeholder="Ej: Este presupuesto tiene validez por 30 días."
+        />
+      </Card>
+
+      <Button
+        onClick={handleSave}
+        disabled={saving}
+        className="w-full gap-2 bg-primary hover:bg-primary/90 text-primary-foreground"
+      >
+        {saved ? <Check size={16} /> : null}
+        {saving ? 'Guardando...' : saved ? 'Guardado ✓' : 'Guardar cambios'}
+      </Button>
+    </div>
+  );
+};
+
+const IUSConfig = ({ onBack }: { onBack: () => void }) => {
+  const [currentValue, setCurrentValue] = useState<number>(0);
+  const [inputValue, setInputValue] = useState('');
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    fetchStudioConfig('ius_valor').then(cfg => {
+      if (cfg) {
+        const val = (cfg.value as any).pesos ?? 0;
+        setCurrentValue(val);
+        setInputValue(val.toString());
+        setLastUpdated(cfg.updatedAt);
+      }
+    });
+  }, []);
+
+  const handleSave = async () => {
+    const newVal = parseFloat(inputValue);
+    if (isNaN(newVal) || newVal <= 0) return;
+    setSaving(true);
+    try {
+      await upsertStudioConfig('ius_valor', { pesos: newVal }, 'usuario');
+      setCurrentValue(newVal);
+      setLastUpdated(new Date().toISOString());
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-8 max-w-2xl mx-auto pb-20">
+      <header className="flex items-center gap-4">
+        <button onClick={onBack} className="p-2 hover:bg-muted rounded-xl transition-colors">
+          <ArrowLeft size={20} />
+        </button>
+        <div>
+          <h1 className="text-2xl font-black tracking-tighter">Valor del IUS</h1>
+          <p className="text-xs text-muted-foreground uppercase tracking-widest font-bold mt-0.5">
+            Ley 14.967 — Unidad de honorarios profesionales
+          </p>
+        </div>
+      </header>
+
+      <Card className="p-6 space-y-6">
+        <div className="flex items-center gap-4 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+          <Calculator size={24} className="text-amber-600 shrink-0" />
+          <div>
+            <p className="text-xs font-bold text-amber-700 uppercase tracking-wide">Valor vigente del IUS</p>
+            <p className="text-3xl font-black text-amber-800">
+              ${currentValue.toLocaleString('es-AR')}
+              <span className="text-sm font-bold ml-2">por IUS</span>
+            </p>
+            {lastUpdated && (
+              <p className="text-xs text-amber-600 mt-1">
+                Actualizado: {format(parseISO(lastUpdated), "d 'de' MMMM yyyy", { locale: es })}
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+            Nuevo valor (en pesos)
+          </label>
+          <div className="flex gap-3">
+            <Input
+              type="number"
+              placeholder="Ej: 3500"
+              value={inputValue}
+              onChange={e => setInputValue(e.target.value)}
+              className="flex-1"
+            />
+            <Button onClick={handleSave} disabled={saving} className="gap-2 shrink-0">
+              {saved ? <Check size={16} /> : null}
+              {saving ? 'Guardando...' : saved ? 'Guardado' : 'Actualizar'}
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Este valor se usa en todos los presupuestos nuevos. Los presupuestos ya creados conservan el valor histórico al momento de su creación.
+          </p>
+        </div>
+      </Card>
+    </div>
+  );
+};
 
 export const Configuracion = () => {
   const { signOut } = useAuth();
   const [activeSection, setActiveSection] = useState<string | null>(null);
 
   const sections = [
-    { id: 'estudio', label: 'Datos del Estudio', icon: Briefcase, desc: 'Nombre, CUIT, dirección y contacto.' },
-    { id: 'usuarios', label: 'Usuarios y Roles', icon: Shield, desc: 'Gestionar quién accede y qué puede hacer.' },
-    { id: 'asuntos', label: 'Tipos de Asunto', icon: FileText, desc: 'Configurar tipos, estados y checklists.' },
-    { id: 'notificaciones', label: 'Notificaciones', icon: Bell, desc: 'Alertas de vencimientos y actividad.' },
-    { id: 'perfil', label: 'Mi Perfil', icon: User, desc: 'Cambiar contraseña y preferencias personales.' },
-    { id: 'plan', label: 'Plan y Facturación', icon: CreditCard, desc: 'Gestionar suscripción y facturas.' },
+    { id: 'estudio',        label: 'Datos del Estudio',    icon: Briefcase,  desc: 'Nombre, CUIT, dirección y contacto.' },
+    { id: 'usuarios',       label: 'Usuarios y Roles',     icon: Shield,     desc: 'Gestionar quién accede y qué puede hacer.' },
+    { id: 'ius',            label: 'Valor del IUS',        icon: Calculator, desc: 'Actualizar el valor vigente del IUS para presupuestos (Ley 14.967).' },
+    { id: 'asuntos',        label: 'Tipos de Asunto',      icon: FileText,   desc: 'Configurar tipos, estados y checklists.' },
+    { id: 'notificaciones', label: 'Notificaciones',       icon: Bell,       desc: 'Alertas de vencimientos y actividad.' },
+    { id: 'perfil',         label: 'Mi Perfil',            icon: User,       desc: 'Cambiar contraseña y preferencias personales.' },
+    { id: 'plan',           label: 'Plan y Facturación',   icon: CreditCard, desc: 'Gestionar suscripción y facturas.' },
   ];
 
-  if (activeSection === 'usuarios') {
-    return <UsuariosConfig onBack={() => setActiveSection(null)} />;
-  }
+  if (activeSection === 'usuarios') return <UsuariosConfig onBack={() => setActiveSection(null)} />;
+  if (activeSection === 'ius')      return <IUSConfig onBack={() => setActiveSection(null)} />;
+  if (activeSection === 'estudio')  return <EstudioPerfilConfig onBack={() => setActiveSection(null)} />;
 
   return (
     <div className="space-y-10 max-w-3xl mx-auto pb-20">

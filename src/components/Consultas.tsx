@@ -1,41 +1,61 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, Badge, Button, Input } from './UI';
-import { Consultation } from '../types';
-import { 
-  Search, 
-  Filter, 
-  Plus, 
-  MoreHorizontal, 
-  MessageSquare, 
-  Phone, 
-  Mail, 
-  Calendar, 
-  UserPlus, 
-  CheckCircle2, 
-  XCircle,
+import { Consultation, Presupuesto } from '../types';
+import {
+  Search,
+  Plus,
+  MessageSquare,
+  Phone,
+  Mail,
+  Calendar,
+  UserPlus,
   ChevronRight,
   Clock,
-  ArrowUpRight,
   X,
   FileText,
   User,
   ExternalLink,
   Zap,
-  AlertCircle
+  AlertCircle,
+  DollarSign,
+  CheckCircle2,
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '../lib/utils';
+import { fetchPresupuestoByConsultation, updateConsultation } from '../lib/db';
+import { PresupuestoEditor } from './PresupuestoEditor';
+import { PresupuestoDetail } from './PresupuestoDetail';
 
 interface ConsultasProps {
   consultations: Consultation[];
   onConvertToMatter: (data: any) => void;
+  onUpdateConsultation?: (id: string, changes: Partial<Consultation>) => void;
 }
 
-export const Consultas = ({ consultations, onConvertToMatter }: ConsultasProps) => {
+export const Consultas = ({ consultations, onConvertToMatter, onUpdateConsultation }: ConsultasProps) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('Todas');
   const [selectedConsultation, setSelectedConsultation] = useState<Consultation | null>(null);
+  const [presupuesto, setPresupuesto] = useState<Presupuesto | null>(null);
+  const [loadingPresupuesto, setLoadingPresupuesto] = useState(false);
+  const [showPresupuestoForm, setShowPresupuestoForm] = useState(false);
+
+  useEffect(() => {
+    if (!selectedConsultation) { setPresupuesto(null); return; }
+    setLoadingPresupuesto(true);
+    fetchPresupuestoByConsultation(selectedConsultation.id)
+      .then(setPresupuesto)
+      .finally(() => setLoadingPresupuesto(false));
+  }, [selectedConsultation?.id]);
+
+  const handleToggleFeePaid = async (consultation: Consultation) => {
+    const newVal = !consultation.consultationFeePaid;
+    await updateConsultation(consultation.id, { consultationFeePaid: newVal });
+    const updated = { ...consultation, consultationFeePaid: newVal };
+    setSelectedConsultation(updated);
+    onUpdateConsultation?.(consultation.id, { consultationFeePaid: newVal });
+  };
 
   const filteredConsultations = consultations.filter(c => {
     const matchesSearch = c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -130,21 +150,37 @@ export const Consultas = ({ consultations, onConvertToMatter }: ConsultasProps) 
             <div className="w-20 h-20 bg-muted/50 rounded-full flex items-center justify-center mx-auto mb-6">
               <MessageSquare className="text-muted-foreground/30" size={40} />
             </div>
-            <h3 className="text-lg font-black text-foreground uppercase tracking-tight">No se encontraron consultas</h3>
-            <p className="text-sm font-medium text-muted-foreground max-w-xs mx-auto mt-2">
-              Ajustá los filtros o realizá una nueva búsqueda para encontrar lo que buscás.
-            </p>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="mt-8 text-[10px] font-black uppercase tracking-widest h-10 px-6 rounded-xl"
-              onClick={() => {
-                setSearchTerm('');
-                setFilterStatus('Todas');
-              }}
-            >
-              Limpiar Filtros
-            </Button>
+            {filterStatus === 'Todas' && !searchTerm ? (
+              <>
+                <h3 className="text-lg font-black text-foreground uppercase tracking-tight">Todavía no hay consultas</h3>
+                <p className="text-sm font-medium text-muted-foreground max-w-xs mx-auto mt-2">
+                  Empezá registrando la primera consulta de un potencial cliente.
+                </p>
+                <Button
+                  className="mt-8 bg-primary hover:bg-primary/90 text-primary-foreground gap-2 h-10 px-6 rounded-xl text-[11px] font-black uppercase tracking-widest"
+                >
+                  <Plus size={14} />
+                  Nueva Consulta
+                </Button>
+              </>
+            ) : (
+              <>
+                <h3 className="text-lg font-black text-foreground uppercase tracking-tight">Sin resultados</h3>
+                <p className="text-sm font-medium text-muted-foreground max-w-xs mx-auto mt-2">
+                  {searchTerm
+                    ? `No hay consultas que coincidan con "${searchTerm}".`
+                    : `No hay consultas en estado "${filterStatus}".`}
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-8 text-[10px] font-black uppercase tracking-widest h-10 px-6 rounded-xl"
+                  onClick={() => { setSearchTerm(''); setFilterStatus('Todas'); }}
+                >
+                  Ver todas las consultas
+                </Button>
+              </>
+            )}
           </div>
         )}
       </div>
@@ -183,6 +219,61 @@ export const Consultas = ({ consultations, onConvertToMatter }: ConsultasProps) 
                     {!selectedConsultation.type && <p className="text-[10px] font-bold text-amber-700/70 uppercase tracking-wide flex items-center gap-2">• Falta definir rama del derecho</p>}
                     {!selectedConsultation.email && <p className="text-[10px] font-bold text-amber-700/70 uppercase tracking-wide flex items-center gap-2">• Falta email del cliente</p>}
                   </div>
+                </section>
+              )}
+
+              {/* Entrevista paga */}
+              <section className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Entrevista inicial</label>
+                <button
+                  onClick={() => handleToggleFeePaid(selectedConsultation)}
+                  className={cn(
+                    'w-full flex items-center gap-3 p-3 rounded-xl border transition-colors text-left',
+                    selectedConsultation.consultationFeePaid
+                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700'
+                      : 'bg-muted/30 border-border text-muted-foreground hover:border-primary/40'
+                  )}
+                >
+                  <div className={cn(
+                    'w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0',
+                    selectedConsultation.consultationFeePaid
+                      ? 'border-emerald-500 bg-emerald-500'
+                      : 'border-muted-foreground'
+                  )}>
+                    {selectedConsultation.consultationFeePaid && <CheckCircle2 size={12} className="text-white" />}
+                  </div>
+                  <span className="text-xs font-bold">
+                    {selectedConsultation.consultationFeePaid ? 'Entrevista cobrada' : 'Marcar entrevista como cobrada'}
+                  </span>
+                </button>
+              </section>
+
+              {/* Presupuesto de honorarios */}
+              {['Evaluando viabilidad', 'Presupuestada', 'Aceptada'].includes(selectedConsultation.status) && (
+                <section className="space-y-3">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                    Presupuesto · Ley 14.967
+                  </label>
+                  {loadingPresupuesto ? (
+                    <div className="p-4 text-xs text-muted-foreground">Cargando...</div>
+                  ) : presupuesto ? (
+                    <PresupuestoDetail
+                      presupuesto={presupuesto}
+                      onUpdated={setPresupuesto}
+                      onEdit={() => setShowPresupuestoForm(true)}
+                    />
+                  ) : (
+                    <button
+                      onClick={() => setShowPresupuestoForm(true)}
+                      className="w-full flex items-center gap-3 p-4 rounded-xl border-2 border-dashed border-border hover:border-primary hover:bg-primary/5 transition-colors group"
+                    >
+                      <DollarSign size={18} className="text-muted-foreground group-hover:text-primary" />
+                      <div className="text-left">
+                        <p className="text-sm font-bold text-foreground">Crear presupuesto de honorarios</p>
+                        <p className="text-xs text-muted-foreground">BONO CAO, honorarios en IUS, otros bonos</p>
+                      </div>
+                    </button>
+                  )}
                 </section>
               )}
 
@@ -268,21 +359,31 @@ export const Consultas = ({ consultations, onConvertToMatter }: ConsultasProps) 
             </div>
 
             <footer className="p-6 border-t border-border bg-muted/20 space-y-4">
-              <div className="flex items-start gap-3 p-3 bg-primary/5 border border-primary/20 rounded-xl">
-                <Zap size={16} className="text-primary shrink-0 mt-0.5" />
-                <p className="text-[10px] font-medium text-primary leading-tight">
-                  Al convertir en asunto, se creará una estructura operativa heredando los datos del cliente y la descripción de la consulta.
-                </p>
-              </div>
+              {presupuesto && presupuesto.paymentStatus !== 'Pagado' && (
+                <div className="flex items-start gap-3 p-3 bg-amber-500/5 border border-amber-500/20 rounded-xl">
+                  <AlertCircle size={16} className="text-amber-600 shrink-0 mt-0.5" />
+                  <p className="text-[10px] font-medium text-amber-700 leading-tight">
+                    El presupuesto de honorarios aún no fue pagado. Se recomienda confirmar el pago antes de iniciar el asunto.
+                  </p>
+                </div>
+              )}
+              {!presupuesto && ['Evaluando viabilidad', 'Presupuestada', 'Aceptada'].includes(selectedConsultation.status) && (
+                <div className="flex items-start gap-3 p-3 bg-primary/5 border border-primary/20 rounded-xl">
+                  <Zap size={16} className="text-primary shrink-0 mt-0.5" />
+                  <p className="text-[10px] font-medium text-primary leading-tight">
+                    Al convertir en asunto, se creará una estructura operativa heredando los datos del cliente y la descripción de la consulta.
+                  </p>
+                </div>
+              )}
               <div className="flex gap-3">
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   className="flex-1"
                   onClick={() => setSelectedConsultation(null)}
                 >
                   Cerrar
                 </Button>
-                <Button 
+                <Button
                   className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground gap-2"
                   onClick={() => handleConvert(selectedConsultation)}
                 >
@@ -293,6 +394,21 @@ export const Consultas = ({ consultations, onConvertToMatter }: ConsultasProps) 
             </footer>
           </div>
         </div>
+      )}
+
+      {/* Presupuesto Editor Modal */}
+      {showPresupuestoForm && selectedConsultation && (
+        <PresupuestoEditor
+          consultationId={selectedConsultation.id}
+          clientName={selectedConsultation.name}
+          clientEmail={selectedConsultation.email}
+          clientPhone={selectedConsultation.phone}
+          onClose={() => setShowPresupuestoForm(false)}
+          onSaved={(saved) => {
+            setPresupuesto(saved);
+            setShowPresupuestoForm(false);
+          }}
+        />
       )}
     </div>
   );
@@ -355,6 +471,11 @@ const ConsultationItem: React.FC<ConsultationItemProps> = ({ consultation, onCli
             <span className="px-1.5 py-0.5 rounded bg-muted text-[9px] font-black uppercase tracking-wider text-muted-foreground border border-border">
               {consultation.origin}
             </span>
+            {consultation.consultationFeePaid && (
+              <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-[9px] font-black uppercase tracking-wider text-emerald-600 border border-emerald-500/20">
+                Entrevista ✓
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-3 text-[11px] font-bold text-muted-foreground">
             <div className="flex items-center gap-1">

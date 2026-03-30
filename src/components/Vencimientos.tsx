@@ -1,16 +1,17 @@
 import React from 'react';
 import { Card, Badge, Button } from './UI';
 import { Matter } from '../types';
-import { 
-  Calendar, 
-  Clock, 
-  AlertCircle, 
-  ShieldAlert, 
-  ChevronRight, 
-  User, 
+import {
+  Calendar,
+  Clock,
+  AlertCircle,
+  ShieldAlert,
+  ChevronRight,
+  User,
   Filter,
   ArrowUpRight,
-  Zap
+  Zap,
+  CheckCircle2
 } from 'lucide-react';
 import { format, parseISO, isPast, isToday, addDays, isSameDay } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -93,7 +94,10 @@ export const Vencimientos = ({ matters, onSelectMatter }: VencimientosProps) => 
                 <DeadlineItem key={matter.id} matter={matter} onClick={() => onSelectMatter(matter.id)} variant="warning" />
               ))
             ) : (
-              <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest py-4 text-center">No hay vencimientos para hoy</p>
+              <div className="flex items-center gap-2.5 py-4 px-4 bg-emerald-500/5 border border-emerald-500/15 rounded-xl">
+                <CheckCircle2 size={15} className="text-emerald-600 shrink-0" />
+                <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400">Sin vencimientos para hoy</span>
+              </div>
             )}
           </div>
         </section>
@@ -112,7 +116,10 @@ export const Vencimientos = ({ matters, onSelectMatter }: VencimientosProps) => 
                 <DeadlineItem key={matter.id} matter={matter} onClick={() => onSelectMatter(matter.id)} variant="default" />
               ))
             ) : (
-              <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest py-4 text-center">No hay vencimientos para mañana</p>
+              <div className="flex items-center gap-2.5 py-4 px-4 bg-muted/30 border border-border/50 rounded-xl">
+                <CheckCircle2 size={15} className="text-muted-foreground shrink-0" />
+                <span className="text-xs font-bold text-muted-foreground">Sin vencimientos para mañana</span>
+              </div>
             )}
           </div>
         </section>

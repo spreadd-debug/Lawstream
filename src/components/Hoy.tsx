@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Card, Badge, Button, Drawer } from './UI';
 import { Matter, LegalDocument } from '../types';
-import { AlertCircle, Clock, User, ArrowRight, Calendar, ShieldAlert, Zap, PauseCircle, Filter, ChevronDown, MoreHorizontal, FileWarning, Edit, XCircle } from 'lucide-react';
+import { AlertCircle, Clock, User, ArrowRight, Calendar, ShieldAlert, Zap, PauseCircle, Filter, ChevronDown, MoreHorizontal, FileWarning, Edit, XCircle, CheckCircle2 } from 'lucide-react';
 import { format, isPast, isToday, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '../lib/utils';
@@ -73,44 +73,26 @@ export const Hoy = ({ matters, documents, onSelectMatter, onNewAction, onEditMat
       </header>
 
       {/* Operative Status Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        <StatusCard 
-          label="Vencidos" 
-          count={overdue.length} 
-          variant="error" 
-          icon={AlertCircle} 
-        />
-        <StatusCard 
-          label="Vence hoy" 
-          count={today.length} 
-          variant="warning" 
-          icon={Clock} 
-        />
-        <StatusCard 
-          label="Rotos" 
-          count={broken.length} 
-          variant="error" 
-          icon={ShieldAlert} 
-        />
-        <StatusCard 
-          label="Trabados" 
-          count={stuck.length} 
-          variant="info" 
-          icon={PauseCircle} 
-        />
-        <StatusCard 
-          label="En espera" 
-          count={waiting.length} 
-          variant="default" 
-          icon={User} 
-        />
-        <StatusCard 
-          label="Documentación Crítica" 
-          count={criticalDocs.length} 
-          variant="error" 
-          icon={FileWarning} 
-        />
-      </div>
+      {(overdue.length + today.length + broken.length + stuck.length + waiting.length + criticalDocs.length) === 0 ? (
+        <div className="flex items-center gap-3 px-5 py-4 bg-emerald-500/5 border border-emerald-500/20 rounded-2xl">
+          <div className="w-8 h-8 rounded-full bg-emerald-500/10 flex items-center justify-center shrink-0">
+            <CheckCircle2 size={18} className="text-emerald-600" />
+          </div>
+          <div>
+            <p className="text-sm font-black text-emerald-700 dark:text-emerald-400">Todo al día</p>
+            <p className="text-[10px] font-bold text-emerald-600/70 uppercase tracking-widest">Sin vencidos, rotos ni documentación crítica pendiente</p>
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+          <StatusCard label="Vencidos" count={overdue.length} variant="error" icon={AlertCircle} />
+          <StatusCard label="Vence hoy" count={today.length} variant="warning" icon={Clock} />
+          <StatusCard label="Rotos" count={broken.length} variant="error" icon={ShieldAlert} />
+          <StatusCard label="Trabados" count={stuck.length} variant="info" icon={PauseCircle} />
+          <StatusCard label="En espera" count={waiting.length} variant="default" icon={User} />
+          <StatusCard label="Documentación Crítica" count={criticalDocs.length} variant="error" icon={FileWarning} />
+        </div>
+      )}
 
       {/* Work Queue */}
       <section className="space-y-4">
@@ -247,7 +229,9 @@ const Plus = ({ size, className }: { size?: number, className?: string }) => (
 );
 
 const StatusCard = ({ label, count, variant, icon: Icon }: { label: string, count: number, variant: 'error' | 'warning' | 'info' | 'default' | 'outline', icon: any }) => {
-  const styles = {
+  const isZero = count === 0;
+
+  const activeStyles = {
     error: 'text-rose-600 dark:text-rose-400 border-rose-500/20 bg-rose-500/5',
     warning: 'text-amber-600 dark:text-amber-400 border-amber-500/20 bg-amber-500/5',
     info: 'text-sky-600 dark:text-sky-400 border-sky-500/20 bg-sky-500/5',
@@ -255,8 +239,14 @@ const StatusCard = ({ label, count, variant, icon: Icon }: { label: string, coun
     outline: 'text-muted-foreground border-border bg-transparent',
   };
 
+  const mutedStyle = 'text-muted-foreground border-border bg-muted/20';
+
   return (
-    <Card className={cn('p-4 border flex flex-col justify-between h-28 hover:scale-[1.02] transition-transform', styles[variant])}>
+    <Card className={cn(
+      'p-4 border flex flex-col justify-between h-28 transition-all',
+      isZero ? mutedStyle : `${activeStyles[variant]} hover:scale-[1.02]`,
+      isZero && 'opacity-50'
+    )}>
       <div className="flex items-center justify-between">
         <div className="p-2 rounded-lg bg-background/50 border border-border/50">
           <Icon size={18} className="opacity-80" />

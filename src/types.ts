@@ -47,6 +47,7 @@ export interface Consultation {
   email?: string;
   phone?: string;
   notes?: string[];
+  consultationFeePaid?: boolean;
 }
 
 export interface Client {
@@ -133,9 +134,116 @@ export interface LegalTemplate {
 export interface TimelineEvent {
   id: string;
   matterId: string;
-  type: 'creation' | 'call' | 'doc_received' | 'task_created' | 'deadline' | 'draft' | 'presentation' | 'note' | 'status_change';
+  type: 'creation' | 'call' | 'doc_received' | 'task_created' | 'deadline' | 'draft' | 'presentation' | 'note' | 'status_change' | 'mev_submission' | 'expediente_update' | 'juzgado_assigned';
   title: string;
   description?: string;
   user: string;
   date: string;
+}
+
+// ── MÓDULO FINANCIERO ─────────────────────────────────────────────
+
+export type PresupuestoStatus = 'Borrador' | 'Enviado' | 'Aceptado' | 'Rechazado';
+export type PaymentStatus = 'Pendiente' | 'Parcial' | 'Pagado';
+
+export interface PresupuestoItem {
+  id: string;
+  presupuestoId: string;
+  concepto: string;
+  tipo: 'bono' | 'honorario' | 'gasto' | 'otro';
+  cantidadIus?: number;
+  montoPesos: number;
+  fiscalPorcentaje: number;
+  descuentoItemPorcentaje: number;
+  /** montoPesos × (1 - fiscal/100) × (1 - descuento/100) */
+  subtotalPesos: number;
+  obligatorio: boolean;
+  orden: number;
+}
+
+export interface Presupuesto {
+  id: string;
+  consultationId?: string;
+  matterId?: string;
+  clientName: string;
+  status: PresupuestoStatus;
+  iusValorSnapshot: number;
+  subtotalIus: number;
+  subtotalPesos: number;
+  descuentoPorcentaje: number;
+  paymentStatus: PaymentStatus;
+  notes?: string;
+  numero?: string;
+  approvedAt?: string;
+  approvedBy?: string;
+  createdBy?: string;
+  items: PresupuestoItem[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EstudioPerfil {
+  id?: string;
+  nombre: string;
+  cuit?: string;
+  email?: string;
+  telefono?: string;
+  direccion?: string;
+  logoUrl?: string;
+  cbu?: string;
+  aliasCbu?: string;
+  banco?: string;
+  titularCuenta?: string;
+  firmaUrl?: string;
+  footerText?: string;
+  updatedAt?: string;
+}
+
+export interface StudioConfig {
+  key: string;
+  value: Record<string, unknown>;
+  updatedAt: string;
+  updatedBy?: string;
+}
+
+// ── MÓDULO JUDICIAL ───────────────────────────────────────────────
+
+export type EstadoTroncal =
+  | 'Sin presentar'
+  | 'Presentado en MEV'
+  | 'Sorteado'
+  | 'A Despacho'
+  | 'En Letra'
+  | 'Fuera de Letra'
+  | 'Fuera del Organismo'
+  | 'Paralizado';
+
+export interface ExpedienteEstadoLog {
+  id: string;
+  expedienteId: string;
+  estadoTroncal: EstadoTroncal;
+  subestado?: string;
+  fechaDesde: string;
+  fechaHasta?: string;
+  observaciones?: string;
+  registradoPor?: string;
+}
+
+export interface Expediente {
+  id: string;
+  matterId: string;
+  nroReceptoria?: string;
+  nroJuzgado?: string;
+  caratula: string;
+  fuero: string;
+  juzgado?: string;
+  estadoTroncal: EstadoTroncal;
+  subestado?: string;
+  estadoDesde: string;
+  mevPresentado: boolean;
+  mevFecha?: string;
+  mevToken?: string;
+  createdAt: string;
+  updatedAt: string;
+  estadosLog?: ExpedienteEstadoLog[];
 }
