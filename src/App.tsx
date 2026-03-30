@@ -5,6 +5,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { Layout } from './components/Layout';
+import { Login } from './components/Login';
 import { Hoy } from './components/Hoy';
 import { Consultas } from './components/Consultas';
 import { Asuntos } from './components/Asuntos';
@@ -19,10 +20,13 @@ import { NuevaAccion } from './components/NuevaAccion';
 import { Drawer } from './components/UI';
 import { EditMatterForm } from './components/EditMatterForm';
 import { FiltersContent, GlobalFilters, defaultFilters, isFiltersActive } from './components/FiltersContent';
-import { Matter, Client, Consultation, LegalDocument, Task, TimelineEvent } from './types';
+import { PanelManager } from './components/PanelManager';
+import { Matter, Client, Consultation, LegalDocument, Task, TimelineEvent, UserProfile } from './types';
+import { useAuth } from './lib/auth';
 import * as db from './lib/db';
 
 export default function App() {
+  const { session, profile, isLoading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState('hoy');
   const [selectedMatterId, setSelectedMatterId] = useState<string | null>(null);
   const [prefilledMatter, setPrefilledMatter] = useState<any | null>(null);
@@ -33,6 +37,7 @@ export default function App() {
   const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [documents, setDocuments] = useState<LegalDocument[]>([]);
+  const [profiles, setProfiles] = useState<UserProfile[]>([]);
   
   // Drawer & Modal States
   const [isNewActionOpen, setIsNewActionOpen] = useState(false);
@@ -49,8 +54,13 @@ export default function App() {
     return 'light';
   });
 
-  // Carga inicial desde Supabase
+  // Carga inicial desde Supabase (solo cuando hay sesión)
   useEffect(() => {
+    if (!session) {
+      setIsLoading(false);
+      return;
+    }
+    setIsLoading(true);
     Promise.all([
       db.fetchMatters(),
       db.fetchClients(),
@@ -58,18 +68,20 @@ export default function App() {
       db.fetchDocuments(),
       db.fetchTasks(),
       db.fetchTimeline(),
+      db.fetchProfiles(),
     ])
-      .then(([m, c, co, d, t, tl]) => {
+      .then(([m, c, co, d, t, tl, p]) => {
         setMatters(m);
         setClients(c);
         setConsultations(co);
         setDocuments(d);
         setTasks(t);
         setTimeline(tl);
+        setProfiles(p);
       })
       .catch(err => console.error('Error cargando datos:', err))
       .finally(() => setIsLoading(false));
-  }, []);
+  }, [session]);
 
   useEffect(() => {
     const root = window.document.documentElement;
@@ -319,6 +331,16 @@ export default function App() {
         );
       case 'vencimientos':
         return <Vencimientos matters={matters} onSelectMatter={handleSelectMatter} />;
+      case 'equipo':
+        return (
+          <PanelManager
+            matters={matters}
+            documents={documents}
+            consultations={consultations}
+            profiles={profiles}
+            onSelectMatter={handleSelectMatter}
+          />
+        );
       case 'clientes':
         return (
           <Clientes
@@ -358,15 +380,19 @@ export default function App() {
     }
   };
 
-  if (isLoading) {
+  if (authLoading || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
           <div className="w-10 h-10 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
-          <p className="text-sm font-black uppercase tracking-widest text-muted-foreground">Cargando datos...</p>
+          <p className="text-sm font-black uppercase tracking-widest text-muted-foreground">Cargando...</p>
         </div>
       </div>
     );
+  }
+
+  if (!session) {
+    return <Login />;
   }
 
   return (
@@ -376,6 +402,7 @@ export default function App() {
       theme={theme}
       toggleTheme={toggleTheme}
       onNewMatter={() => setActiveTab('crear_asunto')}
+      profile={profile}
     >
       {renderContent()}
 

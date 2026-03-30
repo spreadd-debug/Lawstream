@@ -1,3 +1,14 @@
+export type UserRole = 'Socio' | 'Abogado' | 'Pasante' | 'Secretario';
+
+export interface UserProfile {
+  id: string;
+  fullName: string;
+  email: string;
+  role: UserRole;
+  initials: string;
+  isActive: boolean;
+}
+
 export type Priority = 'Alta' | 'Media' | 'Baja';
 export type MatterStatus = 'Activo' | 'Suspendido' | 'Cerrado' | 'Pausado';
 export type MatterType = 'Laboral' | 'Familia' | 'Daños' | 'Comercial' | 'Sucesiones' | 'Civil';

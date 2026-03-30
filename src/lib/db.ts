@@ -19,7 +19,71 @@ import {
   LegalDocument,
   Task,
   TimelineEvent,
+  UserProfile,
 } from '../types';
+
+// ── Profiles ──────────────────────────────────────────────────────
+
+const toProfile = (r: any): UserProfile => ({
+  id:       r.id,
+  fullName: r.full_name,
+  email:    r.email,
+  role:     r.role,
+  initials: r.initials,
+  isActive: r.is_active,
+});
+
+export const fetchProfiles = async (): Promise<UserProfile[]> => {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .order('full_name');
+  if (error) throw error;
+  return (data ?? []).map(toProfile);
+};
+
+export const updateProfile = async (id: string, changes: Partial<UserProfile>): Promise<void> => {
+  const row: any = {};
+  if (changes.fullName !== undefined) row.full_name = changes.fullName;
+  if (changes.role !== undefined)     row.role = changes.role;
+  if (changes.initials !== undefined) row.initials = changes.initials;
+  if (changes.isActive !== undefined) row.is_active = changes.isActive;
+  row.updated_at = new Date().toISOString();
+
+  const { error } = await supabase
+    .from('profiles')
+    .update(row)
+    .eq('id', id);
+  if (error) throw error;
+};
+
+export const inviteUser = async (email: string, fullName: string, role: string): Promise<{ error: string | null }> => {
+  // Usar Supabase Auth admin invite (requiere service role key en el backend)
+  // Por ahora, creamos el perfil manualmente después del signup
+  const { error } = await supabase.auth.signUp({
+    email,
+    password: crypto.randomUUID().slice(0, 12), // password temporal
+    options: { data: { full_name: fullName } },
+  });
+  if (error) return { error: error.message };
+
+  // El trigger handle_new_user crea el perfil automáticamente
+  // Actualizamos el rol después
+  const { data: profiles } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('email', email)
+    .single();
+
+  if (profiles) {
+    await supabase
+      .from('profiles')
+      .update({ role, initials: fullName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) })
+      .eq('id', profiles.id);
+  }
+
+  return { error: null };
+};
 
 // ── Mappers: DB row → TypeScript ──────────────────────────────────
 

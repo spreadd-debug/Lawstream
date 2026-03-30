@@ -1,11 +1,12 @@
 import React from 'react';
-import { 
-  LayoutDashboard, 
-  Briefcase, 
-  Calendar, 
-  Users, 
-  FileText, 
-  Settings, 
+import {
+  LayoutDashboard,
+  Briefcase,
+  Calendar,
+  Users,
+  UsersRound,
+  FileText,
+  Settings,
   Inbox,
   Clock,
   Search,
@@ -14,9 +15,12 @@ import {
   ChevronRight,
   Menu,
   Sun,
-  Moon
+  Moon,
+  LogOut
 } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { useAuth } from '../lib/auth';
+import { UserProfile } from '../types';
 
 interface SidebarItemProps {
   icon: React.ElementType;
@@ -55,6 +59,13 @@ const SidebarItem: React.FC<SidebarItemProps> = ({ icon: Icon, label, active, on
   </button>
 );
 
+const ROLE_LABELS: Record<string, string> = {
+  Socio: 'Socio',
+  Abogado: 'Abogado',
+  Pasante: 'Pasante',
+  Secretario: 'Secretario/a',
+};
+
 interface LayoutProps {
   children: React.ReactNode;
   activeTab: string;
@@ -62,16 +73,21 @@ interface LayoutProps {
   theme: 'light' | 'dark';
   toggleTheme: () => void;
   onNewMatter: () => void;
+  profile: UserProfile | null;
 }
 
-export const Layout = ({ children, activeTab, setActiveTab, theme, toggleTheme, onNewMatter }: LayoutProps) => {
+export const Layout = ({ children, activeTab, setActiveTab, theme, toggleTheme, onNewMatter, profile }: LayoutProps) => {
+  const { signOut } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
+
+  const isSocioOrSecretario = profile?.role === 'Socio' || profile?.role === 'Secretario';
 
   const menuItems = [
     { id: 'hoy', label: 'Hoy', icon: Clock },
     { id: 'consultas', label: 'Consultas', icon: Inbox, badge: '3' },
     { id: 'asuntos', label: 'Asuntos', icon: Briefcase },
     { id: 'vencimientos', label: 'Vencimientos', icon: Calendar, badge: '2' },
+    ...(isSocioOrSecretario ? [{ id: 'equipo', label: 'Equipo', icon: UsersRound }] : []),
     { id: 'clientes', label: 'Clientes', icon: Users },
     { id: 'documentos', label: 'Documentos', icon: FileText },
     { id: 'plantillas', label: 'Plantillas', icon: LayoutDashboard },
@@ -134,12 +150,21 @@ export const Layout = ({ children, activeTab, setActiveTab, theme, toggleTheme, 
           
           <div className="mt-4 flex items-center gap-3 px-3 py-3 bg-muted/50 rounded-xl border border-border/50">
             <div className="w-9 h-9 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-black">
-              RD
+              {profile?.initials || '??'}
             </div>
             <div className="flex-1 overflow-hidden">
-              <div className="text-sm font-bold truncate">Dr. Ricardo Darín</div>
-              <div className="text-[10px] font-black text-muted-foreground uppercase tracking-widest truncate">Socio Senior</div>
+              <div className="text-sm font-bold truncate">{profile?.fullName || 'Usuario'}</div>
+              <div className="text-[10px] font-black text-muted-foreground uppercase tracking-widest truncate">
+                {profile ? ROLE_LABELS[profile.role] || profile.role : ''}
+              </div>
             </div>
+            <button
+              onClick={signOut}
+              className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors"
+              title="Cerrar sesión"
+            >
+              <LogOut size={16} />
+            </button>
           </div>
         </div>
       </aside>
