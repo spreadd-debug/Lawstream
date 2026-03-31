@@ -1326,8 +1326,8 @@ export const MATTER_TEMPLATES: MatterTemplate[] = [
 
   // ─── ART / ACCIDENTES Y ENFERMEDADES — Carril LRT ────────
   {
-    id: 'lab-art',
-    name: 'ART / Accidente laboral',
+    id: 'lab-art-caba',
+    name: 'ART / Accidente laboral (CABA)',
     rama: 'Laboral',
     subtipo: 'ART / Accidente',
     jurisdiccion: 'CABA',
@@ -1408,6 +1408,141 @@ export const MATTER_TEMPLATES: MatterTemplate[] = [
     hitosProyectados: ['Denuncia', 'Comisión Médica', 'Recurso/Demanda', 'Resolución'],
     bloqueantesTipicos: ['ART rechazó siniestro', 'Faltan estudios médicos', 'Comisión Médica pendiente'],
     proximaAccionSugerida: 'Verificar denuncia y reunir documentación médica',
+    fechaSeguimientoSugeridaDays: 5,
+    prioridadSugerida: 'Alta',
+  },
+
+  // ─── ART / ACCIDENTES — PBA (Tribunales del Trabajo, instancia única) ────
+  {
+    id: 'lab-art-pba',
+    name: 'ART / Accidente laboral (PBA)',
+    rama: 'Laboral',
+    subtipo: 'ART / Accidente',
+    jurisdiccion: 'PBA',
+    via: 'Especial (LRT)',
+    etapaInicial: 'Denuncia',
+    descripcion: 'Accidente de trabajo o enfermedad profesional — PBA. Denuncia → Triage → Comisión Médica jurisdiccional → Post-dictamen → Revisión judicial ante Tribunal del Trabajo (instancia única, Ley 15.057). Ley 24.557 / Ley 27.348.',
+    stages: [
+      {
+        name: 'Denuncia',
+        tasks: [
+          { task: 'Verificar denuncia ante la ART (o empleador autoasegurado)', priority: 'crítico', bloqueante: true },
+          { task: 'Registrar fecha de denuncia y tipo de contingencia (accidente / enfermedad / in itinere)', priority: 'crítico', bloqueante: true },
+          { task: 'Recopilar estudios médicos disponibles e historia clínica', priority: 'crítico', bloqueante: true },
+          { task: 'Registrar estado actual del trabajador (en tratamiento, con alta, sin prestaciones, etc.)', priority: 'crítico', bloqueante: true },
+          { task: 'Verificar si la ART aceptó, rechazó o no se expidió sobre el siniestro', priority: 'crítico', bloqueante: true },
+          { task: 'Verificar si hubo ILT (incapacidad laboral temporaria) y si fue abonada', priority: 'recomendado' },
+        ],
+        documents: [
+          { name: 'DNI del trabajador', required: true },
+          { name: 'Denuncia ante ART (formulario o constancia)', required: true },
+          { name: 'Estudios médicos / historia clínica', required: true },
+          { name: 'Recibos de sueldo (últimos 12 meses)', required: false },
+          { name: 'Notificación de rechazo de ART (si existe)', required: false },
+          { name: 'Constancia de ILT abonada o no abonada', required: false },
+        ],
+        milestone: 'Denuncia verificada y situación del trabajador documentada',
+      },
+      {
+        name: 'Triage y clasificación',
+        tasks: [
+          { task: 'Clasificar tipo de trámite ante Comisión Médica', priority: 'crítico', bloqueante: true },
+          { task: 'Determinar plazo aplicable según tipo de trámite (rechazo, divergencia, reingreso, etc.)', priority: 'crítico', bloqueante: true },
+          { task: 'Determinar canal de inicio (SRT ventanilla única / presentación directa)', priority: 'crítico', bloqueante: true },
+          { task: 'Verificar si requiere patrocinio letrado obligatorio', priority: 'crítico', bloqueante: true },
+          { task: 'Identificar formulario correspondiente al tipo de trámite', priority: 'crítico', bloqueante: true },
+          { task: 'Determinar Comisión Médica competente (por domicilio del trabajador o lugar del hecho)', priority: 'crítico', bloqueante: true },
+          { task: 'Evaluar si corresponde acción civil por reparación integral como carril paralelo (art. 1740 CCyCN)', priority: 'recomendado' },
+        ],
+        documents: [
+          { name: 'Formulario SRT según tipo de trámite', required: true },
+          { name: 'Certificado médico actualizado', required: true },
+          { name: 'Dictamen o informe previo de ART (si existe)', required: false },
+        ],
+        milestone: 'Trámite clasificado: tipo, plazo, canal, formulario y comisión médica definidos',
+      },
+      {
+        name: 'Comisión Médica',
+        tasks: [
+          { task: 'Presentar trámite ante Comisión Médica jurisdiccional PBA', priority: 'crítico', bloqueante: true },
+          { task: 'Verificar admisibilidad formal y sorteo de fecha de audiencia', priority: 'crítico', bloqueante: true },
+          { task: 'Asistir a audiencia médica con estudios completos y patrocinio letrado', priority: 'crítico', bloqueante: true },
+          { task: 'Evaluar dictamen: % de incapacidad, prestaciones reconocidas, causalidad', priority: 'crítico', bloqueante: true },
+          { task: 'Registrar si el dictamen es favorable, parcialmente favorable o desfavorable', priority: 'crítico', bloqueante: true },
+        ],
+        documents: [
+          { name: 'Formulario de presentación ante Comisión Médica', required: true },
+          { name: 'Poder o carta poder para el letrado', required: true },
+          { name: 'Estudios médicos actualizados para la audiencia', required: true },
+          { name: 'Dictamen de Comisión Médica', required: true },
+        ],
+        milestone: 'Dictamen de Comisión Médica obtenido',
+      },
+      {
+        name: 'Post-dictamen',
+        tasks: [
+          { task: 'Evaluar resultado del dictamen y definir estrategia (consentir, impugnar o recurrir)', priority: 'crítico', bloqueante: true },
+          { task: 'Si consentir: verificar notificación a ART y plazo de pago de prestaciones', priority: 'recomendado' },
+          { task: 'Si aclaratoria: presentar pedido de aclaratoria ante la misma Comisión Médica', priority: 'recomendado' },
+          { task: 'Si rectificatoria: presentar pedido de rectificación por error material', priority: 'recomendado' },
+          { task: 'Si revocatoria: presentar recurso de revocatoria ante la misma Comisión Médica', priority: 'recomendado' },
+          { task: 'Si apelación: presentar recurso ante Comisión Médica Central (evaluar procedencia)', priority: 'recomendado' },
+          { task: 'Si revisión judicial: preparar presentación ante Tribunal del Trabajo PBA', priority: 'recomendado' },
+          { task: 'Verificar plazos de cada recurso y dejar constancia de notificación del dictamen', priority: 'crítico', bloqueante: true },
+        ],
+        documents: [
+          { name: 'Escrito de recurso elegido (aclaratoria / rectificatoria / revocatoria / apelación)', required: false },
+          { name: 'Dictamen de Comisión Médica Central (si se apeló)', required: false },
+          { name: 'Constancia de notificación del dictamen', required: true },
+        ],
+        milestone: 'Estrategia post-dictamen definida y ejecutada',
+      },
+      {
+        name: 'Revisión judicial / acción laboral ordinaria PBA',
+        tasks: [
+          { task: 'Presentar recurso de revisión judicial ante Tribunal del Trabajo competente (Ley 15.057)', priority: 'crítico', bloqueante: true },
+          { task: 'Preparar prueba para audiencia de vista de causa (instancia única)', priority: 'crítico', bloqueante: true },
+          { task: 'Evaluar acumulación con reclamo por despido o diferencias salariales si corresponde', priority: 'recomendado' },
+          { task: 'Ofrecer pericia médica si se discute % de incapacidad', priority: 'recomendado' },
+        ],
+        documents: [
+          { name: 'Escrito de demanda / recurso de revisión ante Tribunal del Trabajo', required: true },
+          { name: 'Cédula de notificación', required: true },
+          { name: 'Ofrecimiento de prueba', required: true },
+        ],
+        milestone: 'Revisión judicial iniciada ante Tribunal del Trabajo PBA',
+      },
+      {
+        name: 'Resolución',
+        tasks: [
+          { task: 'Verificar sentencia del Tribunal del Trabajo (instancia única)', priority: 'crítico', bloqueante: true },
+          { task: 'Liquidar prestaciones: ILP, ILT, prestaciones en especie, intereses', priority: 'crítico', bloqueante: true },
+          { task: 'Verificar cobro de indemnización / prestaciones', priority: 'crítico', bloqueante: true },
+          { task: 'Evaluar recurso extraordinario ante SCBA si corresponde', priority: 'recomendado' },
+        ],
+        documents: [
+          { name: 'Sentencia del Tribunal del Trabajo', required: true },
+          { name: 'Liquidación de prestaciones aprobada', required: true },
+        ],
+        milestone: 'Caso resuelto',
+      },
+    ],
+    checklistBase: [
+      { task: 'Verificar denuncia ante ART', priority: 'crítico' },
+      { task: 'Clasificar tipo de trámite (triage)', priority: 'crítico' },
+      { task: 'Reunir estudios médicos', priority: 'crítico' },
+      { task: 'Tramitar Comisión Médica', priority: 'crítico' },
+      { task: 'Definir estrategia post-dictamen', priority: 'crítico' },
+    ],
+    documentosBase: [
+      { name: 'DNI del trabajador', required: true },
+      { name: 'Denuncia ante ART', required: true },
+      { name: 'Estudios médicos', required: true },
+      { name: 'Formulario SRT según tipo de trámite', required: true },
+    ],
+    hitosProyectados: ['Denuncia', 'Triage y clasificación', 'Comisión Médica', 'Post-dictamen', 'Revisión judicial PBA', 'Resolución'],
+    bloqueantesTipicos: ['ART rechazó siniestro', 'Faltan estudios médicos', 'Comisión Médica pendiente', 'Plazo de recurso vencido', 'Dictamen desfavorable sin impugnación'],
+    proximaAccionSugerida: 'Verificar denuncia y documentar situación del trabajador',
     fechaSeguimientoSugeridaDays: 5,
     prioridadSugerida: 'Alta',
   },
@@ -1989,15 +2124,40 @@ export function findTemplate(rama: string, subtipo?: string, jurisdiccion?: stri
   return MATTER_TEMPLATES.find(t => t.rama === rama);
 }
 
-/** Subtypes available per matter type, derived from templates */
+/** Subtypes available per matter type, derived from templates.
+ *  Labels are clean (sin jurisdicción), deduplicados por subtipo. */
 export const SUBTYPES_BY_TYPE: Record<string, { value: string; label: string }[]> =
   MATTER_TEMPLATES.reduce((acc, t) => {
     if (!acc[t.rama]) acc[t.rama] = [];
     if (!acc[t.rama].find(s => s.value === t.subtipo)) {
-      acc[t.rama].push({ value: t.subtipo, label: t.name });
+      acc[t.rama].push({ value: t.subtipo, label: t.subtipo });
     }
     return acc;
   }, {} as Record<string, { value: string; label: string }[]>);
+
+/** Jurisdicciones disponibles por rama, derivadas de templates.
+ *  Solo se incluyen ramas que tienen más de una jurisdicción. */
+export const JURISDICTIONS_BY_TYPE: Record<string, string[]> =
+  MATTER_TEMPLATES.reduce((acc, t) => {
+    if (!acc[t.rama]) acc[t.rama] = [];
+    if (!acc[t.rama].includes(t.jurisdiccion)) {
+      acc[t.rama].push(t.jurisdiccion);
+    }
+    return acc;
+  }, {} as Record<string, string[]>);
+
+/** Subtipos disponibles para una rama+jurisdicción específica */
+export function getSubtypesForJurisdiction(rama: string, jurisdiccion: string): { value: string; label: string }[] {
+  const seen = new Set<string>();
+  const result: { value: string; label: string }[] = [];
+  for (const t of MATTER_TEMPLATES) {
+    if (t.rama === rama && t.jurisdiccion === jurisdiccion && !seen.has(t.subtipo)) {
+      seen.add(t.subtipo);
+      result.push({ value: t.subtipo, label: t.subtipo });
+    }
+  }
+  return result;
+}
 
 /* ═══════════════════════════════════════════════════════════
    WIZARD FIELDS — Campos específicos por materia
@@ -2509,7 +2669,7 @@ export const WIZARD_FIELDS_BY_TEMPLATE: Record<string, WizardSection[]> = {
     },
   ],
 
-  'lab-art': [
+  'lab-art-caba': [
     {
       title: 'Datos del Trabajador',
       icon: 'User',
@@ -2541,6 +2701,49 @@ export const WIZARD_FIELDS_BY_TEMPLATE: Record<string, WizardSection[]> = {
         { key: 'incapacidad_porcentaje', label: 'Incapacidad determinada (%)', type: 'text', placeholder: 'Si se determinó...' },
         { key: 'art_rechazo', label: '¿La ART rechazó el siniestro?', type: 'select', options: ['No', 'Sí, rechazó', 'Parcialmente (reconoció menor incapacidad)'] },
         { key: 'alta_medica', label: 'Estado del alta médica', type: 'select', options: ['En tratamiento', 'Alta médica con incapacidad', 'Alta médica sin incapacidad', 'Pendiente'] },
+      ],
+    },
+  ],
+
+  'lab-art-pba': [
+    {
+      title: 'Datos del Trabajador',
+      icon: 'User',
+      fields: [
+        { key: 'trabajador_nombre', label: 'Nombre completo', type: 'text', required: true },
+        { key: 'trabajador_dni', label: 'DNI', type: 'text', required: true },
+        { key: 'trabajador_cuil', label: 'CUIL', type: 'text', placeholder: '20-12345678-9' },
+        { key: 'trabajador_domicilio', label: 'Domicilio (PBA)', type: 'text', required: true },
+      ],
+    },
+    {
+      title: 'Datos del Empleador y ART',
+      icon: 'Building2',
+      fields: [
+        { key: 'empleador_nombre', label: 'Razón social del empleador', type: 'text', required: true },
+        { key: 'art_nombre', label: 'ART (aseguradora de riesgos)', type: 'text', required: true },
+        { key: 'art_nro_siniestro', label: 'Nro. de siniestro', type: 'text' },
+        { key: 'empleador_autoasegurado', label: '¿Empleador autoasegurado?', type: 'select', options: ['No', 'Sí'] },
+      ],
+    },
+    {
+      title: 'Datos del Accidente / Enfermedad',
+      icon: 'AlertCircle',
+      fields: [
+        { key: 'tipo_contingencia', label: 'Tipo de contingencia', type: 'select', options: ['Accidente de trabajo', 'Accidente in itinere', 'Enfermedad profesional'], required: true },
+        { key: 'fecha_siniestro', label: 'Fecha del siniestro / primera manifestación', type: 'date', required: true },
+        { key: 'descripcion_siniestro', label: 'Descripción del siniestro', type: 'textarea', placeholder: 'Qué pasó, dónde, cómo...', required: true },
+        { key: 'lesiones', label: 'Lesiones / diagnóstico', type: 'textarea', placeholder: 'Descripción de lesiones o enfermedad...' },
+        { key: 'incapacidad_porcentaje', label: 'Incapacidad determinada (%)', type: 'text', placeholder: 'Si ya se determinó...' },
+        { key: 'estado_trabajador', label: 'Situación actual del trabajador', type: 'select', options: ['En tratamiento por ART', 'Alta médica otorgada', 'Sin prestaciones / ART no responde', 'Rechazado por ART', 'Reingreso a tratamiento solicitado'], required: true },
+      ],
+    },
+    {
+      title: 'Clasificación del trámite (Triage)',
+      icon: 'Target',
+      fields: [
+        { key: 'tipo_tramite_art', label: 'Tipo de trámite ante Comisión Médica', type: 'select', options: ['Rechazo de contingencia', 'Enfermedad no listada (Baremo)', 'Divergencia en alta médica', 'Divergencia en prestaciones', 'Reingreso a tratamiento', 'Divergencia en grado de incapacidad'], required: true },
+        { key: 'art_rechazo_detalle', label: 'Detalle del rechazo o divergencia', type: 'textarea', placeholder: 'Qué rechazó o en qué difieren...' },
       ],
     },
   ],
@@ -2759,7 +2962,8 @@ const CARATULA_MAP: Record<string, CaratulaConfig> = {
   'lab-diferencias-pba':    { actor: 'trabajador_nombre', demandado: 'empleador_nombre', objeto: 'diferencias salariales' },
   'lab-no-registrado-caba': { actor: 'trabajador_nombre', demandado: 'empleador_nombre', objeto: 'empleo no registrado' },
   'lab-no-registrado-pba':  { actor: 'trabajador_nombre', demandado: 'empleador_nombre', objeto: 'empleo no registrado' },
-  'lab-art':                { actor: 'trabajador_nombre', demandado: 'empleador_nombre', demandado2: 'art_nombre', objeto: 'accidente de trabajo' },
+  'lab-art-caba':           { actor: 'trabajador_nombre', demandado: 'empleador_nombre', demandado2: 'art_nombre', objeto: 'accidente de trabajo' },
+  'lab-art-pba':            { actor: 'trabajador_nombre', demandado: 'empleador_nombre', demandado2: 'art_nombre', objeto: 'accidente de trabajo' },
   'lab-sindical':           { actor: 'trabajador_nombre', demandado: 'sindicato_nombre', objeto: (d) => d.tipo_conflicto?.toLowerCase() || 'conflicto sindical' },
   'lab-plataformas':        { actor: 'trabajador_nombre', demandado: 'plataforma_nombre', objeto: (d) => d.motivo_reclamo?.toLowerCase() || 'reclamo laboral' },
 

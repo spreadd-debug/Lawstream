@@ -31,7 +31,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { format, addDays } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { findTemplate, SUBTYPES_BY_TYPE, WIZARD_FIELDS_BY_TEMPLATE, buildCaratula, type WizardSection } from '../data/templates';
+import { findTemplate, SUBTYPES_BY_TYPE, JURISDICTIONS_BY_TYPE, getSubtypesForJurisdiction, WIZARD_FIELDS_BY_TEMPLATE, buildCaratula, type WizardSection } from '../data/templates';
 import { Priority } from '../types';
 
 interface CrearAsuntoProps {
@@ -122,7 +122,23 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
   });
 
   // Resolve the active template and its wizard sections
-  const activeTemplate = useMemo(() => findTemplate(formData.type, formData.subtype), [formData.type, formData.subtype]);
+  const activeTemplate = useMemo(() => findTemplate(formData.type, formData.subtype, formData.jurisdiction), [formData.type, formData.subtype, formData.jurisdiction]);
+
+  // Jurisdicciones disponibles para el tipo seleccionado (solo mostrar si hay >1)
+  const availableJurisdictions = useMemo(() => {
+    if (!formData.type) return [];
+    return JURISDICTIONS_BY_TYPE[formData.type] || [];
+  }, [formData.type]);
+  const showJurisdictionPicker = availableJurisdictions.length > 1;
+
+  // Subtipos filtrados por jurisdicción cuando aplica
+  const availableSubtypes = useMemo(() => {
+    if (!formData.type) return [];
+    if (showJurisdictionPicker && formData.jurisdiction) {
+      return getSubtypesForJurisdiction(formData.type, formData.jurisdiction);
+    }
+    return SUBTYPES_BY_TYPE[formData.type] || [];
+  }, [formData.type, formData.jurisdiction, showJurisdictionPicker]);
   const wizardSections: WizardSection[] = useMemo(
     () => (activeTemplate ? WIZARD_FIELDS_BY_TEMPLATE[activeTemplate.id] || [] : []),
     [activeTemplate]
@@ -143,7 +159,9 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
     switch (currentStep) {
       case 1:
         // Si hay wizard, el título se auto-genera en paso 2 — no exigirlo acá
-        return (hasWizardStep || formData.title) && formData.type && formData.subtype && selectedClient;
+        // Si el tipo requiere jurisdicción, exigirla antes de avanzar
+        const jurisdictionOk = !showJurisdictionPicker || formData.jurisdiction;
+        return (hasWizardStep || formData.title) && formData.type && jurisdictionOk && formData.subtype && selectedClient;
       case 2:
         if (!hasWizardStep) return formData.responsible && formData.nextAction && formData.nextActionDate;
         // Validate required wizard fields + que la carátula se haya generado
@@ -404,7 +422,7 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
                 ].map(t => (
                   <button
                     key={t.value}
-                    onClick={() => { setFormData({...formData, type: t.value, subtype: '', title: '', caseData: {}}); setTitleManuallyEdited(false); }}
+                    onClick={() => { setFormData({...formData, type: t.value, subtype: '', jurisdiction: '', title: '', caseData: {}}); setTitleManuallyEdited(false); }}
                     className={cn(
                       "relative group flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all duration-200",
                       formData.type === t.value
@@ -427,9 +445,47 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
               </div>
             </div>
 
-            {/* Subtipo */}
-            {formData.type && SUBTYPES_BY_TYPE[formData.type]?.length > 0 && (
+            {/* Jurisdicción — solo cuando el tipo tiene más de una (ej: Laboral → CABA/PBA) */}
+            {formData.type && showJurisdictionPicker && (
               <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.2 }}
+                className="space-y-3"
+              >
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-lg bg-teal-500/10 flex items-center justify-center">
+                    <MapPin size={13} className="text-teal-600" />
+                  </div>
+                  <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Jurisdicción</Label>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {availableJurisdictions.map(j => {
+                    const jLabel = j === 'CABA' ? 'CABA' : j === 'PBA' ? 'Provincia de Buenos Aires' : j;
+                    return (
+                      <button
+                        key={j}
+                        onClick={() => { setFormData({...formData, jurisdiction: j, subtype: '', title: '', caseData: {}}); setTitleManuallyEdited(false); }}
+                        className={cn(
+                          "px-4 py-2.5 rounded-xl border-2 text-sm font-bold transition-all duration-200",
+                          formData.jurisdiction === j
+                            ? "border-teal-500 bg-teal-500/10 text-teal-700 shadow-sm"
+                            : "border-border/50 bg-card/50 text-muted-foreground hover:border-teal-500/30 hover:text-foreground"
+                        )}
+                      >
+                        {jLabel}
+                        {formData.jurisdiction === j && <Check size={14} className="inline ml-2 text-teal-500" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </motion.div>
+            )}
+
+            {/* Subtipo — filtrado por jurisdicción cuando aplica */}
+            {formData.type && (!showJurisdictionPicker || formData.jurisdiction) && availableSubtypes.length > 0 && (
+              <motion.div
+                key={`subtypes-${formData.jurisdiction}`}
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.2 }}
@@ -442,7 +498,7 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
                   <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Materia</Label>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {SUBTYPES_BY_TYPE[formData.type].map(s => (
+                  {availableSubtypes.map(s => (
                     <button
                       key={s.value}
                       onClick={() => { setFormData({...formData, subtype: s.value, title: '', caseData: {}}); setTitleManuallyEdited(false); }}
