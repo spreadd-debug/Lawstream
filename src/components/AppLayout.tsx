@@ -25,7 +25,7 @@ import { useAppContext } from '../lib/AppContext';
 import { Drawer } from './UI';
 import { NuevaAccion } from './NuevaAccion';
 import { EditMatterForm } from './EditMatterForm';
-import { FiltersContent } from './FiltersContent';
+import { FiltersContent, defaultFilters } from './FiltersContent';
 
 // ── Sidebar link using NavLink ────────────────────────────────────
 
@@ -117,8 +117,7 @@ export const AppLayout: React.FC = () => {
     { to: '/plantillas',   label: 'Plantillas',    icon: LayoutDashboard },
   ];
 
-  const operativo = menuItems.slice(0, 4 + (isSocioOrSecretario ? 0 : 0));
-  const gestion   = menuItems.slice(4);
+  const splitAt = isSocioOrSecretario ? 5 : 4;
 
   if (isLoading) {
     return (
@@ -143,14 +142,14 @@ export const AppLayout: React.FC = () => {
           <div className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] px-3 mb-3">
             Operativo
           </div>
-          {menuItems.slice(0, isSocioOrSecretario ? 5 : 4).map(item => (
+          {menuItems.slice(0, splitAt).map(item => (
             <SidebarLink key={item.to} {...item} theme={theme} />
           ))}
 
           <div className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] px-3 mt-8 mb-3">
             Gestión
           </div>
-          {menuItems.slice(isSocioOrSecretario ? 5 : 4).map(item => (
+          {menuItems.slice(splitAt).map(item => (
             <SidebarLink key={item.to} {...item} theme={theme} />
           ))}
         </nav>
@@ -260,7 +259,7 @@ export const AppLayout: React.FC = () => {
                 />
               ))}
             </nav>
-            <div className="mt-auto pt-4 border-t border-border">
+            <div className="mt-auto pt-4 border-t border-border space-y-1">
               <button
                 onClick={toggleTheme}
                 className="w-full flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
@@ -268,6 +267,31 @@ export const AppLayout: React.FC = () => {
                 {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
                 <span>Modo {theme === 'light' ? 'Oscuro' : 'Claro'}</span>
               </button>
+              <SidebarLink
+                to="/configuracion"
+                icon={Settings}
+                label="Configuración"
+                theme={theme}
+                onClick={() => setIsMobileMenuOpen(false)}
+              />
+              <div className="flex items-center gap-3 px-3 py-3 bg-muted/50 rounded-xl border border-border/50 mt-2">
+                <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-black shrink-0">
+                  {profile?.initials || '??'}
+                </div>
+                <div className="flex-1 overflow-hidden">
+                  <div className="text-sm font-bold truncate">{profile?.fullName || 'Usuario'}</div>
+                  <div className="text-[10px] font-black text-muted-foreground uppercase tracking-widest truncate">
+                    {profile ? ROLE_LABELS[profile.role] || profile.role : ''}
+                  </div>
+                </div>
+                <button
+                  onClick={signOut}
+                  className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors"
+                  title="Cerrar sesión"
+                >
+                  <LogOut size={16} />
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -311,7 +335,7 @@ export const AppLayout: React.FC = () => {
         <FiltersContent
           initialFilters={activeFilters}
           onApply={(filters) => { setActiveFilters(filters); setIsFiltersOpen(false); }}
-          onClose={() => { setActiveFilters({ ...activeFilters }); setIsFiltersOpen(false); }}
+          onClose={() => { setActiveFilters(defaultFilters); setIsFiltersOpen(false); }}
         />
       </Drawer>
     </div>
