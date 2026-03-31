@@ -11,7 +11,7 @@ interface AuthState {
 }
 
 interface AuthContextType extends AuthState {
-  signIn: (email: string, password: string) => Promise<{ error: string | null }>;
+  signIn: (email: string, password: string, rememberMe?: boolean) => Promise<{ error: string | null }>;
   signUp: (email: string, password: string, fullName: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -125,6 +125,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return;
         }
 
+        // Si el usuario eligió NO recordar sesión y es un nuevo browser session → cerrar
+        const remember = localStorage.getItem('lawstream_remember');
+        const alive    = sessionStorage.getItem('lawstream_alive');
+        if (data.session && remember === '0' && !alive) {
+          await supabase.auth.signOut();
+          safeSetState({ session: null, user: null, profile: null, isLoading: false });
+          return;
+        }
+
+        // Si hay sesión activa, marcar el tab como vivo
+        if (data.session) sessionStorage.setItem('lawstream_alive', '1');
+
         await applySession(data.session ?? null);
       } catch (err) {
         console.error('Error initializing auth:', err);
@@ -157,9 +169,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
-  const signIn = async (email: string, password: string) => {
+  const signIn = async (email: string, password: string, rememberMe = true) => {
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (!error) {
+        // Marcar sesión activa en sessionStorage (se borra al cerrar el navegador)
+        sessionStorage.setItem('lawstream_alive', '1');
+        localStorage.setItem('lawstream_remember', rememberMe ? '1' : '0');
+      }
       return { error: error?.message ?? null };
     } catch (err) {
       console.error('signIn error:', err);

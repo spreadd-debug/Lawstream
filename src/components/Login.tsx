@@ -53,6 +53,7 @@ export const Login = () => {
   const [password, setPassword]       = useState('');
   const [fullName, setFullName]       = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe]   = useState(() => localStorage.getItem('lawstream_remember') !== '0');
   const [error, setError]             = useState<string | null>(null);
   const [loading, setLoading]         = useState(false);
   const [success, setSuccess]         = useState<string | null>(null);
@@ -64,7 +65,7 @@ export const Login = () => {
     setLoading(true);
 
     if (mode === 'login') {
-      const { error } = await signIn(email, password);
+      const { error } = await signIn(email, password, rememberMe);
       if (error) setError(error);
     } else {
       if (!fullName.trim()) { setError('Ingresá tu nombre completo'); setLoading(false); return; }
@@ -188,6 +189,25 @@ export const Login = () => {
                 </button>
               </div>
             </div>
+
+            {/* Recordarme (solo en login) */}
+            {mode === 'login' && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>
+                <input
+                  id="rememberMe"
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={e => setRememberMe(e.target.checked)}
+                  style={{ width: 15, height: 15, accentColor: C.teal, cursor: 'pointer' }}
+                />
+                <label
+                  htmlFor="rememberMe"
+                  style={{ fontSize: 12, color: C.label, cursor: 'pointer', userSelect: 'none' }}
+                >
+                  Mantener sesión iniciada
+                </label>
+              </div>
+            )}
 
             {/* Error */}
             {error && (
