@@ -21,6 +21,9 @@ import {
   CheckCircle2,
   ArrowRight,
   RotateCcw,
+  StickyNote,
+  Send,
+  Trash2,
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -353,9 +356,12 @@ export const Consultas = ({ consultations, profiles = [], onConvertToMatter, onU
   const [presupuesto, setPresupuesto] = useState<Presupuesto | null>(null);
   const [loadingPresupuesto, setLoadingPresupuesto] = useState(false);
   const [showPresupuestoForm, setShowPresupuestoForm] = useState(false);
-  const [showNuevaConsulta, setShowNuevaConsulta] = useState(false);
+  const [showNuevaConsulta, setShowNuevaConsulta]     = useState(false);
+  const [noteInput, setNoteInput]                     = useState('');
+  const [savingNote, setSavingNote]                   = useState(false);
 
   useEffect(() => {
+    setNoteInput('');
     if (!selectedConsultation) { setPresupuesto(null); return; }
     setLoadingPresupuesto(true);
     fetchPresupuestoByConsultation(selectedConsultation.id)
@@ -386,6 +392,33 @@ export const Consultas = ({ consultations, profiles = [], onConvertToMatter, onU
     const updated = { ...consultation, ...changes };
     setSelectedConsultation(updated);
     onUpdateConsultation?.(consultation.id, changes);
+  };
+
+  const handleAddNote = async (consultation: Consultation) => {
+    const text = noteInput.trim();
+    if (!text) return;
+    setSavingNote(true);
+    try {
+      const now    = new Date();
+      const stamp  = format(now, "dd/MM HH:mm", { locale: es });
+      const entry  = `[${stamp}] ${text}`;
+      const updated_notes = [...(consultation.notes ?? []), entry];
+      await updateConsultation(consultation.id, { notes: updated_notes });
+      const updated = { ...consultation, notes: updated_notes };
+      setSelectedConsultation(updated);
+      onUpdateConsultation?.(consultation.id, { notes: updated_notes });
+      setNoteInput('');
+    } finally {
+      setSavingNote(false);
+    }
+  };
+
+  const handleDeleteNote = async (consultation: Consultation, idx: number) => {
+    const updated_notes = (consultation.notes ?? []).filter((_, i) => i !== idx);
+    await updateConsultation(consultation.id, { notes: updated_notes });
+    const updated = { ...consultation, notes: updated_notes };
+    setSelectedConsultation(updated);
+    onUpdateConsultation?.(consultation.id, { notes: updated_notes });
   };
 
   const filteredConsultations = consultations.filter(c => {
@@ -677,14 +710,73 @@ export const Consultas = ({ consultations, profiles = [], onConvertToMatter, onU
 
               {/* Notes Section */}
               <section className="space-y-3">
-                <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Notas de Seguimiento</label>
-                <div className="space-y-2">
-                  {selectedConsultation.notes?.map((note, idx) => (
-                    <div key={idx} className="text-xs p-3 bg-muted/20 rounded-lg border border-border/30">
-                      {note}
-                    </div>
-                  )) || <p className="text-xs text-muted-foreground italic">No hay notas registradas.</p>}
+                <div className="flex items-center gap-2">
+                  <StickyNote size={13} className="text-muted-foreground" />
+                  <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                    Notas del caso
+                  </label>
                 </div>
+
+                {/* Input */}
+                <div className="space-y-2">
+                  <textarea
+                    value={noteInput}
+                    onChange={e => setNoteInput(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                        void handleAddNote(selectedConsultation);
+                      }
+                    }}
+                    placeholder="Anotá lo que dice el cliente, observaciones del caso, próximos pasos… (Ctrl+Enter para guardar)"
+                    className="w-full px-3 py-2.5 text-sm rounded-xl border border-border bg-background resize-none h-24 focus:outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-muted-foreground/50"
+                  />
+                  <Button
+                    size="sm"
+                    onClick={() => handleAddNote(selectedConsultation)}
+                    disabled={savingNote || !noteInput.trim()}
+                    className="gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground"
+                  >
+                    <Send size={12} />
+                    {savingNote ? 'Guardando...' : 'Agregar nota'}
+                  </Button>
+                </div>
+
+                {/* Notes list */}
+                {selectedConsultation.notes && selectedConsultation.notes.length > 0 ? (
+                  <div className="space-y-2 pt-1">
+                    {[...selectedConsultation.notes].reverse().map((note, ridx) => {
+                      const idx = selectedConsultation.notes!.length - 1 - ridx;
+                      // Parse "[DD/MM HH:mm] text" format
+                      const match = note.match(/^\[([^\]]+)\]\s(.+)$/s);
+                      const stamp = match ? match[1] : null;
+                      const text  = match ? match[2] : note;
+                      return (
+                        <div
+                          key={idx}
+                          className="group relative p-3 bg-muted/20 border border-border/50 rounded-xl hover:border-border transition-colors"
+                        >
+                          {stamp && (
+                            <p className="text-[9px] font-black uppercase tracking-wider text-muted-foreground/60 mb-1">
+                              {stamp}
+                            </p>
+                          )}
+                          <p className="text-xs text-foreground leading-relaxed whitespace-pre-wrap">{text}</p>
+                          <button
+                            onClick={() => handleDeleteNote(selectedConsultation, idx)}
+                            className="absolute top-2 right-2 p-1 rounded-lg opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10 transition-all"
+                            title="Eliminar nota"
+                          >
+                            <Trash2 size={11} />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground/60 italic text-center py-3">
+                    Aún no hay notas. Usá este espacio durante la entrevista.
+                  </p>
+                )}
               </section>
             </div>
 
