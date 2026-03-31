@@ -49,7 +49,7 @@ export interface Consultation {
   notes?: string[];
   consultationFeePaid?: boolean;
   consultationFeeSnapshot?: number;
-  consultationFeeFormaPago?: 'Efectivo' | 'Transferencia';
+  consultationFeeFormaPago?: 'Efectivo' | 'Transferencia' | 'Bonificada' | 'No aplica';
   scheduledAt?: string; // ISO datetime de la entrevista agendada
   diagnostico?: string;
   solucionPropuesta?: string;
