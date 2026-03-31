@@ -50,6 +50,7 @@ export interface Consultation {
   consultationFeePaid?: boolean;
   consultationFeeSnapshot?: number;
   consultationFeeFormaPago?: 'Efectivo' | 'Transferencia';
+  scheduledAt?: string; // ISO datetime de la entrevista agendada
 }
 
 export interface Client {

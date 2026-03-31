@@ -1,6 +1,6 @@
 import React from 'react';
 import { Card, Badge, Button } from './UI';
-import { Matter } from '../types';
+import { Matter, Consultation } from '../types';
 import {
   Calendar,
   Clock,
@@ -11,7 +11,8 @@ import {
   Filter,
   ArrowUpRight,
   Zap,
-  CheckCircle2
+  CheckCircle2,
+  MessageSquare,
 } from 'lucide-react';
 import { format, parseISO, isPast, isToday, addDays, isSameDay } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -19,24 +20,55 @@ import { cn } from '../lib/utils';
 
 interface VencimientosProps {
   matters: Matter[];
+  consultations?: Consultation[];
   onSelectMatter: (id: string) => void;
+  onSelectConsultation?: (c: Consultation) => void;
 }
 
-export const Vencimientos = ({ matters, onSelectMatter }: VencimientosProps) => {
+// Consultas agendadas como eventos de agenda
+interface AgendaEvent {
+  id: string;
+  title: string;
+  subtitle: string;
+  date: Date;
+  type: 'matter' | 'consultation';
+  matterId?: string;
+  consultation?: Consultation;
+}
+
+export const Vencimientos = ({ matters, consultations = [], onSelectMatter, onSelectConsultation }: VencimientosProps) => {
   const now = new Date();
-  
-  const overdue = matters.filter(m => m.nextActionDate && isPast(parseISO(m.nextActionDate)) && !isToday(parseISO(m.nextActionDate)));
-  const today = matters.filter(m => m.nextActionDate && isToday(parseISO(m.nextActionDate)));
-  const tomorrow = matters.filter(m => m.nextActionDate && isSameDay(parseISO(m.nextActionDate), addDays(now, 1)));
-  const nextThreeDays = matters.filter(m => {
-    if (!m.nextActionDate) return false;
-    const date = parseISO(m.nextActionDate);
-    return isPast(date) === false && !isToday(date) && !isSameDay(date, addDays(now, 1)) && date <= addDays(now, 3);
-  });
-  const upcoming = matters.filter(m => {
-    if (!m.nextActionDate) return false;
-    const date = parseISO(m.nextActionDate);
-    return date > addDays(now, 3);
+
+  // Build unified event list
+  const matterEvents: AgendaEvent[] = matters
+    .filter(m => m.nextActionDate)
+    .map(m => ({
+      id: m.id,
+      title: m.title,
+      subtitle: `${m.nextAction} · ${m.client}`,
+      date: parseISO(m.nextActionDate),
+      type: 'matter' as const,
+      matterId: m.id,
+    }));
+
+  const consultationEvents: AgendaEvent[] = consultations
+    .filter(c => c.scheduledAt && !['Rechazada', 'Archivada', 'Aceptada'].includes(c.status))
+    .map(c => ({
+      id: c.id,
+      title: `Entrevista: ${c.name}`,
+      subtitle: `${c.type ?? 'Consulta'} · ${format(parseISO(c.scheduledAt!), "HH:mm", { locale: es })}hs`,
+      date: parseISO(c.scheduledAt!),
+      type: 'consultation' as const,
+      consultation: c,
+    }));
+
+  const allEvents = [...matterEvents, ...consultationEvents];
+
+  const overdue       = allEvents.filter(e => isPast(e.date) && !isToday(e.date));
+  const today         = allEvents.filter(e => isToday(e.date));
+  const tomorrow      = allEvents.filter(e => isSameDay(e.date, addDays(now, 1)));
+  const nextThreeDays = allEvents.filter(e => {
+    return !isPast(e.date) && !isToday(e.date) && !isSameDay(e.date, addDays(now, 1)) && e.date <= addDays(now, 3);
   });
 
   return (
@@ -72,8 +104,9 @@ export const Vencimientos = ({ matters, onSelectMatter }: VencimientosProps) => 
               <Badge variant="destructive" className="text-[10px] font-black uppercase tracking-wider">{overdue.length}</Badge>
             </div>
             <div className="space-y-3">
-              {overdue.map(matter => (
-                <DeadlineItem key={matter.id} matter={matter} onClick={() => onSelectMatter(matter.id)} variant="error" />
+              {overdue.map(e => (
+                <AgendaItem key={e.id} event={e} variant="error"
+                  onClick={() => e.type === 'matter' ? onSelectMatter(e.matterId!) : onSelectConsultation?.(e.consultation!)} />
               ))}
             </div>
           </section>
@@ -85,24 +118,25 @@ export const Vencimientos = ({ matters, onSelectMatter }: VencimientosProps) => 
             <div className="w-8 h-8 bg-amber-500/20 rounded-lg flex items-center justify-center">
               <Zap size={18} className="text-amber-600 fill-amber-600" />
             </div>
-            <h2 className="text-sm font-black text-amber-600 uppercase tracking-widest">Vence Hoy</h2>
+            <h2 className="text-sm font-black text-amber-600 uppercase tracking-widest">Hoy</h2>
             <Badge className="bg-amber-500 text-white text-[10px] font-black uppercase tracking-wider">{today.length}</Badge>
           </div>
           <div className="space-y-3">
             {today.length > 0 ? (
-              today.map(matter => (
-                <DeadlineItem key={matter.id} matter={matter} onClick={() => onSelectMatter(matter.id)} variant="warning" />
+              today.map(e => (
+                <AgendaItem key={e.id} event={e} variant="warning"
+                  onClick={() => e.type === 'matter' ? onSelectMatter(e.matterId!) : onSelectConsultation?.(e.consultation!)} />
               ))
             ) : (
               <div className="flex items-center gap-2.5 py-4 px-4 bg-emerald-500/5 border border-emerald-500/15 rounded-xl">
                 <CheckCircle2 size={15} className="text-emerald-600 shrink-0" />
-                <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400">Sin vencimientos para hoy</span>
+                <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400">Sin eventos para hoy</span>
               </div>
             )}
           </div>
         </section>
 
-        {/* Mañana */}
+        {/* Mañana — con énfasis especial para entrevistas (recordatorio) */}
         <section className="space-y-4">
           <div className="flex items-center gap-3 border-b border-border pb-3">
             <div className="w-8 h-8 bg-muted rounded-lg flex items-center justify-center">
@@ -112,13 +146,14 @@ export const Vencimientos = ({ matters, onSelectMatter }: VencimientosProps) => 
           </div>
           <div className="space-y-3">
             {tomorrow.length > 0 ? (
-              tomorrow.map(matter => (
-                <DeadlineItem key={matter.id} matter={matter} onClick={() => onSelectMatter(matter.id)} variant="default" />
+              tomorrow.map(e => (
+                <AgendaItem key={e.id} event={e} variant="default"
+                  onClick={() => e.type === 'matter' ? onSelectMatter(e.matterId!) : onSelectConsultation?.(e.consultation!)} />
               ))
             ) : (
               <div className="flex items-center gap-2.5 py-4 px-4 bg-muted/30 border border-border/50 rounded-xl">
                 <CheckCircle2 size={15} className="text-muted-foreground shrink-0" />
-                <span className="text-xs font-bold text-muted-foreground">Sin vencimientos para mañana</span>
+                <span className="text-xs font-bold text-muted-foreground">Sin eventos para mañana</span>
               </div>
             )}
           </div>
@@ -134,8 +169,9 @@ export const Vencimientos = ({ matters, onSelectMatter }: VencimientosProps) => 
               <h2 className="text-sm font-black text-foreground uppercase tracking-widest">Próximos 3 días</h2>
             </div>
             <div className="space-y-3">
-              {nextThreeDays.map(matter => (
-                <DeadlineItem key={matter.id} matter={matter} onClick={() => onSelectMatter(matter.id)} variant="default" />
+              {nextThreeDays.map(e => (
+                <AgendaItem key={e.id} event={e} variant="default"
+                  onClick={() => e.type === 'matter' ? onSelectMatter(e.matterId!) : onSelectConsultation?.(e.consultation!)} />
               ))}
             </div>
           </section>
@@ -145,75 +181,74 @@ export const Vencimientos = ({ matters, onSelectMatter }: VencimientosProps) => 
   );
 };
 
-interface DeadlineItemProps {
-  matter: Matter;
+interface AgendaItemProps {
+  event: AgendaEvent;
   onClick: () => void;
   variant: 'error' | 'warning' | 'default';
 }
 
-const DeadlineItem: React.FC<DeadlineItemProps> = ({ matter, onClick, variant }) => {
-  const styles = {
+const AgendaItem: React.FC<AgendaItemProps> = ({ event, onClick, variant }) => {
+  const borderStyles = {
     error: 'border-rose-500/20 hover:bg-rose-500/5',
     warning: 'border-amber-500/20 hover:bg-amber-500/5',
     default: 'border-border hover:bg-muted/30',
   };
-
-  const textStyles = {
+  const dateStyles = {
     error: 'text-rose-600',
     warning: 'text-amber-600',
     default: 'text-foreground',
   };
 
+  const isConsultation = event.type === 'consultation';
+
   return (
-    <Card 
+    <Card
       onClick={onClick}
       className={cn(
-        "p-4 border transition-all cursor-pointer group flex flex-col md:flex-row md:items-center gap-6",
-        styles[variant]
+        'p-4 border transition-all cursor-pointer group flex flex-col md:flex-row md:items-center gap-4',
+        borderStyles[variant],
+        isConsultation && 'border-l-4 border-l-primary/40',
       )}
     >
+      {/* Icon */}
+      <div className={cn(
+        'w-9 h-9 rounded-xl flex items-center justify-center shrink-0',
+        isConsultation ? 'bg-primary/10' : 'bg-muted',
+      )}>
+        {isConsultation
+          ? <MessageSquare size={16} className="text-primary" />
+          : <AlertCircle size={16} className="text-muted-foreground" />
+        }
+      </div>
+
+      {/* Title + subtitle */}
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-1">
-          <h3 className="font-bold text-foreground truncate text-base tracking-tight group-hover:text-primary transition-colors">
-            {matter.title}
+        <div className="flex items-center gap-2 flex-wrap">
+          <h3 className="font-bold text-foreground text-sm tracking-tight group-hover:text-primary transition-colors truncate">
+            {event.title}
           </h3>
-          <span className="px-1.5 py-0.5 rounded bg-muted text-[9px] font-black uppercase tracking-wider text-muted-foreground border border-border">
-            {matter.type}
-          </span>
+          {isConsultation && (
+            <span className="px-1.5 py-0.5 rounded bg-primary/10 text-[8px] font-black uppercase tracking-wider text-primary border border-primary/20 shrink-0">
+              Entrevista
+            </span>
+          )}
         </div>
-        <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">{matter.client}</p>
+        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mt-0.5 truncate">
+          {event.subtitle}
+        </p>
       </div>
 
-      <div className="flex-[1.5] bg-muted/50 rounded-xl p-3 border border-border/50">
-        <div className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-1">Próxima Acción</div>
-        <div className="text-xs font-bold text-foreground truncate">
-          {matter.nextAction || 'Sin próxima acción'}
-        </div>
+      {/* Date */}
+      <div className={cn('text-xs font-black flex items-center gap-1.5 shrink-0', dateStyles[variant])}>
+        <Clock size={13} />
+        {isConsultation
+          ? format(event.date, "d MMM · HH:mm'hs'", { locale: es })
+          : format(event.date, "d 'de' MMM", { locale: es })
+        }
       </div>
 
-      <div className="flex items-center gap-8 md:w-64 justify-between md:justify-end">
-        <div className="text-right">
-          <div className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-1">Vencimiento</div>
-          <div className={cn(
-            "text-xs font-black flex items-center justify-end gap-1.5",
-            textStyles[variant]
-          )}>
-            <Clock size={14} />
-            {matter.nextActionDate ? format(parseISO(matter.nextActionDate), "d 'de' MMM", { locale: es }) : '--'}
-          </div>
-        </div>
-        <div className="text-right hidden lg:block">
-          <div className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-1">Responsable</div>
-          <div className="flex items-center gap-2 justify-end">
-             <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center text-[8px] font-black text-primary border border-primary/20">
-               {matter.responsible.split(' ').map(n => n[0]).join('')}
-             </div>
-             <div className="text-xs font-bold text-foreground">{matter.responsible.split(' ').pop()}</div>
-          </div>
-        </div>
-        <div className="p-2 text-muted-foreground group-hover:text-primary transition-colors">
-          <ArrowUpRight size={18} />
-        </div>
+      <div className="p-1.5 text-muted-foreground group-hover:text-primary transition-colors">
+        <ArrowUpRight size={16} />
       </div>
     </Card>
   );

@@ -67,7 +67,7 @@ const StatusBadge = ({ status }: { status: Consultation['status'] }) => {
 
 // ── Próxima acción automática por estado ─────────────────────────
 
-const NEXT_STEP_BY_STATUS: Record<Consultation['status'], string> = {
+export const NEXT_STEP_BY_STATUS: Record<Consultation['status'], string> = {
   'Nueva':                'Agendar entrevista inicial',
   'Contactada':           'Realizar entrevista y cobrar consulta',
   'Esperando info':       'Esperar documentación del cliente',

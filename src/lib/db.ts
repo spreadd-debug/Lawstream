@@ -143,6 +143,7 @@ const toConsultation = (r: any): Consultation => ({
   consultationFeePaid:        r.consultation_fee_paid     ?? false,
   consultationFeeSnapshot:    r.consulta_fee_snapshot   != null ? parseFloat(r.consulta_fee_snapshot) : undefined,
   consultationFeeFormaPago:   r.consulta_fee_forma_pago  ?? undefined,
+  scheduledAt:                r.scheduled_at             ?? undefined,
 });
 
 const toDocument = (r: any): LegalDocument => ({
@@ -256,6 +257,7 @@ export const updateConsultation = async (id: string, changes: Partial<Consultati
   if (changes.consultationFeePaid      !== undefined) row.consultation_fee_paid    = changes.consultationFeePaid;
   if (changes.consultationFeeSnapshot  !== undefined) row.consulta_fee_snapshot   = changes.consultationFeeSnapshot;
   if (changes.consultationFeeFormaPago !== undefined) row.consulta_fee_forma_pago  = changes.consultationFeeFormaPago;
+  if (changes.scheduledAt             !== undefined) row.scheduled_at             = changes.scheduledAt ?? null;
   const { error } = await supabase.from('consultations').update(row).eq('id', id);
   if (error) throw error;
 };
@@ -278,6 +280,7 @@ export const createConsultation = async (c: Omit<Consultation, 'id'>): Promise<C
       consultation_fee_paid:    c.consultationFeePaid     ?? false,
       consulta_fee_snapshot:    c.consultationFeeSnapshot ?? null,
       consulta_fee_forma_pago:  c.consultationFeeFormaPago ?? null,
+      scheduled_at:             c.scheduledAt              ?? null,
     })
     .select()
     .single();
