@@ -189,6 +189,24 @@ export interface Presupuesto {
   updatedAt: string;
 }
 
+export type FormaPago = 'Efectivo' | 'Transferencia' | 'Cheque' | 'Otro';
+export type ReciboStatus = 'Borrador' | 'Emitido';
+
+export interface Recibo {
+  id: string;
+  presupuestoId: string;
+  clientName: string;
+  montoPesos: number;
+  formaPago: FormaPago;
+  concepto: string;
+  notas?: string;
+  numero?: string;
+  status: ReciboStatus;
+  cuotaNumero?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface EstudioPerfil {
   id?: string;
   nombre: string;

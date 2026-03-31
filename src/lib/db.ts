@@ -22,6 +22,7 @@ import {
   UserProfile,
   Presupuesto,
   PresupuestoItem,
+  Recibo,
   StudioConfig,
   EstudioPerfil,
   Expediente,
@@ -825,4 +826,65 @@ export const cambiarEstadoExpediente = async (
     observaciones:  observaciones  ?? null,
     registrado_por: registradoPor  ?? null,
   });
+};
+
+// ── Recibos ───────────────────────────────────────────────────────
+
+const toRecibo = (r: any): Recibo => ({
+  id:             r.id,
+  presupuestoId:  r.presupuesto_id,
+  clientName:     r.client_name,
+  montoPesos:     parseFloat(r.monto_pesos),
+  formaPago:      r.forma_pago,
+  concepto:       r.concepto,
+  notas:          r.notas          ?? undefined,
+  numero:         r.numero         ?? undefined,
+  status:         r.status,
+  cuotaNumero:    r.cuota_numero   ?? undefined,
+  createdAt:      r.created_at,
+  updatedAt:      r.updated_at,
+});
+
+export const fetchRecibosByPresupuesto = async (presupuestoId: string): Promise<Recibo[]> => {
+  const { data } = await supabase
+    .from('recibos')
+    .select('*')
+    .eq('presupuesto_id', presupuestoId)
+    .order('created_at', { ascending: false });
+  return (data ?? []).map(toRecibo);
+};
+
+export const createRecibo = async (
+  r: Omit<Recibo, 'id' | 'numero' | 'createdAt' | 'updatedAt'>,
+): Promise<Recibo> => {
+  const now = new Date().toISOString();
+  const { count } = await supabase.from('recibos').select('*', { count: 'exact', head: true });
+  const numero = `REC-${String((count ?? 0) + 1).padStart(3, '0')}`;
+  const { data, error } = await supabase
+    .from('recibos')
+    .insert({
+      presupuesto_id: r.presupuestoId,
+      client_name:    r.clientName,
+      monto_pesos:    r.montoPesos,
+      forma_pago:     r.formaPago,
+      concepto:       r.concepto,
+      notas:          r.notas         ?? null,
+      status:         r.status,
+      cuota_numero:   r.cuotaNumero   ?? null,
+      numero,
+      created_at:     now,
+      updated_at:     now,
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return toRecibo(data);
+};
+
+export const updateRecibo = async (id: string, changes: Partial<Pick<Recibo, 'status' | 'notas'>>): Promise<void> => {
+  const row: any = { updated_at: new Date().toISOString() };
+  if (changes.status !== undefined) row.status = changes.status;
+  if (changes.notas  !== undefined) row.notas  = changes.notas;
+  const { error } = await supabase.from('recibos').update(row).eq('id', id);
+  if (error) throw error;
 };
