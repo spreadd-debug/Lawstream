@@ -27,6 +27,8 @@ import { Drawer } from './UI';
 import { NuevaAccion } from './NuevaAccion';
 import { EditMatterForm } from './EditMatterForm';
 import { FiltersContent, defaultFilters } from './FiltersContent';
+import { OverdueInterviewBanner } from './OverdueInterviewBanner';
+import { EntrevistaModal } from './EntrevistaModal';
 
 // ── Sidebar link using NavLink ────────────────────────────────────
 
@@ -93,17 +95,19 @@ export const AppLayout: React.FC = () => {
   const navigate = useNavigate();
   const {
     theme, toggleTheme,
-    matters,
+    matters, consultations, profiles,
     isNewActionOpen, setIsNewActionOpen,
     isEditMatterOpen, setIsEditMatterOpen,
     isFiltersOpen, setIsFiltersOpen,
     activeFilters, setActiveFilters,
     selectedMatterId,
     handleSaveAction, handleSaveMatterEdit,
+    handleUpdateConsultation,
     isLoading,
   } = useAppContext();
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
+  const [overdueInterview, setOverdueInterview] = React.useState<import('../types').Consultation | null>(null);
 
   const isSocioOrSecretario = profile?.role === 'Socio' || profile?.role === 'Secretario';
 
@@ -227,10 +231,44 @@ export const AppLayout: React.FC = () => {
           </div>
         </header>
 
+        {/* Overdue interview banner */}
+        <OverdueInterviewBanner
+          consultations={consultations}
+          profiles={profiles}
+          onUpdate={handleUpdateConsultation}
+          onStartInterview={(c) => setOverdueInterview(c)}
+        />
+
         {/* Content via Outlet */}
         <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-background/50">
           <Outlet />
         </div>
+
+        {/* Overdue interview modal */}
+        {overdueInterview && (
+          <EntrevistaModal
+            consultation={overdueInterview}
+            profiles={profiles}
+            onUpdate={(id, changes) => {
+              handleUpdateConsultation(id, changes);
+              setOverdueInterview(prev => prev ? { ...prev, ...changes } : null);
+            }}
+            onFinish={async (formaPago) => {
+              const isWaived = formaPago === 'Bonificada' || formaPago === 'No aplica';
+              const changes: Partial<import('../types').Consultation> = {
+                consultationFeePaid: true,
+                consultationFeeFormaPago: formaPago,
+                consultationFeeSnapshot: isWaived ? 0 : undefined,
+                nextStep: 'Pasar a Evaluación de viabilidad del caso',
+              };
+              const { updateConsultation: dbUpdate } = await import('../lib/db');
+              await dbUpdate(overdueInterview.id, changes);
+              handleUpdateConsultation(overdueInterview.id, changes);
+              setOverdueInterview(null);
+            }}
+            onClose={() => setOverdueInterview(null)}
+          />
+        )}
       </main>
 
       {/* ── Mobile Sidebar Overlay ── */}

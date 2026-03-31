@@ -35,7 +35,7 @@ import { Priority } from '../types';
 
 interface CrearAsuntoProps {
   onBack: () => void;
-  onSave: (data: any) => void;
+  onSave: (data: any) => void | Promise<void>;
   clients?: { id: string; name: string; type: string; email: string; phone?: string }[];
   onCreateClient?: (data: { name: string; email: string; phone: string; type: 'Persona' | 'Empresa' }) => Promise<{ id: string; name: string; type: string; email: string; phone?: string }>;
   prefilledData?: {
@@ -54,6 +54,7 @@ interface CrearAsuntoProps {
 
 export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCreateClient }: CrearAsuntoProps) => {
   const [step, setStep] = useState(1);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCreatingClient, setIsCreatingClient] = useState(false);
   const [clientSearch, setClientSearch] = useState('');
   const [selectedClient, setSelectedClient] = useState<any>(null);
@@ -1125,11 +1126,20 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
                 </Button>
               ) : (
                 <Button 
-                  onClick={() => onSave({ ...formData, client: selectedClient?.name || '', clientId: selectedClient?.id || '' })}
+                  disabled={isSubmitting}
+                  onClick={async () => {
+                    if (isSubmitting) return;
+                    setIsSubmitting(true);
+                    try {
+                      await onSave({ ...formData, client: selectedClient?.name || '', clientId: selectedClient?.id || '' });
+                    } finally {
+                      setIsSubmitting(false);
+                    }
+                  }}
                   className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2 px-8"
                 >
-                  Confirmar y Activar
-                  <CheckCircle2 size={16} />
+                  {isSubmitting ? 'Creando...' : 'Confirmar y Activar'}
+                  {!isSubmitting && <CheckCircle2 size={16} />}
                 </Button>
               )}
             </div>
