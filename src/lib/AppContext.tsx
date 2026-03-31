@@ -275,6 +275,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       lastActivity:   new Date().toISOString(),
       flowTemplateId: template?.id,
       currentStage:   template?.etapaInicial,
+      caseData:       data.caseData && Object.keys(data.caseData).length > 0 ? data.caseData : undefined,
     };
     const optimistic: Matter = { ...newMatter, id: crypto.randomUUID() };
     setMatters(prev => [optimistic, ...prev]);

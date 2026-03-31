@@ -118,6 +118,7 @@ const toMatter = (r: any): Matter => ({
   description:      r.description      ?? undefined,
   flowTemplateId:   r.flow_template_id ?? undefined,
   currentStage:     r.current_stage    ?? undefined,
+  caseData:         r.case_data        ?? undefined,
 });
 
 const toClient = (r: any): Client => ({
@@ -216,6 +217,7 @@ const matterToRow = (m: Partial<Matter>) => ({
   ...(m.description      !== undefined && { description:      m.description }),
   ...(m.flowTemplateId   !== undefined && { flow_template_id: m.flowTemplateId }),
   ...(m.currentStage     !== undefined && { current_stage:    m.currentStage }),
+  ...(m.caseData         !== undefined && { case_data:        m.caseData }),
 });
 
 const clientToRow = (c: Partial<Client>) => ({

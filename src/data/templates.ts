@@ -1123,3 +1123,423 @@ export function findTemplate(rama: string, subtipo?: string): MatterTemplate | u
   // Fallback: first template for that rama
   return MATTER_TEMPLATES.find(t => t.rama === rama);
 }
+
+/** Subtypes available per matter type, derived from templates */
+export const SUBTYPES_BY_TYPE: Record<string, { value: string; label: string }[]> =
+  MATTER_TEMPLATES.reduce((acc, t) => {
+    if (!acc[t.rama]) acc[t.rama] = [];
+    if (!acc[t.rama].find(s => s.value === t.subtipo)) {
+      acc[t.rama].push({ value: t.subtipo, label: t.name });
+    }
+    return acc;
+  }, {} as Record<string, { value: string; label: string }[]>);
+
+/* ═══════════════════════════════════════════════════════════
+   WIZARD FIELDS — Campos específicos por materia
+   Cada template puede definir secciones de datos que se piden
+   en el wizard de alta según la materia seleccionada.
+   ═══════════════════════════════════════════════════════════ */
+
+export interface WizardFieldDef {
+  key: string;
+  label: string;
+  type: 'text' | 'date' | 'select' | 'number' | 'textarea';
+  placeholder?: string;
+  options?: string[];      // for select type
+  required?: boolean;
+}
+
+export interface WizardSection {
+  title: string;
+  icon: string;  // lucide icon name
+  fields: WizardFieldDef[];
+}
+
+export const WIZARD_FIELDS_BY_TEMPLATE: Record<string, WizardSection[]> = {
+  'fam-divorcio': [
+    {
+      title: 'Datos del Cónyuge (Cliente)',
+      icon: 'User',
+      fields: [
+        { key: 'conyuge1_nombre', label: 'Nombre completo', type: 'text', placeholder: 'Nombre del cónyuge cliente', required: true },
+        { key: 'conyuge1_dni', label: 'DNI', type: 'text', placeholder: '12.345.678' },
+        { key: 'conyuge1_domicilio', label: 'Domicilio actual', type: 'text', placeholder: 'Dirección...' },
+      ],
+    },
+    {
+      title: 'Datos del Otro Cónyuge',
+      icon: 'UserPlus',
+      fields: [
+        { key: 'conyuge2_nombre', label: 'Nombre completo', type: 'text', placeholder: 'Nombre del otro cónyuge', required: true },
+        { key: 'conyuge2_dni', label: 'DNI', type: 'text', placeholder: '12.345.678' },
+        { key: 'conyuge2_domicilio', label: 'Domicilio actual', type: 'text', placeholder: 'Dirección...' },
+        { key: 'conyuge2_abogado', label: 'Abogado de la otra parte', type: 'text', placeholder: 'Si se conoce...' },
+      ],
+    },
+    {
+      title: 'Datos del Matrimonio',
+      icon: 'Calendar',
+      fields: [
+        { key: 'fecha_matrimonio', label: 'Fecha de matrimonio', type: 'date', required: true },
+        { key: 'registro_civil', label: 'Registro Civil donde se celebró', type: 'text', placeholder: 'Ej: RC Nº 5 CABA' },
+        { key: 'tipo_divorcio', label: 'Tipo de divorcio', type: 'select', options: ['Unilateral', 'De común acuerdo'], required: true },
+        { key: 'hijos_menores', label: 'Cantidad de hijos menores', type: 'number', placeholder: '0' },
+        { key: 'bienes_gananciales', label: '¿Hay bienes gananciales a liquidar?', type: 'select', options: ['Sí', 'No', 'Por determinar'] },
+      ],
+    },
+  ],
+
+  'fam-alimentos': [
+    {
+      title: 'Datos del Alimentado (hijo/a)',
+      icon: 'User',
+      fields: [
+        { key: 'hijo_nombre', label: 'Nombre completo del hijo/a', type: 'text', placeholder: 'Nombre completo', required: true },
+        { key: 'hijo_dni', label: 'DNI del hijo/a', type: 'text', placeholder: '12.345.678' },
+        { key: 'hijo_fecha_nacimiento', label: 'Fecha de nacimiento', type: 'date', required: true },
+        { key: 'hijo_escolaridad', label: 'Escolaridad', type: 'select', options: ['Jardín', 'Primaria', 'Secundaria', 'Universidad', 'No escolarizado'] },
+        { key: 'hijo_cobertura_medica', label: 'Cobertura médica', type: 'text', placeholder: 'Obra social / prepaga...' },
+      ],
+    },
+    {
+      title: 'Datos del Progenitor Alimentante',
+      icon: 'UserPlus',
+      fields: [
+        { key: 'alimentante_nombre', label: 'Nombre completo', type: 'text', placeholder: 'Nombre del alimentante', required: true },
+        { key: 'alimentante_dni', label: 'DNI', type: 'text', placeholder: '12.345.678' },
+        { key: 'alimentante_domicilio', label: 'Domicilio conocido', type: 'text', placeholder: 'Dirección...' },
+        { key: 'alimentante_empleador', label: 'Empleador / Actividad', type: 'text', placeholder: 'Empresa o actividad independiente' },
+        { key: 'alimentante_ingreso_estimado', label: 'Ingreso mensual estimado', type: 'text', placeholder: '$...' },
+      ],
+    },
+    {
+      title: 'Situación Actual',
+      icon: 'FileText',
+      fields: [
+        { key: 'tipo_alimentos', label: 'Tipo de alimentos', type: 'select', options: ['Para hijos menores', 'Para hijos mayores (hasta 25)', 'Para cónyuge', 'Para parientes'], required: true },
+        { key: 'paga_actualmente', label: '¿Paga algo actualmente?', type: 'select', options: ['Sí, cuota regular', 'Sí, montos irregulares', 'No paga nada'] },
+        { key: 'monto_actual', label: 'Monto actual (si paga)', type: 'text', placeholder: '$...' },
+        { key: 'gastos_mensuales', label: 'Total de gastos mensuales del menor', type: 'text', placeholder: '$...' },
+      ],
+    },
+  ],
+
+  'fam-cuidado': [
+    {
+      title: 'Datos del Niño/a',
+      icon: 'User',
+      fields: [
+        { key: 'nino_nombre', label: 'Nombre completo', type: 'text', required: true },
+        { key: 'nino_dni', label: 'DNI', type: 'text', placeholder: '12.345.678' },
+        { key: 'nino_fecha_nacimiento', label: 'Fecha de nacimiento', type: 'date', required: true },
+        { key: 'nino_escolaridad', label: 'Escuela / Nivel', type: 'text', placeholder: 'Nombre y nivel...' },
+        { key: 'nino_centro_vida', label: 'Centro de vida actual', type: 'text', placeholder: 'Con quién vive y dónde...' },
+      ],
+    },
+    {
+      title: 'Datos del Otro Progenitor',
+      icon: 'UserPlus',
+      fields: [
+        { key: 'otro_progenitor_nombre', label: 'Nombre completo', type: 'text', required: true },
+        { key: 'otro_progenitor_dni', label: 'DNI', type: 'text', placeholder: '12.345.678' },
+        { key: 'otro_progenitor_domicilio', label: 'Domicilio', type: 'text' },
+      ],
+    },
+    {
+      title: 'Régimen Pretendido',
+      icon: 'FileText',
+      fields: [
+        { key: 'regimen_actual', label: 'Convivencia actual', type: 'select', options: ['Vive con cliente', 'Vive con el otro progenitor', 'Alternado informal', 'Sin contacto'] },
+        { key: 'regimen_pretendido', label: 'Régimen pretendido', type: 'select', options: ['Cuidado compartido alternado', 'Cuidado compartido indistinto', 'Cuidado unipersonal (a favor del cliente)'], required: true },
+      ],
+    },
+  ],
+
+  'fam-comunicacion': [
+    {
+      title: 'Datos del Niño/a',
+      icon: 'User',
+      fields: [
+        { key: 'nino_nombre', label: 'Nombre completo', type: 'text', required: true },
+        { key: 'nino_fecha_nacimiento', label: 'Fecha de nacimiento', type: 'date', required: true },
+        { key: 'nino_escolaridad', label: 'Escuela / Nivel', type: 'text' },
+      ],
+    },
+    {
+      title: 'Datos del Otro Progenitor',
+      icon: 'UserPlus',
+      fields: [
+        { key: 'otro_progenitor_nombre', label: 'Nombre completo', type: 'text', required: true },
+        { key: 'otro_progenitor_domicilio', label: 'Domicilio', type: 'text' },
+        { key: 'distancia_domicilios', label: 'Distancia entre domicilios', type: 'select', options: ['Misma ciudad', 'Otra ciudad cercana', 'Otra provincia', 'Otro país'] },
+      ],
+    },
+    {
+      title: 'Régimen Comunicacional',
+      icon: 'Calendar',
+      fields: [
+        { key: 'regimen_actual', label: 'Régimen actual', type: 'select', options: ['Visitas regulares', 'Visitas esporádicas', 'Sin contacto', 'Impedimento de contacto'] },
+        { key: 'frecuencia_pretendida', label: 'Frecuencia pretendida', type: 'text', placeholder: 'Ej: fines de semana alternados + miércoles...' },
+      ],
+    },
+  ],
+
+  'fam-filiacion': [
+    {
+      title: 'Datos de la Persona a Reconocer/Filiar',
+      icon: 'User',
+      fields: [
+        { key: 'persona_nombre', label: 'Nombre completo', type: 'text', required: true },
+        { key: 'persona_fecha_nacimiento', label: 'Fecha de nacimiento', type: 'date', required: true },
+        { key: 'persona_dni', label: 'DNI', type: 'text' },
+      ],
+    },
+    {
+      title: 'Datos del Presunto Progenitor',
+      icon: 'UserPlus',
+      fields: [
+        { key: 'progenitor_nombre', label: 'Nombre completo', type: 'text', required: true },
+        { key: 'progenitor_dni', label: 'DNI', type: 'text' },
+        { key: 'progenitor_domicilio', label: 'Domicilio conocido', type: 'text' },
+      ],
+    },
+    {
+      title: 'Tipo de Filiación',
+      icon: 'FileText',
+      fields: [
+        { key: 'tipo_filiacion', label: 'Acción', type: 'select', options: ['Reconocimiento voluntario', 'Reclamación de filiación', 'Impugnación de filiación'], required: true },
+        { key: 'adn_previo', label: '¿Hay prueba de ADN previa?', type: 'select', options: ['Sí', 'No'] },
+      ],
+    },
+  ],
+
+  'fam-proteccion-urgente': [
+    {
+      title: 'Datos de la Víctima',
+      icon: 'User',
+      fields: [
+        { key: 'victima_nombre', label: 'Nombre completo', type: 'text', required: true },
+        { key: 'victima_dni', label: 'DNI', type: 'text', required: true },
+        { key: 'victima_domicilio', label: 'Domicilio actual', type: 'text', required: true },
+        { key: 'victima_telefono', label: 'Teléfono de contacto', type: 'text', required: true },
+        { key: 'menores_convivientes', label: 'Menores convivientes (cantidad)', type: 'number', placeholder: '0' },
+      ],
+    },
+    {
+      title: 'Datos del Agresor',
+      icon: 'UserPlus',
+      fields: [
+        { key: 'agresor_nombre', label: 'Nombre completo', type: 'text', required: true },
+        { key: 'agresor_dni', label: 'DNI', type: 'text' },
+        { key: 'agresor_domicilio', label: 'Domicilio', type: 'text' },
+        { key: 'vinculo', label: 'Vínculo con la víctima', type: 'select', options: ['Cónyuge', 'Ex-cónyuge', 'Conviviente', 'Ex-conviviente', 'Novio/a', 'Progenitor', 'Otro familiar'], required: true },
+      ],
+    },
+    {
+      title: 'Situación de Riesgo',
+      icon: 'AlertCircle',
+      fields: [
+        { key: 'tipo_violencia', label: 'Tipo de violencia', type: 'select', options: ['Física', 'Psicológica', 'Sexual', 'Económica', 'Simbólica', 'Múltiple'], required: true },
+        { key: 'denuncia_policial', label: '¿Hay denuncia policial?', type: 'select', options: ['Sí', 'No', 'En trámite'] },
+        { key: 'medida_vigente', label: '¿Hay medida vigente?', type: 'select', options: ['Sí', 'No'] },
+        { key: 'riesgo_descripcion', label: 'Descripción de la situación', type: 'textarea', placeholder: 'Resumen breve de la situación de riesgo...', required: true },
+      ],
+    },
+  ],
+
+  'fam-adopcion': [
+    {
+      title: 'Datos del/los Adoptante/s',
+      icon: 'User',
+      fields: [
+        { key: 'adoptante_nombre', label: 'Nombre completo', type: 'text', required: true },
+        { key: 'adoptante_dni', label: 'DNI', type: 'text', required: true },
+        { key: 'adoptante_domicilio', label: 'Domicilio', type: 'text', required: true },
+        { key: 'adoptante_estado_civil', label: 'Estado civil', type: 'select', options: ['Soltero/a', 'Casado/a', 'Divorciado/a', 'Viudo/a', 'Unión convivencial'] },
+      ],
+    },
+    {
+      title: 'Datos del Niño/a (si se conocen)',
+      icon: 'UserPlus',
+      fields: [
+        { key: 'nino_nombre', label: 'Nombre (si se conoce)', type: 'text' },
+        { key: 'nino_edad', label: 'Edad', type: 'text' },
+        { key: 'nino_situacion', label: 'Situación actual', type: 'text', placeholder: 'Hogar, familia sustituta...' },
+      ],
+    },
+    {
+      title: 'Estado del Proceso',
+      icon: 'FileText',
+      fields: [
+        { key: 'tipo_adopcion', label: 'Tipo de adopción', type: 'select', options: ['Adopción plena', 'Adopción simple', 'Adopción de integración'], required: true },
+        { key: 'inscrito_registro', label: '¿Inscripto en registro de adoptantes?', type: 'select', options: ['Sí', 'No', 'En trámite'], required: true },
+        { key: 'nro_registro', label: 'Nro. de registro (si aplica)', type: 'text' },
+      ],
+    },
+  ],
+
+  'lab-despido': [
+    {
+      title: 'Datos del Trabajador',
+      icon: 'User',
+      fields: [
+        { key: 'trabajador_nombre', label: 'Nombre completo', type: 'text', required: true },
+        { key: 'trabajador_dni', label: 'DNI', type: 'text', required: true },
+        { key: 'trabajador_cuil', label: 'CUIL', type: 'text', placeholder: '20-12345678-9' },
+        { key: 'trabajador_domicilio', label: 'Domicilio', type: 'text' },
+        { key: 'categoria', label: 'Categoría laboral', type: 'text', placeholder: 'Según CCT...' },
+      ],
+    },
+    {
+      title: 'Datos del Empleador',
+      icon: 'Building2',
+      fields: [
+        { key: 'empleador_nombre', label: 'Razón social', type: 'text', required: true },
+        { key: 'empleador_cuit', label: 'CUIT', type: 'text', placeholder: '30-12345678-9' },
+        { key: 'empleador_domicilio', label: 'Domicilio legal', type: 'text' },
+        { key: 'empleador_actividad', label: 'Actividad', type: 'text' },
+      ],
+    },
+    {
+      title: 'Datos de la Relación Laboral',
+      icon: 'Briefcase',
+      fields: [
+        { key: 'fecha_ingreso', label: 'Fecha de ingreso', type: 'date', required: true },
+        { key: 'fecha_egreso', label: 'Fecha de egreso', type: 'date', required: true },
+        { key: 'tipo_despido', label: 'Tipo de despido', type: 'select', options: ['Sin causa', 'Con causa (injustificada)', 'Indirecto', 'Mutuo acuerdo (art. 241)', 'Renuncia forzada'], required: true },
+        { key: 'remuneracion', label: 'Última remuneración bruta', type: 'text', placeholder: '$...' },
+        { key: 'registrado', label: '¿Estaba registrado?', type: 'select', options: ['Sí, correctamente', 'Parcialmente (fecha o sueldo adulterado)', 'No registrado (en negro)'] },
+        { key: 'cct', label: 'Convenio colectivo', type: 'text', placeholder: 'CCT Nº...' },
+      ],
+    },
+  ],
+
+  'dan-accidente-transito': [
+    {
+      title: 'Datos de la Víctima',
+      icon: 'User',
+      fields: [
+        { key: 'victima_nombre', label: 'Nombre completo', type: 'text', required: true },
+        { key: 'victima_dni', label: 'DNI', type: 'text', required: true },
+        { key: 'victima_rol', label: 'Rol en el accidente', type: 'select', options: ['Conductor', 'Acompañante', 'Peatón', 'Ciclista', 'Motociclista'], required: true },
+      ],
+    },
+    {
+      title: 'Datos del Responsable / Aseguradora',
+      icon: 'Building2',
+      fields: [
+        { key: 'responsable_nombre', label: 'Nombre del responsable', type: 'text' },
+        { key: 'responsable_patente', label: 'Patente del vehículo', type: 'text', placeholder: 'ABC 123' },
+        { key: 'aseguradora', label: 'Aseguradora', type: 'text', placeholder: 'Nombre de la compañía...' },
+        { key: 'nro_siniestro', label: 'Nro. de siniestro', type: 'text' },
+      ],
+    },
+    {
+      title: 'Datos del Accidente',
+      icon: 'AlertCircle',
+      fields: [
+        { key: 'fecha_accidente', label: 'Fecha del accidente', type: 'date', required: true },
+        { key: 'lugar_accidente', label: 'Lugar', type: 'text', placeholder: 'Intersección / dirección...' },
+        { key: 'lesiones', label: 'Lesiones sufridas', type: 'textarea', placeholder: 'Descripción de lesiones...' },
+        { key: 'denuncia_policial', label: '¿Hay denuncia/exposición policial?', type: 'select', options: ['Sí', 'No'] },
+      ],
+    },
+  ],
+
+  'com-incumplimiento': [
+    {
+      title: 'Datos de la Contraparte',
+      icon: 'Building2',
+      fields: [
+        { key: 'contraparte_nombre', label: 'Nombre / Razón social', type: 'text', required: true },
+        { key: 'contraparte_cuit', label: 'CUIT', type: 'text' },
+        { key: 'contraparte_domicilio', label: 'Domicilio', type: 'text' },
+      ],
+    },
+    {
+      title: 'Datos del Contrato',
+      icon: 'FileText',
+      fields: [
+        { key: 'tipo_contrato', label: 'Tipo de contrato', type: 'text', placeholder: 'Ej: Compraventa, Locación, Servicios...', required: true },
+        { key: 'fecha_contrato', label: 'Fecha del contrato', type: 'date' },
+        { key: 'objeto_contrato', label: 'Objeto del contrato', type: 'textarea', placeholder: 'Breve descripción de lo pactado...' },
+        { key: 'monto_reclamado', label: 'Monto reclamado estimado', type: 'text', placeholder: '$...' },
+      ],
+    },
+  ],
+
+  'com-cobro-ejecutivo': [
+    {
+      title: 'Datos del Deudor',
+      icon: 'Building2',
+      fields: [
+        { key: 'deudor_nombre', label: 'Nombre / Razón social', type: 'text', required: true },
+        { key: 'deudor_cuit', label: 'CUIT/DNI', type: 'text' },
+        { key: 'deudor_domicilio', label: 'Domicilio', type: 'text' },
+      ],
+    },
+    {
+      title: 'Datos del Título Ejecutivo',
+      icon: 'FileText',
+      fields: [
+        { key: 'tipo_titulo', label: 'Tipo de título', type: 'select', options: ['Pagaré', 'Cheque', 'Factura conformada', 'Contrato con cláusula ejecutiva', 'Otro'], required: true },
+        { key: 'monto_capital', label: 'Monto de capital', type: 'text', placeholder: '$...', required: true },
+        { key: 'fecha_vencimiento', label: 'Fecha de vencimiento', type: 'date' },
+        { key: 'moneda', label: 'Moneda', type: 'select', options: ['Pesos (ARS)', 'Dólares (USD)'] },
+      ],
+    },
+  ],
+
+  'com-ejecucion-cheque': [
+    {
+      title: 'Datos del Librador',
+      icon: 'Building2',
+      fields: [
+        { key: 'librador_nombre', label: 'Nombre / Razón social', type: 'text', required: true },
+        { key: 'librador_cuit', label: 'CUIT/DNI', type: 'text' },
+        { key: 'librador_domicilio', label: 'Domicilio', type: 'text' },
+      ],
+    },
+    {
+      title: 'Datos del Cheque',
+      icon: 'FileText',
+      fields: [
+        { key: 'nro_cheque', label: 'Número de cheque', type: 'text', required: true },
+        { key: 'banco_girado', label: 'Banco girado', type: 'text', required: true },
+        { key: 'monto_cheque', label: 'Monto', type: 'text', placeholder: '$...', required: true },
+        { key: 'fecha_cheque', label: 'Fecha del cheque', type: 'date' },
+        { key: 'motivo_rechazo', label: 'Motivo de rechazo', type: 'select', options: ['Sin fondos', 'Cuenta cerrada', 'Firma diferente', 'Denuncia de extravío', 'Otro'] },
+      ],
+    },
+  ],
+
+  'suc-ab-intestato': [
+    {
+      title: 'Datos del Causante',
+      icon: 'User',
+      fields: [
+        { key: 'causante_nombre', label: 'Nombre completo', type: 'text', required: true },
+        { key: 'causante_dni', label: 'DNI', type: 'text', required: true },
+        { key: 'causante_fecha_fallecimiento', label: 'Fecha de fallecimiento', type: 'date', required: true },
+        { key: 'causante_ultimo_domicilio', label: 'Último domicilio', type: 'text', required: true },
+      ],
+    },
+    {
+      title: 'Herederos Conocidos',
+      icon: 'UserPlus',
+      fields: [
+        { key: 'herederos_descripcion', label: 'Herederos conocidos', type: 'textarea', placeholder: 'Nombre, vínculo y DNI de cada heredero...', required: true },
+        { key: 'conyuge_superstite', label: '¿Hay cónyuge supérstite?', type: 'select', options: ['Sí', 'No'] },
+      ],
+    },
+    {
+      title: 'Bienes del Acervo',
+      icon: 'Building2',
+      fields: [
+        { key: 'bienes_inmuebles', label: 'Bienes inmuebles', type: 'textarea', placeholder: 'Descripción de inmuebles (dirección, matrícula)...' },
+        { key: 'bienes_muebles', label: 'Bienes muebles / registrables', type: 'textarea', placeholder: 'Vehículos, cuentas bancarias, inversiones...' },
+        { key: 'deudas_conocidas', label: 'Deudas conocidas', type: 'textarea', placeholder: 'Si hay deudas...' },
+      ],
+    },
+  ],
+};

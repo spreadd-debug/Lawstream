@@ -34,6 +34,7 @@ export interface Matter {
   description?: string;
   flowTemplateId?: string;
   currentStage?: string;
+  caseData?: Record<string, string>;
 }
 
 export interface Consultation {

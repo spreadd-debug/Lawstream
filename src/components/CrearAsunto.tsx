@@ -30,7 +30,7 @@ import {
 import { cn } from '../lib/utils';
 import { format, addDays } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { findTemplate } from '../data/templates';
+import { findTemplate, SUBTYPES_BY_TYPE, WIZARD_FIELDS_BY_TEMPLATE, type WizardSection } from '../data/templates';
 import { Priority } from '../types';
 
 interface CrearAsuntoProps {
@@ -76,7 +76,8 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
     milestones: [] as string[],
     blockers: [] as string[],
     notes: '',
-    selectedTemplateId: ''
+    selectedTemplateId: '',
+    caseData: {} as Record<string, string>,
   });
 
   // Handle prefilled data from consultation
@@ -116,14 +117,28 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
     type: 'Persona' as 'Persona' | 'Empresa'
   });
 
+  // Resolve the active template and its wizard sections
+  const activeTemplate = useMemo(() => findTemplate(formData.type, formData.subtype), [formData.type, formData.subtype]);
+  const wizardSections: WizardSection[] = useMemo(
+    () => (activeTemplate ? WIZARD_FIELDS_BY_TEMPLATE[activeTemplate.id] || [] : []),
+    [activeTemplate]
+  );
+  const hasWizardStep = wizardSections.length > 0;
+  const totalSteps = hasWizardStep ? 5 : 4;
+
   const validateStep = (currentStep: number) => {
     switch (currentStep) {
       case 1:
-        return formData.title && formData.type && selectedClient;
+        return formData.title && formData.type && formData.subtype && selectedClient;
       case 2:
-        return formData.responsible && formData.nextAction && formData.nextActionDate;
+        if (!hasWizardStep) return formData.responsible && formData.nextAction && formData.nextActionDate;
+        // Validate required wizard fields
+        return wizardSections.every(section =>
+          section.fields.filter(f => f.required).every(f => formData.caseData[f.key]?.trim())
+        );
       case 3:
-        return true; // Optional structural step
+        if (hasWizardStep) return formData.responsible && formData.nextAction && formData.nextActionDate;
+        return true;
       default:
         return true;
     }
@@ -149,7 +164,8 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
 
   // Update suggestions when template changes
   useEffect(() => {
-    if (step === 3 && formData.checklist.length === 0) {
+    const estructuraStep = hasWizardStep ? 4 : 3;
+    if (step === estructuraStep && formData.checklist.length === 0) {
       const template = findTemplate(formData.type, formData.subtype);
 
       if (template) {
@@ -173,14 +189,22 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
     c.name.toLowerCase().includes(clientSearch.toLowerCase())
   );
 
-  const steps = [
-    { id: 1, label: 'Identificación', icon: Briefcase },
-    { id: 2, label: 'Operatividad', icon: Zap },
-    { id: 3, label: 'Estructura Operativa', icon: LayoutDashboard },
-    { id: 4, label: 'Revisión', icon: CheckCircle2 },
-  ];
+  const steps = hasWizardStep
+    ? [
+        { id: 1, label: 'Identificación', icon: Briefcase },
+        { id: 2, label: 'Datos del Caso', icon: User },
+        { id: 3, label: 'Operatividad', icon: Zap },
+        { id: 4, label: 'Estructura', icon: LayoutDashboard },
+        { id: 5, label: 'Revisión', icon: CheckCircle2 },
+      ]
+    : [
+        { id: 1, label: 'Identificación', icon: Briefcase },
+        { id: 2, label: 'Operatividad', icon: Zap },
+        { id: 3, label: 'Estructura Operativa', icon: LayoutDashboard },
+        { id: 4, label: 'Revisión', icon: CheckCircle2 },
+      ];
 
-  const nextStep = () => setStep(s => Math.min(s + 1, 4));
+  const nextStep = () => setStep(s => Math.min(s + 1, totalSteps));
   const prevStep = () => setStep(s => Math.max(s - 1, 1));
 
   const handleToggleItem = (list: 'checklist' | 'docs', itemName: string) => {
@@ -237,9 +261,96 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
     }
   };
 
+  // Map visual step to logical step name
+  const getLogicalStep = () => {
+    if (!hasWizardStep) {
+      return ['identification', 'operatividad', 'estructura', 'revision'][step - 1];
+    }
+    return ['identification', 'datos-caso', 'operatividad', 'estructura', 'revision'][step - 1];
+  };
+
+  const renderWizardFieldsStep = () => (
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <h2 className="text-2xl font-black tracking-tighter text-foreground">Datos del Caso</h2>
+          <Badge className="bg-primary/10 text-primary border-primary/20 gap-1.5 py-1 px-3">
+            <Zap size={12} className="fill-primary" />
+            <span className="text-[10px] font-black uppercase tracking-widest">{activeTemplate?.name}</span>
+          </Badge>
+        </div>
+        <p className="text-sm text-muted-foreground font-medium">
+          Completá los datos específicos para este tipo de asunto. LawStream adapta el formulario según la materia.
+        </p>
+      </div>
+
+      <div className="space-y-8">
+        {wizardSections.map((section) => {
+          const IconMap: Record<string, any> = { User, UserPlus, Calendar, FileText, Building2, AlertCircle, Briefcase };
+          const SectionIcon = IconMap[section.icon] || FileText;
+          return (
+            <div key={section.title} className="space-y-4">
+              <div className="flex items-center gap-2 pb-2 border-b border-border/50">
+                <SectionIcon size={18} className="text-primary" />
+                <span className="text-xs font-black uppercase tracking-widest text-foreground">{section.title}</span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {section.fields.map((field) => (
+                  <div key={field.key} className={cn("space-y-1.5", field.type === 'textarea' && "md:col-span-2")}>
+                    <Label className="text-[10px]">
+                      {field.label}
+                      {field.required && <span className="text-rose-500 ml-0.5">*</span>}
+                    </Label>
+                    {field.type === 'select' ? (
+                      <select
+                        className="w-full h-11 bg-muted/30 border border-border/50 rounded-xl px-3 text-sm font-bold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all appearance-none"
+                        value={formData.caseData[field.key] || ''}
+                        onChange={e => setFormData(prev => ({
+                          ...prev,
+                          caseData: { ...prev.caseData, [field.key]: e.target.value }
+                        }))}
+                      >
+                        <option value="">Seleccionar...</option>
+                        {field.options?.map(opt => (
+                          <option key={opt} value={opt}>{opt}</option>
+                        ))}
+                      </select>
+                    ) : field.type === 'textarea' ? (
+                      <Textarea
+                        placeholder={field.placeholder}
+                        className="min-h-[80px] bg-muted/30 border-border/50 text-sm"
+                        value={formData.caseData[field.key] || ''}
+                        onChange={e => setFormData(prev => ({
+                          ...prev,
+                          caseData: { ...prev.caseData, [field.key]: e.target.value }
+                        }))}
+                      />
+                    ) : (
+                      <Input
+                        type={field.type}
+                        placeholder={field.placeholder}
+                        className="bg-muted/30 border-border/50 font-bold h-11"
+                        value={formData.caseData[field.key] || ''}
+                        onChange={e => setFormData(prev => ({
+                          ...prev,
+                          caseData: { ...prev.caseData, [field.key]: e.target.value }
+                        }))}
+                      />
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+
   const renderStep = () => {
-    switch (step) {
-      case 1:
+    const logical = getLogicalStep();
+    switch (logical) {
+      case 'identification':
         return (
           <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="space-y-2">
@@ -398,7 +509,7 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
                   <select 
                     className="w-full h-14 bg-muted/30 border border-border/50 rounded-xl px-4 text-sm font-bold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all appearance-none"
                     value={formData.type}
-                    onChange={e => setFormData({...formData, type: e.target.value})}
+                    onChange={e => setFormData({...formData, type: e.target.value, subtype: '', caseData: {}})}
                   >
                     <option value="">Seleccionar tipo...</option>
                     <option value="Laboral">Laboral</option>
@@ -410,12 +521,26 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
                 </div>
                 <div className="space-y-2">
                   <Label>Subtipo / Materia</Label>
-                  <Input 
-                    placeholder="Ej: Despido, Divorcio, Accidente..." 
-                    className="bg-muted/30 border-border/50 font-bold h-14"
-                    value={formData.subtype}
-                    onChange={e => setFormData({...formData, subtype: e.target.value})}
-                  />
+                  {formData.type && SUBTYPES_BY_TYPE[formData.type]?.length ? (
+                    <select
+                      className="w-full h-14 bg-muted/30 border border-border/50 rounded-xl px-4 text-sm font-bold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all appearance-none"
+                      value={formData.subtype}
+                      onChange={e => setFormData({...formData, subtype: e.target.value, caseData: {}})}
+                    >
+                      <option value="">Seleccionar materia...</option>
+                      {SUBTYPES_BY_TYPE[formData.type].map(s => (
+                        <option key={s.value} value={s.value}>{s.label}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <Input
+                      placeholder={formData.type ? 'No hay materias definidas para este tipo' : 'Seleccioná primero el tipo de asunto'}
+                      className="bg-muted/30 border-border/50 font-bold h-14"
+                      value={formData.subtype}
+                      onChange={e => setFormData({...formData, subtype: e.target.value})}
+                      disabled={!formData.type}
+                    />
+                  )}
                 </div>
               </div>
 
@@ -442,7 +567,9 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
             </div>
           </div>
         );
-      case 2:
+      case 'datos-caso':
+        return renderWizardFieldsStep();
+      case 'operatividad':
         return (
           <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="space-y-2">
@@ -538,7 +665,7 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
             </div>
           </div>
         );
-      case 3:
+      case 'estructura':
         return (
           <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="space-y-2">
@@ -772,7 +899,7 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
             </div>
           </div>
         );
-      case 4:
+      case 'revision':
         return (
           <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="space-y-2">
@@ -875,6 +1002,27 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
               </Card>
             </div>
 
+            {/* Case-specific data summary */}
+            {Object.keys(formData.caseData).filter(k => formData.caseData[k]).length > 0 && (
+              <Card className="p-6 border border-border/50 bg-muted/10 space-y-4">
+                <div className="flex items-center gap-2">
+                  <FileText size={16} className="text-primary" />
+                  <span className="text-xs font-black uppercase tracking-widest text-foreground">Datos del Caso</span>
+                  <Badge variant="outline" className="text-[8px] ml-auto">
+                    {Object.values(formData.caseData).filter(Boolean).length} campos
+                  </Badge>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  {wizardSections.flatMap(s => s.fields).filter(f => formData.caseData[f.key]).map(f => (
+                    <div key={f.key} className="space-y-0.5">
+                      <div className="text-[8px] font-black text-muted-foreground uppercase tracking-[0.15em]">{f.label}</div>
+                      <div className="text-xs font-bold text-foreground truncate">{formData.caseData[f.key]}</div>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            )}
+
             <div className="p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-2xl flex items-center gap-4">
               <div className="w-12 h-12 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-600">
                 <CheckCircle2 size={24} />
@@ -965,8 +1113,8 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
             </Button>
             
             <div className="flex items-center gap-4">
-              <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Paso {step} de 4</span>
-              {step < 4 ? (
+              <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Paso {step} de {totalSteps}</span>
+              {step < totalSteps ? (
                 <Button 
                   onClick={nextStep}
                   disabled={!validateStep(step)}
@@ -977,7 +1125,7 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
                 </Button>
               ) : (
                 <Button 
-                  onClick={() => onSave({ ...formData, client: selectedClient?.name || '' })}
+                  onClick={() => onSave({ ...formData, client: selectedClient?.name || '', clientId: selectedClient?.id || '' })}
                   className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2 px-8"
                 >
                   Confirmar y Activar
@@ -1016,6 +1164,19 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
                       </div>
                     )}
                   </div>
+
+                  {activeTemplate && (
+                    <div className="p-2.5 rounded-xl bg-primary/5 border border-primary/20 animate-in fade-in zoom-in-95 duration-300">
+                      <div className="flex items-center gap-2">
+                        <Zap size={12} className="text-primary fill-primary" />
+                        <span className="text-[9px] font-black uppercase tracking-widest text-primary">Workflow activo</span>
+                      </div>
+                      <div className="text-[10px] font-bold text-foreground mt-1">{activeTemplate.name}</div>
+                      {activeTemplate.stages && (
+                        <div className="text-[9px] text-muted-foreground mt-0.5">{activeTemplate.stages.length} etapas</div>
+                      )}
+                    </div>
+                  )}
 
                   <div className="flex items-center gap-3">
                     <div className="flex-1 space-y-1">
