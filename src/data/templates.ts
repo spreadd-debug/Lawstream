@@ -2738,3 +2738,77 @@ export const WIZARD_FIELDS_BY_TEMPLATE: Record<string, WizardSection[]> = {
     },
   ],
 };
+
+// ── AUTO-CARÁTULA ──────────────────────────────────────────
+// Formato estándar: "Actor c/ Demandado s/ objeto"
+// Se genera automáticamente con los datos del wizard.
+
+interface CaratulaConfig {
+  actor: string;          // key de caseData para el actor
+  demandado?: string;     // key de caseData para el demandado (si aplica)
+  demandado2?: string;    // segundo demandado (ej: ART)
+  objeto: string | ((caseData: Record<string, string>) => string);
+  actorFallback?: 'client'; // usar nombre del cliente como actor
+}
+
+const CARATULA_MAP: Record<string, CaratulaConfig> = {
+  // ── LABORAL ──
+  'lab-despido-caba':       { actor: 'trabajador_nombre', demandado: 'empleador_nombre', objeto: 'despido' },
+  'lab-despido-pba':        { actor: 'trabajador_nombre', demandado: 'empleador_nombre', objeto: 'despido' },
+  'lab-diferencias-caba':   { actor: 'trabajador_nombre', demandado: 'empleador_nombre', objeto: 'diferencias salariales' },
+  'lab-diferencias-pba':    { actor: 'trabajador_nombre', demandado: 'empleador_nombre', objeto: 'diferencias salariales' },
+  'lab-no-registrado-caba': { actor: 'trabajador_nombre', demandado: 'empleador_nombre', objeto: 'empleo no registrado' },
+  'lab-no-registrado-pba':  { actor: 'trabajador_nombre', demandado: 'empleador_nombre', objeto: 'empleo no registrado' },
+  'lab-art':                { actor: 'trabajador_nombre', demandado: 'empleador_nombre', demandado2: 'art_nombre', objeto: 'accidente de trabajo' },
+  'lab-sindical':           { actor: 'trabajador_nombre', demandado: 'sindicato_nombre', objeto: (d) => d.tipo_conflicto?.toLowerCase() || 'conflicto sindical' },
+  'lab-plataformas':        { actor: 'trabajador_nombre', demandado: 'plataforma_nombre', objeto: (d) => d.motivo_reclamo?.toLowerCase() || 'reclamo laboral' },
+
+  // ── FAMILIA ──
+  'fam-divorcio':           { actor: 'conyuge1_nombre', demandado: 'conyuge2_nombre', objeto: 'divorcio' },
+  'fam-alimentos':          { actor: 'hijo_nombre', demandado: 'alimentante_nombre', objeto: 'alimentos' },
+  'fam-cuidado':            { actor: 'nino_nombre', actorFallback: 'client', demandado: 'otro_progenitor_nombre', objeto: 'cuidado personal' },
+  'fam-comunicacion':       { actor: 'nino_nombre', actorFallback: 'client', demandado: 'otro_progenitor_nombre', objeto: 'régimen de comunicación' },
+  'fam-filiacion':          { actor: 'persona_nombre', demandado: 'progenitor_nombre', objeto: (d) => d.tipo_filiacion?.toLowerCase() || 'filiación' },
+  'fam-proteccion-urgente': { actor: 'victima_nombre', demandado: 'agresor_nombre', objeto: 'protección contra la violencia familiar' },
+  'fam-adopcion':           { actor: 'adoptante_nombre', objeto: 'adopción' },
+
+  // ── DAÑOS ──
+  'dan-accidente-transito': { actor: 'victima_nombre', demandado: 'responsable_nombre', objeto: 'daños y perjuicios' },
+
+  // ── COMERCIAL ──
+  'com-incumplimiento':     { actor: '_client_', actorFallback: 'client', demandado: 'contraparte_nombre', objeto: 'incumplimiento contractual' },
+  'com-cobro-ejecutivo':    { actor: '_client_', actorFallback: 'client', demandado: 'deudor_nombre', objeto: 'cobro ejecutivo' },
+  'com-ejecucion-cheque':   { actor: '_client_', actorFallback: 'client', demandado: 'librador_nombre', objeto: 'cobro ejecutivo' },
+
+  // ── SUCESIONES ──
+  'suc-ab-intestato':       { actor: 'causante_nombre', objeto: 'sucesión ab intestato' },
+};
+
+export function buildCaratula(
+  templateId: string,
+  caseData: Record<string, string>,
+  clientName: string
+): string | null {
+  const config = CARATULA_MAP[templateId];
+  if (!config) return null;
+
+  const actor = config.actor === '_client_'
+    ? clientName
+    : (caseData[config.actor]?.trim() || (config.actorFallback === 'client' ? clientName : ''));
+  if (!actor) return null;
+
+  const objeto = typeof config.objeto === 'function'
+    ? config.objeto(caseData)
+    : config.objeto;
+
+  let demandado = config.demandado ? caseData[config.demandado]?.trim() : '';
+  if (config.demandado2) {
+    const dem2 = caseData[config.demandado2]?.trim();
+    if (dem2) demandado = demandado ? `${demandado} y ${dem2}` : dem2;
+  }
+
+  if (demandado) {
+    return `${actor} c/ ${demandado} s/ ${objeto}`;
+  }
+  return `${actor} s/ ${objeto}`;
+}

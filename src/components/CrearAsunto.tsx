@@ -31,7 +31,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { format, addDays } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { findTemplate, SUBTYPES_BY_TYPE, WIZARD_FIELDS_BY_TEMPLATE, type WizardSection } from '../data/templates';
+import { findTemplate, SUBTYPES_BY_TYPE, WIZARD_FIELDS_BY_TEMPLATE, buildCaratula, type WizardSection } from '../data/templates';
 import { Priority } from '../types';
 
 interface CrearAsuntoProps {
@@ -60,6 +60,7 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
   const [isCreatingClient, setIsCreatingClient] = useState(false);
   const [clientSearch, setClientSearch] = useState('');
   const [selectedClient, setSelectedClient] = useState<any>(null);
+  const [titleManuallyEdited, setTitleManuallyEdited] = useState(false);
   
   const [formData, setFormData] = useState({
     title: '',
@@ -128,6 +129,15 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
   );
   const hasWizardStep = wizardSections.length > 0;
   const totalSteps = hasWizardStep ? 5 : 4;
+
+  // Auto-generar carátula estándar a partir de los datos del wizard
+  useEffect(() => {
+    if (!activeTemplate || titleManuallyEdited) return;
+    const caratula = buildCaratula(activeTemplate.id, formData.caseData, selectedClient?.name || '');
+    if (caratula) {
+      setFormData(prev => ({ ...prev, title: caratula }));
+    }
+  }, [formData.caseData, activeTemplate, selectedClient, titleManuallyEdited]);
 
   const validateStep = (currentStep: number) => {
     switch (currentStep) {
@@ -373,13 +383,19 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
             
             <div className="space-y-6">
               <div className="space-y-2">
-                <Label>Título / Carátula del Asunto</Label>
-                <Input 
-                  placeholder="Ej: García c/ Techint - Despido Incausado" 
+                <Label>Carátula del Asunto</Label>
+                <Input
+                  placeholder="Ej: Bianucci, Santiago c/ Bonzi, Aldo s/ despido"
                   className="bg-muted/30 border-border/50 text-lg font-bold h-14 focus:bg-card transition-all"
                   value={formData.title}
-                  onChange={e => setFormData({...formData, title: e.target.value})}
+                  onChange={e => {
+                    setFormData({...formData, title: e.target.value});
+                    setTitleManuallyEdited(true);
+                  }}
                 />
+                {hasWizardStep && !titleManuallyEdited && (
+                  <p className="text-[11px] text-muted-foreground">Se genera automáticamente con los datos del caso</p>
+                )}
               </div>
               
               <div className="space-y-2">
@@ -512,7 +528,7 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
                   <select 
                     className="w-full h-14 bg-muted/30 border border-border/50 rounded-xl px-4 text-sm font-bold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all appearance-none"
                     value={formData.type}
-                    onChange={e => setFormData({...formData, type: e.target.value, subtype: '', caseData: {}})}
+                    onChange={e => { setFormData({...formData, type: e.target.value, subtype: '', title: '', caseData: {}}); setTitleManuallyEdited(false); }}
                   >
                     <option value="">Seleccionar tipo...</option>
                     <option value="Laboral">Laboral</option>
@@ -528,7 +544,7 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
                     <select
                       className="w-full h-14 bg-muted/30 border border-border/50 rounded-xl px-4 text-sm font-bold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all appearance-none"
                       value={formData.subtype}
-                      onChange={e => setFormData({...formData, subtype: e.target.value, caseData: {}})}
+                      onChange={e => { setFormData({...formData, subtype: e.target.value, title: '', caseData: {}}); setTitleManuallyEdited(false); }}
                     >
                       <option value="">Seleccionar materia...</option>
                       {SUBTYPES_BY_TYPE[formData.type].map(s => (
