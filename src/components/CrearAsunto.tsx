@@ -635,37 +635,6 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
               </div>
             </Card>
 
-            {/* Expediente + Descripción */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="md:col-span-1 space-y-2">
-                <div className="flex items-center gap-2">
-                  <div className="w-5 h-5 rounded bg-muted/50 flex items-center justify-center">
-                    <FileText size={11} className="text-muted-foreground" />
-                  </div>
-                  <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Expediente</Label>
-                </div>
-                <Input
-                  placeholder="Ej: CNT 123/2024"
-                  className="bg-muted/20 border-border/50 font-mono text-sm h-11"
-                  value={formData.expediente}
-                  onChange={e => setFormData({...formData, expediente: e.target.value})}
-                />
-              </div>
-              <div className="md:col-span-2 space-y-2">
-                <div className="flex items-center gap-2">
-                  <div className="w-5 h-5 rounded bg-muted/50 flex items-center justify-center">
-                    <Info size={11} className="text-muted-foreground" />
-                  </div>
-                  <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Descripción Breve</Label>
-                </div>
-                <Input
-                  placeholder="Resumen rápido del conflicto..."
-                  className="bg-muted/20 border-border/50 font-medium h-11"
-                  value={formData.description}
-                  onChange={e => setFormData({...formData, description: e.target.value})}
-                />
-              </div>
-            </div>
           </div>
         );
       case 'datos-caso':
