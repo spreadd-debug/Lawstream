@@ -1,8 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import { Card, Badge, Button, Input, Drawer } from './UI';
-import { LegalTemplate, MatterType } from '../types';
+import { LegalTemplate, MatterType, Matter, Client } from '../types';
 import { LEGAL_TEMPLATES } from '../data/legalTemplates';
 import { cn } from '../lib/utils';
+import { fillTemplate, TEMPLATE_VARIABLES } from '../lib/templateEngine';
 import {
   FileText,
   Search,
@@ -18,6 +19,7 @@ import {
   Sparkles,
   Filter,
   X,
+  Wand2,
 } from 'lucide-react';
 
 const CATEGORY_COLORS: Record<MatterType, string> = {
@@ -38,13 +40,45 @@ const CATEGORY_ICONS: Record<MatterType, string> = {
   Civil: 'Ci',
 };
 
-export const Plantillas = () => {
+interface PlantillasProps {
+  matters?: Matter[];
+  clients?: Client[];
+}
+
+export const Plantillas = ({ matters = [], clients = [] }: PlantillasProps) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<MatterType | 'Todas'>('Todas');
   const [selectedTemplate, setSelectedTemplate] = useState<LegalTemplate | null>(null);
   const [mode, setMode] = useState<'preview' | 'generate'>('preview');
   const [placeholderValues, setPlaceholderValues] = useState<Record<string, string>>({});
   const [copied, setCopied] = useState(false);
+  const [autoFillMatterId, setAutoFillMatterId] = useState<string>('');
+
+  const handleAutoFill = () => {
+    if (!selectedTemplate || !autoFillMatterId) return;
+    const matter = matters.find(m => m.id === autoFillMatterId);
+    if (!matter) return;
+    const client = clients.find(c => c.name === matter.client);
+    const filled = fillTemplate(selectedTemplate.content, { matter, client });
+    // Extract values back into placeholderValues by matching
+    const newValues = { ...placeholderValues };
+    selectedTemplate.placeholders.forEach(p => {
+      // Map common placeholder keys to template variables
+      const keyMap: Record<string, string> = {
+        nombre_cliente: matter.client,
+        cliente: matter.client,
+        responsable: matter.responsible,
+        abogado: matter.responsible,
+        tipo_causa: matter.type,
+        expediente: matter.expediente || '',
+        fecha: new Date().toLocaleDateString('es-AR'),
+      };
+      if (keyMap[p.key]) {
+        newValues[p.key] = keyMap[p.key];
+      }
+    });
+    setPlaceholderValues(newValues);
+  };
 
   const categories: (MatterType | 'Todas')[] = ['Todas', 'Laboral', 'Familia', 'Daños', 'Comercial', 'Sucesiones', 'Civil'];
 
@@ -338,6 +372,32 @@ export const Plantillas = () => {
                       <h3 className="text-sm font-black uppercase tracking-widest text-foreground">Completar Variables</h3>
                     </div>
                     <p className="text-xs text-muted-foreground">Completá los campos para generar el documento con tus datos.</p>
+
+                    {/* Auto-fill from matter */}
+                    {matters.length > 0 && (
+                      <div className="flex items-center gap-2 p-3 bg-primary/5 border border-primary/15 rounded-xl">
+                        <Wand2 size={14} className="text-primary shrink-0" />
+                        <select
+                          value={autoFillMatterId}
+                          onChange={e => setAutoFillMatterId(e.target.value)}
+                          className="flex-1 text-xs bg-transparent border-none outline-none text-foreground"
+                        >
+                          <option value="">Seleccionar asunto para auto-completar...</option>
+                          {matters.filter(m => m.status === 'Activo').map(m => (
+                            <option key={m.id} value={m.id}>{m.title} — {m.client}</option>
+                          ))}
+                        </select>
+                        <Button
+                          size="sm"
+                          disabled={!autoFillMatterId}
+                          onClick={handleAutoFill}
+                          className="gap-1.5 text-[9px] font-black uppercase tracking-widest"
+                        >
+                          <Wand2 size={12} />
+                          Auto-completar
+                        </Button>
+                      </div>
+                    )}
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {selectedTemplate.placeholders.map(p => (

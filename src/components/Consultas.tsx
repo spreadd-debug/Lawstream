@@ -660,6 +660,88 @@ export const Consultas = ({ consultations, profiles = [], onConvertToMatter, onU
                 </section>
               )}
 
+              {/* Diagnóstico y Solución (Evaluando viabilidad+) */}
+              {['Evaluando viabilidad', 'Presupuestada', 'Aceptada'].includes(selectedConsultation.status) && (
+                <section className="space-y-3 p-4 bg-indigo-500/5 border border-indigo-500/15 rounded-2xl">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-indigo-600 flex items-center gap-1.5">
+                    <FileText size={10} /> Registro de la entrevista
+                  </label>
+                  <div className="space-y-3">
+                    <div className="space-y-1">
+                      <span className="text-[9px] font-black text-muted-foreground uppercase tracking-wider">Diagnóstico del caso</span>
+                      <textarea
+                        value={selectedConsultation.diagnostico || ''}
+                        onChange={async (e) => {
+                          const val = e.target.value;
+                          const updated = { ...selectedConsultation, diagnostico: val };
+                          setSelectedConsultation(updated);
+                          onUpdateConsultation?.(selectedConsultation.id, { diagnostico: val });
+                        }}
+                        onBlur={async () => {
+                          await updateConsultation(selectedConsultation.id, { diagnostico: selectedConsultation.diagnostico });
+                        }}
+                        placeholder="¿Cuál es el problema que trajo el cliente?"
+                        className="w-full px-3 py-2 text-sm rounded-xl border border-border bg-background resize-none h-16 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 placeholder:text-muted-foreground/50"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-[9px] font-black text-muted-foreground uppercase tracking-wider">Solución propuesta</span>
+                      <textarea
+                        value={selectedConsultation.solucionPropuesta || ''}
+                        onChange={async (e) => {
+                          const val = e.target.value;
+                          const updated = { ...selectedConsultation, solucionPropuesta: val };
+                          setSelectedConsultation(updated);
+                          onUpdateConsultation?.(selectedConsultation.id, { solucionPropuesta: val });
+                        }}
+                        onBlur={async () => {
+                          await updateConsultation(selectedConsultation.id, { solucionPropuesta: selectedConsultation.solucionPropuesta });
+                        }}
+                        placeholder="¿Qué se le dijo al cliente? ¿Qué vía se sugirió?"
+                        className="w-full px-3 py-2 text-sm rounded-xl border border-border bg-background resize-none h-16 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 placeholder:text-muted-foreground/50"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-[9px] font-black text-muted-foreground uppercase tracking-wider">Atendido por</span>
+                      {profiles && profiles.length > 0 ? (
+                        <select
+                          value={selectedConsultation.atendidoPor || ''}
+                          onChange={async (e) => {
+                            const val = e.target.value;
+                            const updated = { ...selectedConsultation, atendidoPor: val };
+                            setSelectedConsultation(updated);
+                            onUpdateConsultation?.(selectedConsultation.id, { atendidoPor: val });
+                            await updateConsultation(selectedConsultation.id, { atendidoPor: val });
+                          }}
+                          className="w-full px-3 py-2 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                        >
+                          <option value="">Seleccionar...</option>
+                          {profiles.map(p => (
+                            <option key={p.id} value={p.fullName}>{p.fullName} — {p.role}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input
+                          type="text"
+                          value={selectedConsultation.atendidoPor || ''}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            const updated = { ...selectedConsultation, atendidoPor: val };
+                            setSelectedConsultation(updated);
+                            onUpdateConsultation?.(selectedConsultation.id, { atendidoPor: val });
+                          }}
+                          onBlur={async () => {
+                            await updateConsultation(selectedConsultation.id, { atendidoPor: selectedConsultation.atendidoPor });
+                          }}
+                          placeholder="Nombre del abogado..."
+                          className="w-full px-3 py-2 text-sm rounded-xl border border-border bg-background focus:outline-none focus:ring-2 focus:ring-indigo-500/20 placeholder:text-muted-foreground/50"
+                        />
+                      )}
+                    </div>
+                  </div>
+                </section>
+              )}
+
               {/* Summary Section */}
               <section className="space-y-3">
                 <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Resumen de la Consulta</label>

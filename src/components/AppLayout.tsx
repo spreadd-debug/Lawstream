@@ -18,6 +18,7 @@ import {
   Sun,
   Moon,
   LogOut,
+  BarChart3,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useAuth } from '../lib/auth';
@@ -115,6 +116,7 @@ export const AppLayout: React.FC = () => {
     { to: '/clientes',     label: 'Clientes',      icon: Users },
     { to: '/documentos',   label: 'Documentos',    icon: FileText },
     { to: '/plantillas',   label: 'Plantillas',    icon: LayoutDashboard },
+    ...(isSocioOrSecretario ? [{ to: '/reportes', label: 'Reportes', icon: BarChart3 }] : []),
   ];
 
   const splitAt = isSocioOrSecretario ? 5 : 4;

@@ -22,6 +22,7 @@ import { ClientesPage }     from './pages/ClientesPage';
 import { DocumentosPage }   from './pages/DocumentosPage';
 import { PlantillasPage }   from './pages/PlantillasPage';
 import { ConfiguracionPage } from './pages/ConfiguracionPage';
+import { ReportesPage }     from './pages/ReportesPage';
 
 export default function App() {
   return (
@@ -45,6 +46,7 @@ export default function App() {
             <Route path="/clientes"        element={<ClientesPage />} />
             <Route path="/documentos"      element={<DocumentosPage />} />
             <Route path="/plantillas"      element={<PlantillasPage />} />
+            <Route path="/reportes"         element={<ReportesPage />} />
             <Route path="/configuracion"   element={<ConfiguracionPage />} />
             {/* Catch-all → hoy */}
             <Route path="*" element={<Navigate to="/hoy" replace />} />

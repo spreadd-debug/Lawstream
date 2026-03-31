@@ -51,6 +51,9 @@ export interface Consultation {
   consultationFeeSnapshot?: number;
   consultationFeeFormaPago?: 'Efectivo' | 'Transferencia';
   scheduledAt?: string; // ISO datetime de la entrevista agendada
+  diagnostico?: string;
+  solucionPropuesta?: string;
+  atendidoPor?: string;
 }
 
 export interface Client {
@@ -67,11 +70,17 @@ export interface Client {
 
 export interface Task {
   id: string;
-  matterId: string;
+  matterId?: string;
+  consultationId?: string;
   title: string;
   dueDate: string;
   status: 'Pendiente' | 'Completada' | 'En revisión';
   priority: Priority;
+  bloqueante?: boolean;
+  generadaAutomaticamente?: boolean;
+  triggerEstado?: string;
+  completedAt?: string;
+  completedBy?: string;
 }
 
 export type DocumentStatus = 'Faltante' | 'Solicitado' | 'Recibido' | 'En revisión' | 'Aprobado' | 'Listo para presentar' | 'Presentado';
@@ -274,4 +283,32 @@ export interface Expediente {
   createdAt: string;
   updatedAt: string;
   estadosLog?: ExpedienteEstadoLog[];
+}
+
+// ── ONBOARDING ──────────────────────────────────────────────
+
+export interface OnboardingItem {
+  id: string;
+  consultationId: string;
+  label: string;
+  completed: boolean;
+  completedAt?: string;
+  completedBy?: string;
+  orden: number;
+}
+
+// ── COMUNICACIONES ──────────────────────────────────────────
+
+export type CanalCommunication = 'WhatsApp' | 'Email' | 'Teléfono' | 'Presencial' | 'Interno';
+
+export interface Communication {
+  id: string;
+  matterId?: string;
+  clientId?: string;
+  consultationId?: string;
+  canal: CanalCommunication;
+  contenido: string;
+  enviadoPor: string;
+  visibleParaCliente: boolean;
+  createdAt: string;
 }

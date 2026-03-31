@@ -5,6 +5,7 @@ import { Mail, Phone, User, Building2, Edit2, Save, X, Calendar, Briefcase } fro
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '../lib/utils';
+import { ClientAccountStatement } from './ClientAccountStatement';
 
 interface ClientDrawerProps {
   client: Client;
@@ -223,6 +224,9 @@ export const ClientDrawer = ({ client, matters, onSave, onClose, onSelectMatter 
           </div>
         )}
       </div>
+
+      {/* Estado de cuenta */}
+      <ClientAccountStatement clientName={client.name} />
     </div>
   );
 };

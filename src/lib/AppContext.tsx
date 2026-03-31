@@ -1,8 +1,9 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { Matter, Client, Consultation, LegalDocument, Task, TimelineEvent, UserProfile } from '../types';
+import { Matter, Client, Consultation, LegalDocument, Task, TimelineEvent, UserProfile, Communication, Expediente } from '../types';
 import { GlobalFilters, defaultFilters } from '../components/FiltersContent';
 import { useAuth } from './auth';
 import * as db from './db';
+import { generateConsultationTasks, generateExpedienteTasks } from './taskEngine';
 
 interface AppContextType {
   // Data
@@ -43,6 +44,15 @@ interface AppContextType {
   handleCreateMatter: (data: any) => Promise<Matter>;
   handleCreateConsultation: (data: Omit<Consultation, 'id'>) => Promise<void>;
   handleUpdateConsultation: (id: string, changes: Partial<Consultation>) => void;
+  // Tasks
+  handleCreateTask: (task: Omit<Task, 'id'>) => Promise<void>;
+  handleUpdateTask: (id: string, changes: Partial<Task>) => Promise<void>;
+  handleCompleteTask: (id: string, completedBy: string) => Promise<void>;
+  // Consultation status change with auto-tasks
+  handleConsultationStatusChange: (id: string, newStatus: Consultation['status'], currentUser: string) => Promise<void>;
+  // Expedientes
+  expedientes: Expediente[];
+  handleRefreshExpedientes: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -57,6 +67,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [documents, setDocuments] = useState<LegalDocument[]>([]);
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
+  const [expedientes, setExpedientes] = useState<Expediente[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
@@ -85,15 +96,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       p.catch(err => { console.error(`[AppContext] fetchError — ${label}:`, err); return []; });
 
     Promise.all([
-      safe(db.fetchMatters(),       'matters'),
-      safe(db.fetchClients(),       'clients'),
-      safe(db.fetchConsultations(), 'consultations'),
-      safe(db.fetchDocuments(),     'documents'),
-      safe(db.fetchTasks(),         'tasks'),
-      safe(db.fetchTimeline(),      'timeline'),
-      safe(db.fetchProfiles(),      'profiles'),
+      safe(db.fetchMatters(),          'matters'),
+      safe(db.fetchClients(),          'clients'),
+      safe(db.fetchConsultations(),    'consultations'),
+      safe(db.fetchDocuments(),        'documents'),
+      safe(db.fetchTasks(),            'tasks'),
+      safe(db.fetchTimeline(),         'timeline'),
+      safe(db.fetchProfiles(),         'profiles'),
+      safe(db.fetchAllExpedientes(),   'expedientes'),
     ])
-      .then(([m, c, co, d, t, tl, p]) => {
+      .then(([m, c, co, d, t, tl, p, ex]) => {
         setMatters(m);
         setClients(c);
         setConsultations(co);
@@ -101,6 +113,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setTasks(t);
         setTimeline(tl);
         setProfiles(p);
+        setExpedientes(ex);
       })
       .finally(() => setIsLoading(false));
   }, [userId]);
@@ -278,6 +291,76 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setConsultations(prev => prev.map(c => c.id === id ? { ...c, ...changes } : c));
   };
 
+  // ── Tasks ─────────────────────────────────────────────────
+  const handleCreateTask = async (task: Omit<Task, 'id'>) => {
+    const optimistic: Task = { ...task, id: crypto.randomUUID() };
+    setTasks(prev => [optimistic, ...prev]);
+    try {
+      const saved = await db.createTask(task);
+      setTasks(prev => prev.map(t => t.id === optimistic.id ? saved : t));
+    } catch (err) {
+      console.error('Error creando tarea:', err);
+      setTasks(prev => prev.filter(t => t.id !== optimistic.id));
+    }
+  };
+
+  const handleUpdateTask = async (id: string, changes: Partial<Task>) => {
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, ...changes } : t));
+    try {
+      await db.updateTask(id, changes);
+    } catch (err) {
+      console.error('Error actualizando tarea:', err);
+    }
+  };
+
+  const handleCompleteTask = async (id: string, completedBy: string) => {
+    const now = new Date().toISOString();
+    setTasks(prev => prev.map(t =>
+      t.id === id ? { ...t, status: 'Completada' as const, completedAt: now, completedBy } : t
+    ));
+    try {
+      await db.updateTask(id, { status: 'Completada', completedAt: now, completedBy });
+    } catch (err) {
+      console.error('Error completando tarea:', err);
+    }
+  };
+
+  const handleConsultationStatusChange = async (id: string, newStatus: Consultation['status'], currentUser: string) => {
+    // Update consultation status
+    const nextStep = {
+      'Nueva': 'Agendar entrevista inicial',
+      'Contactada': 'Realizar entrevista y cobrar consulta',
+      'Esperando info': 'Esperar documentación del cliente',
+      'Evaluando viabilidad': 'Elaborar presupuesto de honorarios',
+      'Presupuestada': 'Aguardar respuesta del cliente',
+      'Aceptada': 'Convertir en asunto y comenzar',
+      'Rechazada': 'Consulta cerrada',
+      'Archivada': 'Consulta archivada',
+    }[newStatus] || '';
+
+    setConsultations(prev => prev.map(c => c.id === id ? { ...c, status: newStatus, nextStep } : c));
+    try {
+      await db.updateConsultation(id, { status: newStatus, nextStep });
+    } catch (err) {
+      console.error('Error actualizando estado consulta:', err);
+    }
+
+    // Generate automatic tasks for this status
+    const autoTasks = generateConsultationTasks(id, newStatus);
+    for (const task of autoTasks) {
+      await handleCreateTask(task);
+    }
+  };
+
+  const handleRefreshExpedientes = async () => {
+    try {
+      const exps = await db.fetchAllExpedientes();
+      setExpedientes(exps);
+    } catch (err) {
+      console.error('Error refrescando expedientes:', err);
+    }
+  };
+
   return (
     <AppContext.Provider value={{
       matters, clients, consultations, timeline, tasks, documents, profiles, isLoading,
@@ -294,6 +377,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       handleUpdateDocument, handleAddDocument,
       handleCloseMatter, handleCreateMatter,
       handleCreateConsultation, handleUpdateConsultation,
+      handleCreateTask, handleUpdateTask, handleCompleteTask,
+      handleConsultationStatusChange,
+      expedientes, handleRefreshExpedientes,
     }}>
       {children}
     </AppContext.Provider>

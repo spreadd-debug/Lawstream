@@ -28,6 +28,8 @@ import {
   Expediente,
   ExpedienteEstadoLog,
   EstadoTroncal,
+  OnboardingItem,
+  Communication,
 } from '../types';
 
 // ── Profiles ──────────────────────────────────────────────────────
@@ -144,6 +146,9 @@ const toConsultation = (r: any): Consultation => ({
   consultationFeeSnapshot:    r.consulta_fee_snapshot   != null ? parseFloat(r.consulta_fee_snapshot) : undefined,
   consultationFeeFormaPago:   r.consulta_fee_forma_pago  ?? undefined,
   scheduledAt:                r.scheduled_at             ?? undefined,
+  diagnostico:                r.diagnostico              ?? undefined,
+  solucionPropuesta:          r.solucion_propuesta       ?? undefined,
+  atendidoPor:                r.atendido_por             ?? undefined,
 });
 
 const toDocument = (r: any): LegalDocument => ({
@@ -162,12 +167,18 @@ const toDocument = (r: any): LegalDocument => ({
 });
 
 const toTask = (r: any): Task => ({
-  id:        r.id,
-  matterId:  r.matter_id,
-  title:     r.title,
-  dueDate:   r.due_date ?? '',
-  status:    r.status,
-  priority:  r.priority,
+  id:                       r.id,
+  matterId:                 r.matter_id        ?? undefined,
+  consultationId:           r.consultation_id  ?? undefined,
+  title:                    r.title,
+  dueDate:                  r.due_date ?? '',
+  status:                   r.status,
+  priority:                 r.priority,
+  bloqueante:               r.bloqueante       ?? false,
+  generadaAutomaticamente:  r.generada_automaticamente ?? false,
+  triggerEstado:            r.trigger_estado    ?? undefined,
+  completedAt:              r.completed_at      ?? undefined,
+  completedBy:              r.completed_by      ?? undefined,
 });
 
 const toTimeline = (r: any): TimelineEvent => ({
@@ -258,6 +269,9 @@ export const updateConsultation = async (id: string, changes: Partial<Consultati
   if (changes.consultationFeeSnapshot  !== undefined) row.consulta_fee_snapshot   = changes.consultationFeeSnapshot;
   if (changes.consultationFeeFormaPago !== undefined) row.consulta_fee_forma_pago  = changes.consultationFeeFormaPago;
   if (changes.scheduledAt             !== undefined) row.scheduled_at             = changes.scheduledAt ?? null;
+  if (changes.diagnostico            !== undefined) row.diagnostico              = changes.diagnostico ?? null;
+  if (changes.solucionPropuesta      !== undefined) row.solucion_propuesta       = changes.solucionPropuesta ?? null;
+  if (changes.atendidoPor            !== undefined) row.atendido_por             = changes.atendidoPor ?? null;
   const { error } = await supabase.from('consultations').update(row).eq('id', id);
   if (error) throw error;
 };
@@ -902,4 +916,166 @@ export const updateRecibo = async (id: string, changes: Partial<Pick<Recibo, 'st
   if (changes.notas  !== undefined) row.notas  = changes.notas;
   const { error } = await supabase.from('recibos').update(row).eq('id', id);
   if (error) throw error;
+};
+
+// ── Tasks (extended) ─────────────────────────────────────────
+
+export const createTask = async (task: Omit<Task, 'id'>): Promise<Task> => {
+  const { data, error } = await supabase
+    .from('tasks')
+    .insert({
+      matter_id:                task.matterId           ?? null,
+      consultation_id:          task.consultationId     ?? null,
+      title:                    task.title,
+      due_date:                 task.dueDate            || null,
+      status:                   task.status,
+      priority:                 task.priority,
+      bloqueante:               task.bloqueante         ?? false,
+      generada_automaticamente: task.generadaAutomaticamente ?? false,
+      trigger_estado:           task.triggerEstado       ?? null,
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return toTask(data);
+};
+
+export const updateTask = async (id: string, changes: Partial<Task>): Promise<void> => {
+  const row: any = {};
+  if (changes.status      !== undefined) row.status       = changes.status;
+  if (changes.title       !== undefined) row.title        = changes.title;
+  if (changes.dueDate     !== undefined) row.due_date     = changes.dueDate || null;
+  if (changes.priority    !== undefined) row.priority     = changes.priority;
+  if (changes.completedAt !== undefined) row.completed_at = changes.completedAt;
+  if (changes.completedBy !== undefined) row.completed_by = changes.completedBy;
+  const { error } = await supabase.from('tasks').update(row).eq('id', id);
+  if (error) throw error;
+};
+
+export const fetchTasksByConsultation = async (consultationId: string): Promise<Task[]> => {
+  const { data, error } = await supabase
+    .from('tasks')
+    .select('*')
+    .eq('consultation_id', consultationId)
+    .order('due_date');
+  if (error) throw error;
+  return (data ?? []).map(toTask);
+};
+
+// ── Onboarding Items ─────────────────────────────────────────
+
+const toOnboardingItem = (r: any): OnboardingItem => ({
+  id:            r.id,
+  consultationId: r.consultation_id,
+  label:         r.label,
+  completed:     r.completed,
+  completedAt:   r.completed_at   ?? undefined,
+  completedBy:   r.completed_by   ?? undefined,
+  orden:         r.orden,
+});
+
+export const fetchOnboardingItems = async (consultationId: string): Promise<OnboardingItem[]> => {
+  const { data, error } = await supabase
+    .from('onboarding_items')
+    .select('*')
+    .eq('consultation_id', consultationId)
+    .order('orden');
+  if (error) throw error;
+  return (data ?? []).map(toOnboardingItem);
+};
+
+export const createOnboardingItems = async (consultationId: string, labels: string[]): Promise<OnboardingItem[]> => {
+  const rows = labels.map((label, i) => ({
+    consultation_id: consultationId,
+    label,
+    completed: false,
+    orden: i,
+  }));
+  const { data, error } = await supabase.from('onboarding_items').insert(rows).select();
+  if (error) throw error;
+  return (data ?? []).map(toOnboardingItem);
+};
+
+export const updateOnboardingItem = async (id: string, completed: boolean, completedBy?: string): Promise<void> => {
+  const row: any = { completed };
+  if (completed) {
+    row.completed_at = new Date().toISOString();
+    row.completed_by = completedBy ?? null;
+  } else {
+    row.completed_at = null;
+    row.completed_by = null;
+  }
+  const { error } = await supabase.from('onboarding_items').update(row).eq('id', id);
+  if (error) throw error;
+};
+
+// ── Communications ───────────────────────────────────────────
+
+const toCommunication = (r: any): Communication => ({
+  id:                 r.id,
+  matterId:           r.matter_id        ?? undefined,
+  clientId:           r.client_id        ?? undefined,
+  consultationId:     r.consultation_id  ?? undefined,
+  canal:              r.canal,
+  contenido:          r.contenido,
+  enviadoPor:         r.enviado_por,
+  visibleParaCliente: r.visible_para_cliente ?? false,
+  createdAt:          r.created_at,
+});
+
+export const fetchCommunications = async (matterId: string): Promise<Communication[]> => {
+  const { data, error } = await supabase
+    .from('communications')
+    .select('*')
+    .eq('matter_id', matterId)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(toCommunication);
+};
+
+export const fetchAllCommunications = async (): Promise<Communication[]> => {
+  const { data, error } = await supabase
+    .from('communications')
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(toCommunication);
+};
+
+export const createCommunication = async (c: Omit<Communication, 'id' | 'createdAt'>): Promise<Communication> => {
+  const { data, error } = await supabase
+    .from('communications')
+    .insert({
+      matter_id:            c.matterId          ?? null,
+      client_id:            c.clientId          ?? null,
+      consultation_id:      c.consultationId    ?? null,
+      canal:                c.canal,
+      contenido:            c.contenido,
+      enviado_por:          c.enviadoPor,
+      visible_para_cliente: c.visibleParaCliente ?? false,
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return toCommunication(data);
+};
+
+// ── Recibos by client ────────────────────────────────────────
+
+export const fetchRecibosByClient = async (clientName: string): Promise<Recibo[]> => {
+  const { data } = await supabase
+    .from('recibos')
+    .select('*')
+    .eq('client_name', clientName)
+    .order('created_at', { ascending: false });
+  return (data ?? []).map(toRecibo);
+};
+
+export const fetchPresupuestosByClient = async (clientName: string): Promise<Presupuesto[]> => {
+  const { data } = await supabase
+    .from('presupuestos')
+    .select('*')
+    .eq('client_name', clientName)
+    .order('created_at', { ascending: false });
+  return (data ?? []).map(r => toPresupuesto(r, []));
 };
