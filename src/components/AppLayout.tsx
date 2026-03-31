@@ -343,6 +343,7 @@ export const AppLayout: React.FC = () => {
         onClose={() => setIsNewActionOpen(false)}
         title="Nueva Acción"
         size="xl"
+        preventBackdropClose
       >
         <NuevaAccion
           matterId={selectedMatterId || undefined}
@@ -358,6 +359,7 @@ export const AppLayout: React.FC = () => {
         onClose={() => setIsEditMatterOpen(false)}
         title="Editar Asunto"
         size="lg"
+        preventBackdropClose
       >
         <EditMatterForm
           matter={matters.find(m => m.id === selectedMatterId)}

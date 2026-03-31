@@ -131,6 +131,7 @@ export const Clientes = ({ clients, matters, onCreateClient, onUpdateClient, onS
         onClose={() => setIsNewClientOpen(false)}
         title="Nuevo Cliente"
         size="md"
+        preventBackdropClose
       >
         <ClientForm
           onSave={data => { onCreateClient(data); setIsNewClientOpen(false); }}

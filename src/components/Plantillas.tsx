@@ -437,6 +437,7 @@ export const Plantillas = ({ matters = [], clients = [] }: PlantillasProps) => {
         onClose={closeTemplate}
         title={selectedTemplate?.title || ''}
         size="xl"
+        preventBackdropClose
       >
         {selectedTemplate && (
           <div className="flex flex-col h-full">

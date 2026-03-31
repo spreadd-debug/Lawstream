@@ -248,6 +248,13 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
   const nextStep = () => { setDirection(1); setStep(s => Math.min(s + 1, totalSteps)); };
   const prevStep = () => { setDirection(-1); setStep(s => Math.max(s - 1, 1)); };
 
+  const hasUnsavedData = formData.type !== '' || formData.title !== '' || selectedClient !== null;
+  const confirmExit = () => {
+    if (!hasUnsavedData || window.confirm('Tenés datos cargados. ¿Seguro que querés salir?')) {
+      onBack();
+    }
+  };
+
   const handleToggleItem = (list: 'checklist' | 'docs', itemName: string) => {
     setFormData(prev => ({
       ...prev,
@@ -1179,8 +1186,8 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
         <div className="flex-1 max-w-3xl">
           <header className="flex items-center justify-between mb-12">
             <div className="flex items-center gap-4">
-              <button 
-                onClick={onBack}
+              <button
+                onClick={step > 1 ? prevStep : confirmExit}
                 className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all border border-transparent hover:border-border"
               >
                 <ArrowLeft size={20} />
@@ -1195,8 +1202,8 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
               </div>
             </div>
             
-            <button 
-              onClick={onBack}
+            <button
+              onClick={confirmExit}
               className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all"
             >
               <X size={20} />
@@ -1263,14 +1270,13 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
           </div>
 
           <footer className="mt-12 flex items-center justify-between pt-8 border-t border-border">
-            <Button 
-              variant="ghost" 
-              onClick={prevStep}
-              disabled={step === 1}
+            <Button
+              variant="ghost"
+              onClick={step === 1 ? confirmExit : prevStep}
               className="gap-2"
             >
               <ArrowLeft size={16} />
-              Anterior
+              {step === 1 ? 'Salir' : 'Anterior'}
             </Button>
             
             <div className="flex items-center gap-4">

@@ -150,7 +150,7 @@ export const DocumentosGlobal = ({ documents, matters, onUpdateDocument, onAddDo
       </div>
 
       {/* New Document Drawer */}
-      <Drawer isOpen={isNewDocOpen} onClose={() => setIsNewDocOpen(false)} title="Nuevo Documento" size="md">
+      <Drawer isOpen={isNewDocOpen} onClose={() => setIsNewDocOpen(false)} title="Nuevo Documento" size="md" preventBackdropClose>
         <DocumentForm
           matters={matters}
           onSave={doc => { onAddDocument(doc); setIsNewDocOpen(false); }}

@@ -148,15 +148,17 @@ interface DrawerProps {
   children: React.ReactNode;
   footer?: React.ReactNode;
   size?: 'sm' | 'md' | 'lg' | 'xl';
+  preventBackdropClose?: boolean;
 }
 
-export const Drawer: React.FC<DrawerProps> = ({ 
-  isOpen, 
-  onClose, 
-  title, 
-  children, 
+export const Drawer: React.FC<DrawerProps> = ({
+  isOpen,
+  onClose,
+  title,
+  children,
   footer,
-  size = 'md' 
+  size = 'md',
+  preventBackdropClose = false,
 }) => {
   if (!isOpen) return null;
 
@@ -169,9 +171,9 @@ export const Drawer: React.FC<DrawerProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
-      <div 
+      <div
         className="absolute inset-0 bg-background/80 backdrop-blur-sm animate-in fade-in duration-300"
-        onClick={onClose}
+        onClick={preventBackdropClose ? undefined : onClose}
       />
       <div className={cn(
         "relative w-full bg-card border-l border-border shadow-2xl flex flex-col animate-in slide-in-from-right duration-300",
