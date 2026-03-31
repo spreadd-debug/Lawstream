@@ -1,9 +1,11 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { Matter, Client, Consultation, LegalDocument, Task, TimelineEvent, UserProfile, Communication, Expediente } from '../types';
+import { Matter, Client, Consultation, LegalDocument, Task, TimelineEvent, UserProfile, Communication, Expediente, MatterMilestone } from '../types';
 import { GlobalFilters, defaultFilters } from '../components/FiltersContent';
 import { useAuth } from './auth';
 import * as db from './db';
 import { generateConsultationTasks, generateExpedienteTasks } from './taskEngine';
+import { findTemplate } from '../data/templates';
+import { instantiateFlow } from './flowEngine';
 
 interface AppContextType {
   // Data
@@ -53,6 +55,9 @@ interface AppContextType {
   // Expedientes
   expedientes: Expediente[];
   handleRefreshExpedientes: () => Promise<void>;
+  // Milestones
+  milestones: MatterMilestone[];
+  handleUpdateMilestone: (id: string, changes: Partial<MatterMilestone>) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -68,6 +73,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [documents, setDocuments] = useState<LegalDocument[]>([]);
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
   const [expedientes, setExpedientes] = useState<Expediente[]>([]);
+  const [milestones, setMilestones] = useState<MatterMilestone[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
@@ -104,8 +110,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       safe(db.fetchTimeline(),         'timeline'),
       safe(db.fetchProfiles(),         'profiles'),
       safe(db.fetchAllExpedientes(),   'expedientes'),
+      safe(db.fetchAllMilestones(),    'milestones'),
     ])
-      .then(([m, c, co, d, t, tl, p, ex]) => {
+      .then(([m, c, co, d, t, tl, p, ex, ms]) => {
         setMatters(m);
         setClients(c);
         setConsultations(co);
@@ -114,6 +121,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setTimeline(tl);
         setProfiles(p);
         setExpedientes(ex);
+        setMilestones(ms);
       })
       .finally(() => setIsLoading(false));
   }, [userId]);
@@ -248,6 +256,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const handleCreateMatter = async (data: any): Promise<Matter> => {
+    // Find matching flow template
+    const template = findTemplate(data.type, data.subtype);
+
     const newMatter: Omit<Matter, 'id'> = {
       title:          data.title,
       client:         data.client,
@@ -262,17 +273,77 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       nextAction:     data.nextAction,
       nextActionDate: data.nextActionDate,
       lastActivity:   new Date().toISOString(),
+      flowTemplateId: template?.id,
+      currentStage:   template?.etapaInicial,
     };
     const optimistic: Matter = { ...newMatter, id: crypto.randomUUID() };
     setMatters(prev => [optimistic, ...prev]);
+
+    let savedMatter: Matter;
     try {
-      const saved = await db.createMatter(newMatter);
-      setMatters(prev => prev.map(m => m.id === optimistic.id ? saved : m));
-      return saved;
+      savedMatter = await db.createMatter(newMatter);
+      setMatters(prev => prev.map(m => m.id === optimistic.id ? savedMatter : m));
     } catch (err) {
       console.error('Error creando asunto:', err);
-      return optimistic;
+      savedMatter = optimistic;
     }
+
+    // Instantiate flow: create tasks, documents & milestones from template
+    if (template) {
+      const flow = instantiateFlow(
+        savedMatter.id,
+        savedMatter.title,
+        savedMatter.client,
+        savedMatter.responsible,
+        template,
+      );
+
+      // Persist tasks
+      for (const task of flow.tasks) {
+        try {
+          const saved = await db.createTask(task);
+          setTasks(prev => [...prev, saved]);
+        } catch (err) {
+          console.error('Error creando tarea de flujo:', err);
+        }
+      }
+
+      // Persist documents
+      for (const doc of flow.documents) {
+        try {
+          const saved = await db.createDocument(doc);
+          setDocuments(prev => [...prev, saved]);
+        } catch (err) {
+          console.error('Error creando documento de flujo:', err);
+        }
+      }
+
+      // Persist milestones
+      for (const ms of flow.milestones) {
+        try {
+          const saved = await db.createMilestone(ms);
+          setMilestones(prev => [...prev, saved]);
+        } catch (err) {
+          console.error('Error creando hito de flujo:', err);
+        }
+      }
+
+      // Timeline event for flow activation
+      try {
+        await db.createTimelineEvent({
+          matterId: savedMatter.id,
+          type: 'creation',
+          title: `Flujo activado: ${template.name}`,
+          description: `Template "${template.id}" con ${flow.tasks.length} tareas, ${flow.documents.length} documentos y ${flow.milestones.length} hitos`,
+          user: data.responsible,
+          date: new Date().toISOString(),
+        });
+      } catch (err) {
+        console.error('Error registrando evento de flujo:', err);
+      }
+    }
+
+    return savedMatter;
   };
 
   const handleCreateConsultation = async (data: Omit<Consultation, 'id'>) => {
@@ -352,6 +423,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const handleUpdateMilestone = async (id: string, changes: Partial<MatterMilestone>) => {
+    setMilestones(prev => prev.map(m => m.id === id ? { ...m, ...changes } : m));
+    try {
+      await db.updateMilestone(id, changes);
+    } catch (err) {
+      console.error('Error actualizando hito:', err);
+    }
+  };
+
   const handleRefreshExpedientes = async () => {
     try {
       const exps = await db.fetchAllExpedientes();
@@ -380,6 +460,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       handleCreateTask, handleUpdateTask, handleCompleteTask,
       handleConsultationStatusChange,
       expedientes, handleRefreshExpedientes,
+      milestones, handleUpdateMilestone,
     }}>
       {children}
     </AppContext.Provider>

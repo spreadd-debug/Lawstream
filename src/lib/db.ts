@@ -30,6 +30,7 @@ import {
   EstadoTroncal,
   OnboardingItem,
   Communication,
+  MatterMilestone,
 } from '../types';
 
 // ── Profiles ──────────────────────────────────────────────────────
@@ -115,6 +116,8 @@ const toMatter = (r: any): Matter => ({
   reasonForQueue:   r.reason_for_queue ?? undefined,
   expediente:       r.expediente       ?? undefined,
   description:      r.description      ?? undefined,
+  flowTemplateId:   r.flow_template_id ?? undefined,
+  currentStage:     r.current_stage    ?? undefined,
 });
 
 const toClient = (r: any): Client => ({
@@ -179,6 +182,7 @@ const toTask = (r: any): Task => ({
   triggerEstado:            r.trigger_estado    ?? undefined,
   completedAt:              r.completed_at      ?? undefined,
   completedBy:              r.completed_by      ?? undefined,
+  etapa:                    r.etapa             ?? undefined,
 });
 
 const toTimeline = (r: any): TimelineEvent => ({
@@ -210,6 +214,8 @@ const matterToRow = (m: Partial<Matter>) => ({
   ...(m.reasonForQueue   !== undefined && { reason_for_queue: m.reasonForQueue }),
   ...(m.expediente       !== undefined && { expediente:       m.expediente }),
   ...(m.description      !== undefined && { description:      m.description }),
+  ...(m.flowTemplateId   !== undefined && { flow_template_id: m.flowTemplateId }),
+  ...(m.currentStage     !== undefined && { current_stage:    m.currentStage }),
 });
 
 const clientToRow = (c: Partial<Client>) => ({
@@ -933,6 +939,7 @@ export const createTask = async (task: Omit<Task, 'id'>): Promise<Task> => {
       bloqueante:               task.bloqueante         ?? false,
       generada_automaticamente: task.generadaAutomaticamente ?? false,
       trigger_estado:           task.triggerEstado       ?? null,
+      etapa:                    task.etapa               ?? null,
     })
     .select()
     .single();
@@ -1078,4 +1085,66 @@ export const fetchPresupuestosByClient = async (clientName: string): Promise<Pre
     .eq('client_name', clientName)
     .order('created_at', { ascending: false });
   return (data ?? []).map(r => toPresupuesto(r, []));
+};
+
+// ── Matter Milestones ────────────────────────────────────────
+
+const toMilestone = (r: any): MatterMilestone => ({
+  id:          r.id,
+  matterId:    r.matter_id,
+  label:       r.label,
+  etapa:       r.etapa       ?? undefined,
+  orden:       r.orden       ?? 0,
+  status:      r.status,
+  targetDate:  r.target_date ?? undefined,
+  completedAt: r.completed_at ?? undefined,
+  completedBy: r.completed_by ?? undefined,
+});
+
+export const fetchMilestones = async (matterId: string): Promise<MatterMilestone[]> => {
+  const { data, error } = await supabase
+    .from('matter_milestones')
+    .select('*')
+    .eq('matter_id', matterId)
+    .order('orden');
+  if (error) throw error;
+  return (data ?? []).map(toMilestone);
+};
+
+export const fetchAllMilestones = async (): Promise<MatterMilestone[]> => {
+  const { data, error } = await supabase
+    .from('matter_milestones')
+    .select('*')
+    .order('orden');
+  if (error) throw error;
+  return (data ?? []).map(toMilestone);
+};
+
+export const createMilestone = async (m: Omit<MatterMilestone, 'id'>): Promise<MatterMilestone> => {
+  const { data, error } = await supabase
+    .from('matter_milestones')
+    .insert({
+      matter_id:    m.matterId,
+      label:        m.label,
+      etapa:        m.etapa       ?? null,
+      orden:        m.orden       ?? 0,
+      status:       m.status      ?? 'Pendiente',
+      target_date:  m.targetDate  ?? null,
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return toMilestone(data);
+};
+
+export const updateMilestone = async (id: string, changes: Partial<MatterMilestone>): Promise<void> => {
+  const row: any = {};
+  if (changes.status      !== undefined) row.status       = changes.status;
+  if (changes.targetDate  !== undefined) row.target_date  = changes.targetDate || null;
+  if (changes.completedAt !== undefined) row.completed_at = changes.completedAt;
+  if (changes.completedBy !== undefined) row.completed_by = changes.completedBy;
+  if (changes.label       !== undefined) row.label        = changes.label;
+  if (changes.orden       !== undefined) row.orden        = changes.orden;
+  const { error } = await supabase.from('matter_milestones').update(row).eq('id', id);
+  if (error) throw error;
 };

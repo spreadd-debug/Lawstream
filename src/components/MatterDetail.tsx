@@ -27,7 +27,7 @@ import {
   Coins,
   Activity as ActivityIcon
 } from 'lucide-react';
-import { Matter, TimelineEvent, Task, LegalDocument, Expediente } from '../types';
+import { Matter, TimelineEvent, Task, LegalDocument, Expediente, MatterMilestone, FlowSnapshot } from '../types';
 import { Badge, Card, Button, Modal, Input, Textarea, Select } from './UI';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -37,20 +37,24 @@ import { fetchExpediente } from '../lib/db';
 import { ExpedienteForm } from './ExpedienteForm';
 import { ExpedienteDetail } from './ExpedienteDetail';
 import { ESTADO_COLORS } from '../data/juzgados';
+import { findTemplate } from '../data/templates';
+import { getFlowSnapshot } from '../lib/flowEngine';
 
 interface MatterDetailProps {
   matter: Matter;
   timeline: TimelineEvent[];
   tasks: Task[];
   documents: LegalDocument[];
+  milestones: MatterMilestone[];
   onBack: () => void;
   onNewAction: () => void;
   onEditMatter: () => void;
+  onCompleteMilestone?: (id: string) => void;
 }
 
 import { ACTION_ICONS } from '../constants';
 
-export const MatterDetail = ({ matter, timeline, tasks, documents, onBack, onNewAction, onEditMatter }: MatterDetailProps) => {
+export const MatterDetail = ({ matter, timeline, tasks, documents, milestones, onBack, onNewAction, onEditMatter, onCompleteMilestone }: MatterDetailProps) => {
   const [isRequestDocOpen, setIsRequestDocOpen] = useState(false);
   const [isAddMilestoneOpen, setIsAddMilestoneOpen] = useState(false);
   const [showAllTasks, setShowAllTasks] = useState(false);
@@ -62,19 +66,16 @@ export const MatterDetail = ({ matter, timeline, tasks, documents, onBack, onNew
     fetchExpediente(matter.id).then(setExpediente);
   }, [matter.id]);
 
+  // Flow engine snapshot
+  const template = findTemplate(matter.type, matter.subtype);
+  const flow: FlowSnapshot = getFlowSnapshot(matter, template, tasks, documents);
+
   const missingDocs = documents.filter(d => d.status === 'Faltante');
   const criticalTasks = tasks.filter(t => t.priority === 'Alta' && t.status !== 'Completada');
   const displayedTasks = showAllTasks ? tasks : criticalTasks.slice(0, 3);
   const displayedTimeline = showAllHistory ? timeline : timeline.slice(0, 3);
-  
+
   const ActionIcon = matter.nextActionType ? ACTION_ICONS[matter.nextActionType] : Zap;
-  
-  // Mock milestones for the "Próximos Hitos" section
-  const nextMilestones = [
-    { id: '1', label: 'Revisión Interna', date: '2024-04-15', status: 'pending' },
-    { id: '2', label: 'Presentación Escrito', date: '2024-04-20', status: 'upcoming' },
-    { id: '3', label: 'Audiencia Preliminar', date: '2024-05-10', status: 'upcoming' },
-  ];
 
   return (
     <div className="max-w-6xl mx-auto space-y-10 pb-20">
@@ -143,44 +144,47 @@ export const MatterDetail = ({ matter, timeline, tasks, documents, onBack, onNew
         {/* Health & Next Action (Primary Focus) */}
         <div className={cn(
           "lg:col-span-5 p-10 flex flex-col justify-between min-h-[300px] relative overflow-hidden",
-          matter.health === 'Roto' ? 'bg-rose-600 text-white' : 
-          matter.health === 'Trabado' ? 'bg-amber-500 text-white' :
-          matter.health === 'En espera' ? 'bg-sky-600 text-white' :
+          flow.health === 'Roto' ? 'bg-rose-600 text-white' :
+          flow.health === 'Trabado' ? 'bg-amber-500 text-white' :
+          flow.health === 'En espera' ? 'bg-sky-600 text-white' :
           'bg-slate-900 text-white'
         )}>
           <div className="relative z-10">
             <div className="flex items-center gap-3 mb-8">
               <div className="p-2 bg-white/10 rounded-lg backdrop-blur-md border border-white/10">
-                {matter.health === 'Sano' ? <CheckCircle2 size={20} /> : 
-                 matter.health === 'Trabado' ? <PauseCircle size={20} /> :
-                 matter.health === 'Roto' ? <ShieldAlert size={20} /> :
+                {flow.health === 'Sano' ? <CheckCircle2 size={20} /> :
+                 flow.health === 'Trabado' ? <PauseCircle size={20} /> :
+                 flow.health === 'Roto' ? <ShieldAlert size={20} /> :
                  <Clock size={20} />}
               </div>
-              <span className="text-[11px] font-black uppercase tracking-[0.3em] opacity-80">Salud del Asunto: {matter.health}</span>
+              <span className="text-[11px] font-black uppercase tracking-[0.3em] opacity-80">Salud del Asunto: {flow.health}</span>
+              {flow.health !== matter.health && (
+                <span className="text-[8px] font-black uppercase tracking-widest bg-white/20 px-2 py-0.5 rounded-full">Auto</span>
+              )}
             </div>
             
             <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-black text-white/50 uppercase tracking-[0.4em]">Próxima Acción</span>
-                {matter.nextActionType && (
+                {flow.currentStage && (
                   <Badge variant="outline" className="text-[8px] font-black uppercase tracking-widest border-white/20 text-white/70 h-4 px-1.5">
-                    {matter.nextActionType.replace('_', ' ')}
+                    {flow.currentStage}
                   </Badge>
                 )}
               </div>
               <div className="flex items-start gap-4">
                 <div className={cn(
                   "p-3 rounded-xl backdrop-blur-md border mt-1 shrink-0",
-                  !matter.nextAction ? "bg-rose-500/20 border-rose-500/40 text-rose-100 animate-pulse" : "bg-white/10 border-white/20"
+                  !(flow.nextAction || matter.nextAction) ? "bg-rose-500/20 border-rose-500/40 text-rose-100 animate-pulse" : "bg-white/10 border-white/20"
                 )}>
                   <ActionIcon size={24} />
                 </div>
                 <div className="space-y-3">
                   <h2 className={cn(
                     "text-3xl md:text-4xl font-black tracking-tight leading-tight",
-                    !matter.nextAction && "text-rose-100/90"
+                    !(flow.nextAction || matter.nextAction) && "text-rose-100/90"
                   )}>
-                    {matter.nextAction || 'Sin próxima acción'}
+                    {flow.nextAction || matter.nextAction || 'Sin próxima acción'}
                   </h2>
                   {!matter.nextAction && (
                     <Button 
@@ -451,13 +455,69 @@ export const MatterDetail = ({ matter, timeline, tasks, documents, onBack, onNew
         {/* Right Column - Context & Secondary Info */}
         <div className="lg:col-span-4 space-y-12">
           
-          {/* PRÓXIMOS HITOS */}
+          {/* FLOW STAGE TRACKER */}
+          {flow.stages.length > 0 && (
+            <section className="space-y-4">
+              <h3 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em]">Etapas del Proceso</h3>
+              <div className="space-y-1">
+                {flow.stages.map((stage, idx) => (
+                  <div key={stage.name} className="flex items-center gap-3">
+                    <div className={cn(
+                      "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 border-2",
+                      stage.status === 'completed' ? "bg-emerald-500 border-emerald-500 text-white" :
+                      stage.status === 'current' ? "bg-primary border-primary text-primary-foreground" :
+                      "bg-muted border-border text-muted-foreground"
+                    )}>
+                      {stage.status === 'completed' ? <CheckCircle2 size={12} /> : idx + 1}
+                    </div>
+                    <span className={cn(
+                      "text-xs font-bold tracking-tight",
+                      stage.status === 'completed' ? "text-muted-foreground line-through opacity-50" :
+                      stage.status === 'current' ? "text-foreground" :
+                      "text-muted-foreground opacity-50"
+                    )}>
+                      {stage.name}
+                    </span>
+                    {stage.status === 'current' && (
+                      <Badge variant="outline" className="text-[7px] font-black uppercase tracking-widest border-primary/30 text-primary">Actual</Badge>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <div className="pt-2">
+                <div className="flex items-center justify-between text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-1.5">
+                  <span>Progreso general</span>
+                  <span>{flow.progress}%</span>
+                </div>
+                <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                  <div className="h-full bg-primary transition-all duration-700 rounded-full" style={{ width: `${flow.progress}%` }} />
+                </div>
+              </div>
+            </section>
+          )}
+
+          {/* BLOCKAGES FROM FLOW ENGINE */}
+          {flow.blockages.length > 0 && (
+            <section className="space-y-3">
+              <h3 className="text-[10px] font-black text-rose-500 uppercase tracking-[0.3em]">Bloqueos Detectados</h3>
+              <div className="space-y-2">
+                {flow.blockages.map((b, idx) => (
+                  <div key={idx} className="p-3 bg-rose-500/5 border border-rose-500/20 rounded-xl flex items-center gap-3">
+                    <ShieldAlert size={14} className="text-rose-500 shrink-0" />
+                    <span className="text-[11px] font-bold text-rose-700 dark:text-rose-400">{b}</span>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* HITOS DEL CAMINO */}
           <section className="space-y-6">
             <div className="flex items-center justify-between">
               <h3 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em]">Hitos del Camino</h3>
-              <Button 
-                variant="ghost" 
-                size="sm" 
+              <Button
+                variant="ghost"
+                size="sm"
                 className="h-6 px-2 text-[8px] font-black uppercase tracking-widest border border-border/50"
                 onClick={() => setIsAddMilestoneOpen(true)}
               >
@@ -465,19 +525,47 @@ export const MatterDetail = ({ matter, timeline, tasks, documents, onBack, onNew
               </Button>
             </div>
             <div className="space-y-3">
-              {nextMilestones.length > 0 ? (
-                nextMilestones.map(milestone => (
-                  <div key={milestone.id} className="p-4 bg-card border border-border rounded-2xl flex items-center justify-between group hover:border-primary/30 transition-all">
+              {milestones.length > 0 ? (
+                milestones.map(milestone => (
+                  <div
+                    key={milestone.id}
+                    className={cn(
+                      "p-4 bg-card border border-border rounded-2xl flex items-center justify-between group hover:border-primary/30 transition-all",
+                      milestone.status === 'Completado' && "opacity-60"
+                    )}
+                  >
                     <div className="flex items-center gap-4">
                       <div className={cn(
                         "w-2 h-2 rounded-full",
-                        milestone.status === 'pending' ? "bg-amber-500" : "bg-slate-300"
+                        milestone.status === 'Completado' ? "bg-emerald-500" :
+                        milestone.status === 'En curso' ? "bg-amber-500" :
+                        "bg-slate-300"
                       )} />
-                      <span className="text-xs font-bold text-foreground/80">{milestone.label}</span>
+                      <div>
+                        <span className={cn(
+                          "text-xs font-bold text-foreground/80",
+                          milestone.status === 'Completado' && "line-through"
+                        )}>{milestone.label}</span>
+                        {milestone.etapa && (
+                          <span className="block text-[9px] font-black text-muted-foreground uppercase tracking-widest opacity-40">{milestone.etapa}</span>
+                        )}
+                      </div>
                     </div>
-                    <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest opacity-50">
-                      {format(parseISO(milestone.date), 'd MMM', { locale: es })}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      {milestone.targetDate && (
+                        <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest opacity-50">
+                          {format(parseISO(milestone.targetDate), 'd MMM', { locale: es })}
+                        </span>
+                      )}
+                      {milestone.status !== 'Completado' && onCompleteMilestone && (
+                        <button
+                          onClick={() => onCompleteMilestone(milestone.id)}
+                          className="opacity-0 group-hover:opacity-100 p-1 hover:bg-emerald-500/10 hover:text-emerald-500 rounded transition-all"
+                        >
+                          <CheckCircle2 size={14} />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))
               ) : (

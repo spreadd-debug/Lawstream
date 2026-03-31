@@ -32,6 +32,8 @@ export interface Matter {
   reasonForQueue?: string;
   expediente?: string;
   description?: string;
+  flowTemplateId?: string;
+  currentStage?: string;
 }
 
 export interface Consultation {
@@ -81,6 +83,7 @@ export interface Task {
   triggerEstado?: string;
   completedAt?: string;
   completedBy?: string;
+  etapa?: string;
 }
 
 export type DocumentStatus = 'Faltante' | 'Solicitado' | 'Recibido' | 'En revisión' | 'Aprobado' | 'Listo para presentar' | 'Presentado';
@@ -101,6 +104,13 @@ export interface LegalDocument {
   category?: string;
 }
 
+export interface FlowStageTemplate {
+  name: string;
+  tasks: { task: string; priority: 'crítico' | 'recomendado' | 'opcional'; bloqueante?: boolean }[];
+  documents: { name: string; required: boolean }[];
+  milestone: string;
+}
+
 export interface MatterTemplate {
   id: string;
   name: string;
@@ -110,6 +120,7 @@ export interface MatterTemplate {
   via: string;
   etapaInicial: string;
   descripcion: string;
+  stages?: FlowStageTemplate[];
   checklistBase: {
     task: string;
     priority: 'crítico' | 'recomendado' | 'opcional';
@@ -283,6 +294,31 @@ export interface Expediente {
   createdAt: string;
   updatedAt: string;
   estadosLog?: ExpedienteEstadoLog[];
+}
+
+// ── FLOW ENGINE (SOPs) ─────────────────────────────────────
+
+export type MilestoneStatus = 'Pendiente' | 'En curso' | 'Completado';
+
+export interface MatterMilestone {
+  id: string;
+  matterId: string;
+  label: string;
+  etapa?: string;
+  orden: number;
+  status: MilestoneStatus;
+  targetDate?: string;
+  completedAt?: string;
+  completedBy?: string;
+}
+
+export interface FlowSnapshot {
+  currentStage: string;
+  stages: { name: string; status: 'completed' | 'current' | 'pending' }[];
+  nextAction: string | null;
+  blockages: string[];
+  health: MatterHealth;
+  progress: number; // 0–100
 }
 
 // ── ONBOARDING ──────────────────────────────────────────────

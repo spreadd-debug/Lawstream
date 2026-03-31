@@ -30,8 +30,8 @@ import {
 import { cn } from '../lib/utils';
 import { format, addDays } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { MATTER_TEMPLATES } from '../data/templates';
-import { MatterTemplate, Priority } from '../types';
+import { findTemplate } from '../data/templates';
+import { Priority } from '../types';
 
 interface CrearAsuntoProps {
   onBack: () => void;
@@ -49,44 +49,7 @@ interface CrearAsuntoProps {
   } | null;
 }
 
-// Mock data for intelligence by type
-const SUGGESTIONS_BY_TYPE: Record<string, {
-  checklist: string[];
-  docs: string[];
-  milestones: string[];
-  nextAction: string;
-}> = {
-  'Laboral': {
-    checklist: ['Verificar fecha de ingreso', 'Validar recibos de sueldo', 'Cálculo de liquidación', 'Enviar TCL de intimación'],
-    docs: ['DNI Cliente', 'Recibos de sueldo (últimos 12)', 'Certificado de servicios', 'Intercambio telegráfico'],
-    milestones: ['Audiencia SECLO', 'Presentación Demanda', 'Apertura a Prueba', 'Sentencia'],
-    nextAction: 'Redactar TCL de intimación'
-  },
-  'Familia': {
-    checklist: ['Partidas actualizadas', 'Certificado de matrimonio', 'DNI de los menores', 'Propuesta reguladora'],
-    docs: ['Partidas de nacimiento', 'Acta de matrimonio', 'Títulos de propiedad', 'DNI partes'],
-    milestones: ['Mediación Previa', 'Presentación Demanda', 'Audiencia de Vista de Causa', 'Sentencia'],
-    nextAction: 'Solicitar partidas actualizadas'
-  },
-  'Daños': {
-    checklist: ['Denuncia administrativa', 'Fotos del siniestro', 'Presupuestos de reparación', 'Historia clínica'],
-    docs: ['Título automotor', 'Licencia de conducir', 'Póliza de seguro', 'Fotos y videos'],
-    milestones: ['Mediación', 'Demanda', 'Pericias', 'Alegatos'],
-    nextAction: 'Solicitar presupuestos de reparación'
-  },
-  'Comercial': {
-    checklist: ['Revisión de contrato', 'Verificación de personería', 'Intimación de pago', 'Análisis de mora'],
-    docs: ['Contrato social', 'Poderes', 'Facturas adeudadas', 'Resumen de cuenta'],
-    milestones: ['Mediación', 'Demanda Ejecutiva', 'Embargo', 'Remate'],
-    nextAction: 'Analizar cláusulas de rescisión'
-  },
-  'Sucesiones': {
-    checklist: ['Partida de defunción', 'Títulos de bienes', 'Listado de herederos', 'Valuación fiscal'],
-    docs: ['Acta de defunción', 'Títulos de propiedad', 'Partidas de nacimiento herederos', 'Testamento (si hay)'],
-    milestones: ['Apertura Sucesorio', 'Publicación Edictos', 'Declaratoria Herederos', 'Inscripción Bienes'],
-    nextAction: 'Solicitar informe de anotaciones personales'
-  }
-};
+
 
 
 export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCreateClient }: CrearAsuntoProps) => {
@@ -187,22 +150,7 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
   // Update suggestions when template changes
   useEffect(() => {
     if (step === 3 && formData.checklist.length === 0) {
-      let template = null;
-      const subtypeLower = formData.subtype.toLowerCase();
-      
-      if (formData.subtype) {
-        template = MATTER_TEMPLATES.find(t => 
-          t.rama === formData.type && 
-          t.subtipo.toLowerCase().includes(subtypeLower)
-        );
-      }
-      
-      if (!template && formData.type) {
-        // Default for branch
-        if (formData.type === 'Comercial') {
-          template = MATTER_TEMPLATES.find(t => t.id === 'com-incumplimiento');
-        }
-      }
+      const template = findTemplate(formData.type, formData.subtype);
 
       if (template) {
         setFormData(prev => ({
