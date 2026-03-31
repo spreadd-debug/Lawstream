@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Card, Button, Input } from './UI';
-import { Presupuesto, PresupuestoItem, EstudioPerfil } from '../types';
+import { Presupuesto, PresupuestoItem, EstudioPerfil, CuotaOpcion } from '../types';
 import {
   fetchStudioConfig,
   fetchPresupuestoByConsultation,
@@ -9,7 +9,7 @@ import {
   savePresupuestoItems,
   fetchEstudioPerfil,
 } from '../lib/db';
-import { X, Plus, Trash2, Eye, Download, Save, Calculator, Info } from 'lucide-react';
+import { X, Plus, Trash2, Eye, Download, Save, Calculator, Info, CreditCard } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { PresupuestoPreview } from './PresupuestoPreview';
 
@@ -57,6 +57,12 @@ export const PresupuestoEditor: React.FC<PresupuestoEditorProps> = ({
   const [items, setItems]               = useState<DraftItem[]>(DEFAULT_ITEMS);
   const [descuento, setDescuento]       = useState(0);
   const [notas, setNotas]               = useState('');
+  const [cuotaOpciones, setCuotaOpciones] = useState<CuotaOpcion[]>([
+    { cuotas: 1, recargoPorcentaje: 0,  enabled: true  },
+    { cuotas: 2, recargoPorcentaje: 10, enabled: false },
+    { cuotas: 3, recargoPorcentaje: 15, enabled: false },
+    { cuotas: 4, recargoPorcentaje: 20, enabled: false },
+  ]);
   const [saving, setSaving]             = useState(false);
   const [showPreview, setShowPreview]   = useState(false);
   const [loading, setLoading]           = useState(true);
@@ -76,6 +82,7 @@ export const PresupuestoEditor: React.FC<PresupuestoEditorProps> = ({
         setExistingId(existing.id);
         setDescuento(existing.descuentoPorcentaje);
         setNotas(existing.notes ?? '');
+        if (existing.cuotaOpciones) setCuotaOpciones(existing.cuotaOpciones);
         if (existing.items.length > 0) {
           setItems(existing.items.map(i => ({
             _key:                   newKey(),
@@ -145,6 +152,7 @@ export const PresupuestoEditor: React.FC<PresupuestoEditorProps> = ({
         descuentoPorcentaje: descuento,
         paymentStatus: 'Pendiente' as const,
         notes: notas || undefined,
+        cuotaOpciones,
       };
 
       if (existingId) {
@@ -179,6 +187,7 @@ export const PresupuestoEditor: React.FC<PresupuestoEditorProps> = ({
       descuentoPorcentaje: descuento,
       paymentStatus: 'Pendiente' as const,
       notes: notas,
+      cuotaOpciones,
       numero: '—',
       items: items.map((i, idx) => ({
         id: i._key,
@@ -442,6 +451,93 @@ export const PresupuestoEditor: React.FC<PresupuestoEditorProps> = ({
                 <Calculator size={12} className="shrink-0" />
                 <span>IUS vigente: <strong>${iusValor.toLocaleString('es-AR')}</strong>. Los montos en pesos se calculan automáticamente al ingresar cantidades IUS.</span>
               </div>
+            </div>
+          </div>
+
+          {/* ── Opciones de pago en cuotas ── */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <CreditCard size={14} className="text-muted-foreground" />
+              <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground">Opciones de pago</h3>
+            </div>
+            <p className="text-[10px] text-muted-foreground -mt-1">
+              Activá las modalidades que querés ofrecer e indicá el recargo correspondiente. Se mostrarán en el presupuesto.
+            </p>
+            <div className="border border-border rounded-xl overflow-hidden">
+              {/* Header */}
+              <div className="hidden md:grid grid-cols-[auto_1fr_1fr_1fr_1fr] gap-0 bg-muted/50 border-b border-border">
+                {['', 'Modalidad', 'Recargo %', 'Total final', 'Valor por cuota'].map((h, i) => (
+                  <div key={i} className="px-4 py-2 text-[9px] font-black uppercase tracking-widest text-muted-foreground">
+                    {h}
+                  </div>
+                ))}
+              </div>
+              {cuotaOpciones.map((op, idx) => {
+                const totalConRecargo = totalFinal * (1 + op.recargoPorcentaje / 100);
+                const porCuota = op.cuotas === 1 ? null : totalConRecargo / op.cuotas;
+                const label = op.cuotas === 1 ? 'Contado' : `${op.cuotas} cuotas`;
+                return (
+                  <div
+                    key={op.cuotas}
+                    className={cn(
+                      'grid grid-cols-[auto_1fr] md:grid-cols-[auto_1fr_1fr_1fr_1fr] gap-0 border-b last:border-0 border-border items-center transition-colors',
+                      op.enabled ? 'bg-background' : 'bg-muted/20 opacity-60'
+                    )}
+                  >
+                    {/* Toggle */}
+                    <div className="px-4 py-3">
+                      <input
+                        type="checkbox"
+                        checked={op.enabled}
+                        onChange={e => {
+                          const next = [...cuotaOpciones];
+                          next[idx] = { ...op, enabled: e.target.checked };
+                          setCuotaOpciones(next);
+                        }}
+                        className="w-4 h-4 accent-primary cursor-pointer"
+                      />
+                    </div>
+                    {/* Modalidad */}
+                    <div className="py-3 pr-4">
+                      <span className="text-sm font-bold">{label}</span>
+                    </div>
+                    {/* Recargo % */}
+                    <div className="hidden md:flex items-center gap-1.5 py-3 pr-4">
+                      {op.cuotas === 1 ? (
+                        <span className="text-sm text-muted-foreground">—</span>
+                      ) : (
+                        <>
+                          <Input
+                            type="number"
+                            min={0}
+                            max={100}
+                            value={op.recargoPorcentaje || ''}
+                            onChange={e => {
+                              const next = [...cuotaOpciones];
+                              next[idx] = { ...op, recargoPorcentaje: parseFloat(e.target.value) || 0 };
+                              setCuotaOpciones(next);
+                            }}
+                            placeholder="0"
+                            className="h-8 w-20 text-right text-sm"
+                            disabled={!op.enabled}
+                          />
+                          <span className="text-sm text-muted-foreground">%</span>
+                        </>
+                      )}
+                    </div>
+                    {/* Total final */}
+                    <div className="hidden md:block py-3 pr-4 text-sm font-bold text-foreground">
+                      ${totalConRecargo.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                    </div>
+                    {/* Por cuota */}
+                    <div className="hidden md:block py-3 pr-4 text-sm text-muted-foreground">
+                      {porCuota
+                        ? `$${porCuota.toLocaleString('es-AR', { minimumFractionDigits: 2 })}`
+                        : '—'}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>

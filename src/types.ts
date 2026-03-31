@@ -146,6 +146,12 @@ export interface TimelineEvent {
 export type PresupuestoStatus = 'Borrador' | 'Enviado' | 'Aceptado' | 'Rechazado';
 export type PaymentStatus = 'Pendiente' | 'Parcial' | 'Pagado';
 
+export interface CuotaOpcion {
+  cuotas: 1 | 2 | 3 | 4;
+  recargoPorcentaje: number;
+  enabled: boolean;
+}
+
 export interface PresupuestoItem {
   id: string;
   presupuestoId: string;
@@ -174,6 +180,7 @@ export interface Presupuesto {
   paymentStatus: PaymentStatus;
   notes?: string;
   numero?: string;
+  cuotaOpciones?: CuotaOpcion[];
   approvedAt?: string;
   approvedBy?: string;
   createdBy?: string;

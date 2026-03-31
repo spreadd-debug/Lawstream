@@ -238,11 +238,50 @@ export const PresupuestoPreview: React.FC<PresupuestoPreviewProps> = ({
             </div>
           </div>
 
-          {/* ── NOTES ─────────────────────────────────────────── */}
+          {/* ── NOTAS ─────────────────────────────────────────── */}
           {presupuesto.notes && (
             <div style={{ marginBottom: 32 }}>
               <div style={{ fontSize: 13, fontWeight: 900, color: '#0f172a', marginBottom: 8 }}>Notas</div>
               <div style={{ fontSize: 11, color: '#475569', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{presupuesto.notes}</div>
+            </div>
+          )}
+
+          {/* ── OPCIONES DE PAGO ──────────────────────────────── */}
+          {presupuesto.cuotaOpciones && presupuesto.cuotaOpciones.some(o => o.enabled) && (
+            <div style={{ marginBottom: 32 }}>
+              <div style={{ fontSize: 13, fontWeight: 900, color: '#0f172a', marginBottom: 12 }}>Opciones de pago</div>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ backgroundColor: BLUE, color: 'white' }}>
+                    {['Modalidad', 'Recargo', 'Total', 'Por cuota'].map((h, i) => (
+                      <th key={h} style={{ padding: '7px 10px', textAlign: i === 0 ? 'left' : 'right', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1 }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {presupuesto.cuotaOpciones.filter(o => o.enabled).map((op, idx) => {
+                    const total = subtotalBruto * (1 - descuentoMonto / subtotalBruto || 1) * (1 + op.recargoPorcentaje / 100);
+                    const totalReal = totalFinal * (1 + op.recargoPorcentaje / 100);
+                    const porCuota = op.cuotas === 1 ? null : totalReal / op.cuotas;
+                    return (
+                      <tr key={op.cuotas} style={{ backgroundColor: idx % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
+                        <td style={{ padding: '8px 10px', fontSize: 11, fontWeight: 600, color: '#0f172a', borderBottom: '1px solid #f1f5f9' }}>
+                          {op.cuotas === 1 ? 'Contado' : `${op.cuotas} cuotas`}
+                        </td>
+                        <td style={{ padding: '8px 10px', textAlign: 'right', fontSize: 11, color: '#475569', borderBottom: '1px solid #f1f5f9' }}>
+                          {op.cuotas === 1 ? '—' : `${op.recargoPorcentaje}%`}
+                        </td>
+                        <td style={{ padding: '8px 10px', textAlign: 'right', fontSize: 11, fontWeight: 700, color: '#0f172a', borderBottom: '1px solid #f1f5f9' }}>
+                          ${fmt(totalReal)}
+                        </td>
+                        <td style={{ padding: '8px 10px', textAlign: 'right', fontSize: 11, color: '#475569', borderBottom: '1px solid #f1f5f9' }}>
+                          {porCuota ? `$${fmt(porCuota)}` : '—'}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           )}
 

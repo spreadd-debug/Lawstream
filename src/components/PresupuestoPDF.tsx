@@ -256,11 +256,45 @@ export const PresupuestoPDF: React.FC<PresupuestoPDFProps> = ({
           </View>
         </View>
 
-        {/* ── NOTES ───────────────────────────────────────── */}
+        {/* ── NOTAS ───────────────────────────────────────── */}
         {presupuesto.notes ? (
           <View style={s.notesSection}>
             <Text style={s.notesTitle}>Notas</Text>
             <Text style={s.notesText}>{presupuesto.notes}</Text>
+          </View>
+        ) : null}
+
+        {/* ── OPCIONES DE PAGO ────────────────────────────── */}
+        {presupuesto.cuotaOpciones && presupuesto.cuotaOpciones.some(o => o.enabled) ? (
+          <View style={{ marginTop: 24 }}>
+            <Text style={s.paymentTitle}>Opciones de pago</Text>
+            {/* Header */}
+            <View style={[s.tableHeader, { marginBottom: 0 }]}>
+              <View style={{ flex: 2 }}><Text style={s.tableHeaderText}>Modalidad</Text></View>
+              <View style={{ flex: 1, alignItems: 'flex-end' }}><Text style={s.tableHeaderText}>Recargo</Text></View>
+              <View style={{ flex: 1.5, alignItems: 'flex-end' }}><Text style={s.tableHeaderText}>Total</Text></View>
+              <View style={{ flex: 1.5, alignItems: 'flex-end' }}><Text style={s.tableHeaderText}>Por cuota</Text></View>
+            </View>
+            {presupuesto.cuotaOpciones.filter(o => o.enabled).map((op, idx) => {
+              const totalReal = (subtotalBruto - descuentoMonto) * (1 + op.recargoPorcentaje / 100);
+              const porCuota  = op.cuotas === 1 ? null : totalReal / op.cuotas;
+              return (
+                <View key={op.cuotas} style={[s.tableRow, idx % 2 !== 0 ? s.tableRowAlt : {}]}>
+                  <View style={{ flex: 2 }}>
+                    <Text style={s.cellConcepto}>{op.cuotas === 1 ? 'Contado' : `${op.cuotas} cuotas`}</Text>
+                  </View>
+                  <View style={{ flex: 1, alignItems: 'flex-end' }}>
+                    <Text style={s.cellText}>{op.cuotas === 1 ? '—' : `${op.recargoPorcentaje}%`}</Text>
+                  </View>
+                  <View style={{ flex: 1.5, alignItems: 'flex-end' }}>
+                    <Text style={s.cellBold}>${fmt(totalReal)}</Text>
+                  </View>
+                  <View style={{ flex: 1.5, alignItems: 'flex-end' }}>
+                    <Text style={s.cellText}>{porCuota ? `$${fmt(porCuota)}` : '—'}</Text>
+                  </View>
+                </View>
+              );
+            })}
           </View>
         ) : null}
 

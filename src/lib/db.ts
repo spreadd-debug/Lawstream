@@ -455,6 +455,7 @@ const toPresupuesto = (r: any, items: PresupuestoItem[] = []): Presupuesto => ({
   paymentStatus:       r.payment_status,
   notes:               r.notes              ?? undefined,
   numero:              r.numero             ?? undefined,
+  cuotaOpciones:       r.cuota_opciones     ?? undefined,
   approvedAt:          r.approved_at        ?? undefined,
   approvedBy:          r.approved_by        ?? undefined,
   createdBy:           r.created_by         ?? undefined,
@@ -513,6 +514,7 @@ export const createPresupuesto = async (p: Omit<Presupuesto, 'id' | 'items' | 'c
       descuento_porcentaje: p.descuentoPorcentaje ?? 0,
       payment_status:      p.paymentStatus,
       notes:               p.notes              ?? null,
+      cuota_opciones:      p.cuotaOpciones      ?? null,
       numero,
       created_by:          p.createdBy          ?? null,
       created_at:          now,
@@ -533,6 +535,7 @@ export const updatePresupuesto = async (id: string, changes: Partial<Omit<Presup
   if (changes.iusValorSnapshot    !== undefined) row.ius_valor_snapshot   = changes.iusValorSnapshot;
   if (changes.descuentoPorcentaje !== undefined) row.descuento_porcentaje = changes.descuentoPorcentaje;
   if (changes.notes               !== undefined) row.notes                = changes.notes;
+  if (changes.cuotaOpciones       !== undefined) row.cuota_opciones       = changes.cuotaOpciones;
   if (changes.matterId            !== undefined) row.matter_id            = changes.matterId;
   if (changes.approvedAt          !== undefined) row.approved_at          = changes.approvedAt;
   if (changes.approvedBy          !== undefined) row.approved_by          = changes.approvedBy;
