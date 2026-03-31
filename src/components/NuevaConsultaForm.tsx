@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
 import { Button, Input, Label, Textarea } from './UI';
-import { Consultation } from '../types';
+import { Consultation, UserProfile } from '../types';
 import { cn } from '../lib/utils';
 
 type FormData = Omit<Consultation, 'id'>;
@@ -9,12 +9,13 @@ type FormData = Omit<Consultation, 'id'>;
 interface NuevaConsultaFormProps {
   onSave: (data: FormData) => void;
   onClose: () => void;
+  profiles?: UserProfile[];
 }
 
 const ORIGENES: Consultation['origin'][] = ['WhatsApp', 'Llamada', 'Referido', 'Web', 'Otro'];
 const TIPOS = ['Familia', 'Laboral', 'Daños', 'Comercial', 'Sucesiones', 'Civil', 'Otro'];
 
-export const NuevaConsultaForm = ({ onSave, onClose }: NuevaConsultaFormProps) => {
+export const NuevaConsultaForm = ({ onSave, onClose, profiles = [] }: NuevaConsultaFormProps) => {
   const [form, setForm] = useState<FormData>({
     name: '',
     status: 'Nueva',
@@ -170,11 +171,26 @@ export const NuevaConsultaForm = ({ onSave, onClose }: NuevaConsultaFormProps) =
           {/* Responsable */}
           <div className="space-y-1.5">
             <Label>Abogado responsable</Label>
-            <Input
-              value={form.responsible}
-              onChange={e => set('responsible', e.target.value)}
-              placeholder="Nombre del abogado..."
-            />
+            {profiles.length > 0 ? (
+              <select
+                value={form.responsible}
+                onChange={e => set('responsible', e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/50 transition-colors"
+              >
+                <option value="">Sin asignar</option>
+                {profiles.map(p => (
+                  <option key={p.id} value={p.fullName}>
+                    {p.fullName} — {p.role}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <Input
+                value={form.responsible}
+                onChange={e => set('responsible', e.target.value)}
+                placeholder="Nombre del abogado..."
+              />
+            )}
           </div>
         </div>
 

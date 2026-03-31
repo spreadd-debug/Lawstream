@@ -114,7 +114,12 @@ export const PresupuestoEditor: React.FC<PresupuestoEditorProps> = ({
 
   const addItem = () => setItems(prev => [
     ...prev,
-    { _key: newKey(), concepto: '', tipo: 'otro', cantidadIus: undefined, montoPesos: 0, fiscalPorcentaje: 0, descuentoItemPorcentaje: 0, obligatorio: false, orden: prev.length },
+    { _key: newKey(), concepto: '', tipo: 'honorario', cantidadIus: undefined, montoPesos: 0, fiscalPorcentaje: 0, descuentoItemPorcentaje: 0, obligatorio: false, orden: prev.length },
+  ]);
+
+  const addCostoExtra = () => setItems(prev => [
+    ...prev,
+    { _key: newKey(), concepto: '', tipo: 'gasto', cantidadIus: undefined, montoPesos: 0, fiscalPorcentaje: 0, descuentoItemPorcentaje: 0, obligatorio: false, orden: prev.length },
   ]);
 
   const removeItem = (key: string) => setItems(prev => prev.filter(i => i._key !== key));
@@ -250,12 +255,20 @@ export const PresupuestoEditor: React.FC<PresupuestoEditorProps> = ({
 
           {/* Items table */}
           <div className="space-y-3">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-2">
               <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground">Servicios y Honorarios</h3>
-              <Button size="sm" variant="outline" onClick={addItem} className="gap-1.5 text-xs">
-                <Plus size={14} /> Agregar ítem
-              </Button>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={addItem} className="gap-1.5 text-xs">
+                  <Plus size={14} /> Agregar ítem IUS
+                </Button>
+                <Button size="sm" variant="outline" onClick={addCostoExtra} className="gap-1.5 text-xs text-amber-700 border-amber-200 hover:bg-amber-50 dark:border-amber-800 dark:text-amber-400 dark:hover:bg-amber-950">
+                  <Plus size={14} /> Costo adicional
+                </Button>
+              </div>
             </div>
+            <p className="text-[10px] text-muted-foreground -mt-1">
+              Usá <strong>Costo adicional</strong> para fotocopias, sellados y otros gastos fijos sin IUS — ingresá el monto en pesos directamente.
+            </p>
 
             {/* Table header */}
             <div className="hidden lg:grid grid-cols-[2fr_1fr_1.2fr_0.7fr_0.7fr_1fr_auto] gap-3 px-3 py-2 bg-[#1A3C5E] text-white rounded-lg">
@@ -300,14 +313,18 @@ export const PresupuestoEditor: React.FC<PresupuestoEditorProps> = ({
                   {/* Cant. IUS */}
                   <div className="flex flex-col gap-1">
                     <label className="lg:hidden text-[9px] font-black uppercase tracking-widest text-muted-foreground">Cant. IUS</label>
-                    <Input
-                      type="number"
-                      value={item.cantidadIus ?? ''}
-                      onChange={e => setItem(item._key, 'cantidadIus', parseFloat(e.target.value) || undefined)}
-                      placeholder="0"
-                      className="text-sm h-8 text-right"
-                      min={0}
-                    />
+                    {item.tipo === 'gasto' ? (
+                      <div className="text-sm h-8 text-right px-2 flex items-center justify-end text-muted-foreground/40 border border-border/30 rounded-lg bg-muted/30">—</div>
+                    ) : (
+                      <Input
+                        type="number"
+                        value={item.cantidadIus ?? ''}
+                        onChange={e => setItem(item._key, 'cantidadIus', parseFloat(e.target.value) || undefined)}
+                        placeholder="0"
+                        className="text-sm h-8 text-right"
+                        min={0}
+                      />
+                    )}
                   </div>
 
                   {/* Monto $ */}

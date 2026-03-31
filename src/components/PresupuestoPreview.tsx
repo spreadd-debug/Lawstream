@@ -2,7 +2,7 @@ import React, { useRef } from 'react';
 import { Presupuesto, EstudioPerfil } from '../types';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { X, Download, ArrowLeft } from 'lucide-react';
+import { X, Download, ArrowLeft, Printer } from 'lucide-react';
 import { Button } from './UI';
 import { pdf } from '@react-pdf/renderer';
 import { PresupuestoPDF } from './PresupuestoPDF';
@@ -28,8 +28,8 @@ export const PresupuestoPreview: React.FC<PresupuestoPreviewProps> = ({
   const descuentoMonto = subtotalBruto * (presupuesto.descuentoPorcentaje / 100);
   const totalFinal     = subtotalBruto - descuentoMonto;
 
-  const handleDownloadPDF = async () => {
-    const blob = await pdf(
+  const buildPdfBlob = () =>
+    pdf(
       <PresupuestoPDF
         presupuesto={presupuesto}
         perfil={perfil}
@@ -37,12 +37,21 @@ export const PresupuestoPreview: React.FC<PresupuestoPreviewProps> = ({
         clientPhone={clientPhone}
       />
     ).toBlob();
+
+  const handleDownloadPDF = async () => {
+    const blob = await buildPdfBlob();
     const url = URL.createObjectURL(blob);
     const a   = document.createElement('a');
     a.href    = url;
     a.download = `Presupuesto_${presupuesto.numero ?? presupuesto.id.slice(0, 8)}.pdf`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const handlePrint = async () => {
+    const blob = await buildPdfBlob();
+    const url  = URL.createObjectURL(blob);
+    window.open(url, '_blank');
   };
 
   return (
@@ -64,6 +73,14 @@ export const PresupuestoPreview: React.FC<PresupuestoPreviewProps> = ({
               Confirmar y enviar
             </Button>
           )}
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5"
+            onClick={handlePrint}
+          >
+            <Printer size={14} /> Imprimir
+          </Button>
           <Button
             size="sm"
             className="gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground"

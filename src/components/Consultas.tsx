@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Badge, Button, Input } from './UI';
-import { Consultation, Presupuesto } from '../types';
+import { Consultation, Presupuesto, UserProfile } from '../types';
 import {
   Search,
   Plus,
@@ -19,6 +19,8 @@ import {
   AlertCircle,
   DollarSign,
   CheckCircle2,
+  ArrowRight,
+  RotateCcw,
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -30,12 +32,241 @@ import { NuevaConsultaForm } from './NuevaConsultaForm';
 
 interface ConsultasProps {
   consultations: Consultation[];
+  profiles?: UserProfile[];
   onConvertToMatter: (data: any) => void;
   onUpdateConsultation?: (id: string, changes: Partial<Consultation>) => void;
   onCreateConsultation?: (data: Omit<Consultation, 'id'>) => Promise<void>;
 }
 
-export const Consultas = ({ consultations, onConvertToMatter, onUpdateConsultation, onCreateConsultation }: ConsultasProps) => {
+// ── StatusBadge ──────────────────────────────────────────────────
+// Defined here (before pipeline) so it can be used inside ConsultationPipeline
+
+const StatusBadge = ({ status }: { status: Consultation['status'] }) => {
+  const styles: Record<string, string> = {
+    'Nueva': 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20',
+    'Contactada': 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20',
+    'Esperando info': 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
+    'Evaluando viabilidad': 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20',
+    'Presupuestada': 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
+    'Aceptada': 'bg-emerald-600 text-white border-emerald-600',
+    'Rechazada': 'bg-muted text-muted-foreground border-border',
+    'Archivada': 'bg-muted text-muted-foreground border-border',
+  };
+  return (
+    <span className={cn(
+      'px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-[0.15em] border text-center',
+      styles[status]
+    )}>
+      {status}
+    </span>
+  );
+};
+
+// ── Pipeline stages ──────────────────────────────────────────────
+
+const PIPELINE_STAGES: { key: Consultation['status']; label: string }[] = [
+  { key: 'Nueva',                label: 'Nueva' },
+  { key: 'Contactada',           label: 'Contactada' },
+  { key: 'Evaluando viabilidad', label: 'Evaluando' },
+  { key: 'Presupuestada',        label: 'Presupuestada' },
+  { key: 'Aceptada',             label: 'Aceptada' },
+];
+
+const STATUS_TO_STAGE_IDX: Record<string, number> = {
+  'Nueva': 0,
+  'Contactada': 1,
+  'Esperando info': 1,
+  'Evaluando viabilidad': 2,
+  'Presupuestada': 3,
+  'Aceptada': 4,
+};
+
+interface PipelineProps {
+  consultation: Consultation;
+  onStatusChange: (s: Consultation['status']) => void;
+  onOpenPresupuesto: () => void;
+  onConvertToMatter: () => void;
+  onToggleFeePaid: () => void;
+}
+
+const ConsultationPipeline: React.FC<PipelineProps> = ({
+  consultation, onStatusChange, onOpenPresupuesto, onConvertToMatter, onToggleFeePaid,
+}) => {
+  const [showManual, setShowManual] = useState(false);
+  const isClosed = consultation.status === 'Rechazada' || consultation.status === 'Archivada';
+  const stageIdx = STATUS_TO_STAGE_IDX[consultation.status] ?? 0;
+
+  if (isClosed) {
+    return (
+      <div className="p-4 bg-muted/30 border border-border rounded-2xl space-y-3">
+        <div className="flex items-center gap-3">
+          <StatusBadge status={consultation.status} />
+          <span className="text-xs font-bold text-muted-foreground">Esta consulta está cerrada.</span>
+        </div>
+        <button
+          onClick={() => onStatusChange('Nueva')}
+          className="flex items-center gap-1.5 text-xs font-bold text-primary hover:underline"
+        >
+          <RotateCcw size={12} /> Reactivar consulta
+        </button>
+      </div>
+    );
+  }
+
+  type NextAction = {
+    desc: string;
+    label: string;
+    action: () => void;
+    secondary?: { label: string; action: () => void } | null;
+    danger?: { label: string; action: () => void };
+  };
+
+  const getNextAction = (): NextAction | null => {
+    switch (consultation.status) {
+      case 'Nueva':
+        return {
+          desc: 'El primer paso es establecer contacto con el potencial cliente.',
+          label: 'Marcar como Contactada',
+          action: () => onStatusChange('Contactada'),
+        };
+      case 'Contactada':
+        return {
+          desc: 'Realizá la entrevista inicial para conocer el caso en detalle.',
+          label: 'Pasar a Evaluación del caso',
+          action: () => onStatusChange('Evaluando viabilidad'),
+          secondary: !consultation.consultationFeePaid
+            ? { label: '+ Registrar entrevista cobrada', action: onToggleFeePaid }
+            : null,
+        };
+      case 'Esperando info':
+        return {
+          desc: 'El cliente va a aportar información adicional. Cuando la tengas, evaluá el caso.',
+          label: 'Comenzar Evaluación del caso',
+          action: () => onStatusChange('Evaluando viabilidad'),
+        };
+      case 'Evaluando viabilidad':
+        return {
+          desc: 'Elaborá el presupuesto de honorarios para presentar al cliente (Ley 14.967).',
+          label: 'Preparar Presupuesto de Honorarios',
+          action: onOpenPresupuesto,
+        };
+      case 'Presupuestada':
+        return {
+          desc: 'El presupuesto fue presentado al cliente. ¿Cuál fue su respuesta?',
+          label: 'El cliente aceptó',
+          action: () => onStatusChange('Aceptada'),
+          danger: { label: 'El cliente rechazó', action: () => onStatusChange('Rechazada') },
+        };
+      case 'Aceptada':
+        return {
+          desc: 'Todo listo. Podés crear el asunto judicial y comenzar a trabajar.',
+          label: 'Convertir en Asunto',
+          action: onConvertToMatter,
+        };
+      default:
+        return null;
+    }
+  };
+
+  const next = getNextAction();
+
+  return (
+    <div className="space-y-4">
+      {/* Progress bar */}
+      <div className="flex items-start">
+        {PIPELINE_STAGES.map((stage, i) => (
+          <React.Fragment key={stage.key}>
+            <div className="flex flex-col items-center gap-1.5" style={{ flex: 1 }}>
+              <div className={cn(
+                'w-7 h-7 rounded-full border-2 flex items-center justify-center text-[9px] font-black transition-all',
+                i < stageIdx  ? 'bg-primary border-primary text-white' :
+                i === stageIdx ? 'bg-primary/10 border-primary text-primary ring-2 ring-primary/20 ring-offset-1' :
+                'bg-muted border-border text-muted-foreground opacity-40'
+              )}>
+                {i < stageIdx ? '✓' : i + 1}
+              </div>
+              <span className={cn(
+                'text-[8px] font-black uppercase tracking-wider text-center leading-tight',
+                i === stageIdx ? 'text-primary' : i < stageIdx ? 'text-foreground/60' : 'text-muted-foreground opacity-40'
+              )}>
+                {stage.label}
+              </span>
+            </div>
+            {i < PIPELINE_STAGES.length - 1 && (
+              <div className={cn(
+                'h-0.5 mt-3.5 transition-all',
+                i < stageIdx ? 'bg-primary' : 'bg-border opacity-40'
+              )} style={{ flex: 1 }} />
+            )}
+          </React.Fragment>
+        ))}
+      </div>
+
+      {/* Next action card */}
+      {next && (
+        <div className="p-4 bg-primary/5 border border-primary/20 rounded-2xl space-y-3">
+          <div className="flex items-start gap-2">
+            <ArrowRight size={14} className="text-primary shrink-0 mt-0.5" />
+            <p className="text-xs font-medium text-foreground leading-relaxed">{next.desc}</p>
+          </div>
+          <div className="flex flex-col gap-2">
+            <Button
+              onClick={next.action}
+              className="w-full gap-2 bg-primary hover:bg-primary/90 text-primary-foreground"
+              size="sm"
+            >
+              {next.label}
+            </Button>
+            {next.secondary && (
+              <Button onClick={next.secondary.action} variant="outline" size="sm" className="w-full text-xs">
+                {next.secondary.label}
+              </Button>
+            )}
+            {next.danger && (
+              <Button
+                onClick={next.danger.action}
+                variant="outline"
+                size="sm"
+                className="w-full text-rose-600 border-rose-200 hover:bg-rose-500/5 dark:border-rose-900 text-xs"
+              >
+                {next.danger.label}
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Manual status toggle */}
+      <button
+        onClick={() => setShowManual(v => !v)}
+        className="flex items-center gap-1 text-[10px] font-bold text-muted-foreground hover:text-foreground transition-colors"
+      >
+        <ChevronRight size={10} className={cn('transition-transform', showManual && 'rotate-90')} />
+        Cambiar estado manualmente
+      </button>
+      {showManual && (
+        <div className="flex flex-wrap gap-1.5">
+          {(['Nueva', 'Contactada', 'Esperando info', 'Evaluando viabilidad', 'Presupuestada', 'Aceptada', 'Rechazada', 'Archivada'] as Consultation['status'][]).map(s => (
+            <button
+              key={s}
+              onClick={() => onStatusChange(s)}
+              className={cn(
+                'transition-all',
+                consultation.status === s ? 'ring-2 ring-primary ring-offset-1 rounded' : 'opacity-50 hover:opacity-80'
+              )}
+            >
+              <StatusBadge status={s} />
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ─────────────────────────────────────────────────────────────────
+
+export const Consultas = ({ consultations, profiles = [], onConvertToMatter, onUpdateConsultation, onCreateConsultation }: ConsultasProps) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('Todas');
   const [selectedConsultation, setSelectedConsultation] = useState<Consultation | null>(null);
@@ -203,27 +434,11 @@ export const Consultas = ({ consultations, onConvertToMatter, onUpdateConsultati
             <header className="p-6 border-b border-border flex items-center justify-between">
               <div className="flex-1 min-w-0">
                 <h2 className="text-xl font-black tracking-tight">{selectedConsultation.name}</h2>
-                {/* Status selector */}
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {(['Nueva', 'Contactada', 'Esperando info', 'Evaluando viabilidad', 'Presupuestada', 'Aceptada', 'Rechazada', 'Archivada'] as Consultation['status'][]).map(s => (
-                    <button
-                      key={s}
-                      onClick={async () => {
-                        await updateConsultation(selectedConsultation.id, { status: s });
-                        const updated = { ...selectedConsultation, status: s };
-                        setSelectedConsultation(updated);
-                        onUpdateConsultation?.(selectedConsultation.id, { status: s });
-                      }}
-                      className={cn(
-                        'px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-[0.15em] border transition-all',
-                        selectedConsultation.status === s
-                          ? 'ring-2 ring-primary ring-offset-1 opacity-100'
-                          : 'opacity-40 hover:opacity-70'
-                      )}
-                    >
-                      <StatusBadge status={s} />
-                    </button>
-                  ))}
+                <div className="mt-1 flex items-center gap-2">
+                  <StatusBadge status={selectedConsultation.status} />
+                  {selectedConsultation.type && (
+                    <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">{selectedConsultation.type}</span>
+                  )}
                 </div>
               </div>
               <button
@@ -234,18 +449,33 @@ export const Consultas = ({ consultations, onConvertToMatter, onUpdateConsultati
               </button>
             </header>
 
-            <div className="flex-1 overflow-y-auto p-6 space-y-8">
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+
+              {/* ── Pipeline flow ── */}
+              <ConsultationPipeline
+                consultation={selectedConsultation}
+                onStatusChange={async (s) => {
+                  await updateConsultation(selectedConsultation.id, { status: s });
+                  const updated = { ...selectedConsultation, status: s };
+                  setSelectedConsultation(updated);
+                  onUpdateConsultation?.(selectedConsultation.id, { status: s });
+                }}
+                onOpenPresupuesto={() => setShowPresupuestoForm(true)}
+                onConvertToMatter={() => handleConvert(selectedConsultation)}
+                onToggleFeePaid={() => handleToggleFeePaid(selectedConsultation)}
+              />
+
               {/* Data Sufficiency Check */}
               {(!selectedConsultation.description || !selectedConsultation.type || !selectedConsultation.email) && (
                 <section className="p-4 bg-amber-500/5 border border-amber-500/20 rounded-2xl space-y-3">
                   <div className="flex items-center gap-2 text-amber-600">
                     <AlertCircle size={16} />
-                    <span className="text-[10px] font-black uppercase tracking-widest">Datos insuficientes para asunto</span>
+                    <span className="text-[10px] font-black uppercase tracking-widest">Datos incompletos</span>
                   </div>
                   <div className="space-y-1.5">
-                    {!selectedConsultation.description && <p className="text-[10px] font-bold text-amber-700/70 uppercase tracking-wide flex items-center gap-2">• Falta descripción del caso</p>}
-                    {!selectedConsultation.type && <p className="text-[10px] font-bold text-amber-700/70 uppercase tracking-wide flex items-center gap-2">• Falta definir rama del derecho</p>}
-                    {!selectedConsultation.email && <p className="text-[10px] font-bold text-amber-700/70 uppercase tracking-wide flex items-center gap-2">• Falta email del cliente</p>}
+                    {!selectedConsultation.description && <p className="text-[10px] font-bold text-amber-700/70 uppercase tracking-wide">• Falta descripción del caso</p>}
+                    {!selectedConsultation.type && <p className="text-[10px] font-bold text-amber-700/70 uppercase tracking-wide">• Falta definir rama del derecho</p>}
+                    {!selectedConsultation.email && <p className="text-[10px] font-bold text-amber-700/70 uppercase tracking-wide">• Falta email del cliente</p>}
                   </div>
                 </section>
               )}
@@ -271,7 +501,7 @@ export const Consultas = ({ consultations, onConvertToMatter, onUpdateConsultati
                     {selectedConsultation.consultationFeePaid && <CheckCircle2 size={12} className="text-white" />}
                   </div>
                   <span className="text-xs font-bold">
-                    {selectedConsultation.consultationFeePaid ? 'Entrevista cobrada' : 'Marcar entrevista como cobrada'}
+                    {selectedConsultation.consultationFeePaid ? 'Entrevista cobrada ✓' : 'Marcar entrevista como cobrada'}
                   </span>
                 </button>
               </section>
@@ -442,6 +672,7 @@ export const Consultas = ({ consultations, onConvertToMatter, onUpdateConsultati
       {/* Nueva Consulta Modal */}
       {showNuevaConsulta && (
         <NuevaConsultaForm
+          profiles={profiles}
           onClose={() => setShowNuevaConsulta(false)}
           onSave={async (data) => {
             await onCreateConsultation?.(data);
@@ -569,24 +800,3 @@ const ConsultationItem: React.FC<ConsultationItemProps> = ({ consultation, onCli
   );
 };
 
-const StatusBadge = ({ status }: { status: Consultation['status'] }) => {
-  const styles = {
-    'Nueva': 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20',
-    'Contactada': 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20',
-    'Esperando info': 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
-    'Evaluando viabilidad': 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20',
-    'Presupuestada': 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
-    'Aceptada': 'bg-emerald-600 text-white border-emerald-600',
-    'Rechazada': 'bg-muted text-muted-foreground border-border',
-    'Archivada': 'bg-muted text-muted-foreground border-border',
-  };
-
-  return (
-    <span className={cn(
-      'px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-[0.15em] border text-center',
-      styles[status]
-    )}>
-      {status}
-    </span>
-  );
-};

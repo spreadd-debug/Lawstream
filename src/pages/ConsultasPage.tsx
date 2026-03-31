@@ -4,11 +4,12 @@ import { Consultas } from '../components/Consultas';
 
 export const ConsultasPage = () => {
   const navigate = useNavigate();
-  const { consultations, handleUpdateConsultation, handleCreateConsultation, setPrefilledMatter } = useAppContext();
+  const { consultations, profiles, handleUpdateConsultation, handleCreateConsultation, setPrefilledMatter } = useAppContext();
 
   return (
     <Consultas
       consultations={consultations}
+      profiles={profiles}
       onConvertToMatter={(data) => {
         setPrefilledMatter(data);
         navigate('/asuntos/nuevo');
