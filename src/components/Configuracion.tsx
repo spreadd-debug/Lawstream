@@ -8,6 +8,27 @@ import { EstudioPerfil } from '../types';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 
+interface PerfilFieldProps {
+  label: string;
+  field: keyof EstudioPerfil;
+  placeholder?: string;
+  hint?: string;
+  perfil: EstudioPerfil;
+  onChange: (field: keyof EstudioPerfil, value: string) => void;
+}
+
+const PerfilField = ({ label, field, placeholder, hint, perfil, onChange }: PerfilFieldProps) => (
+  <div className="space-y-1.5">
+    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">{label}</label>
+    <Input
+      value={(perfil[field] as string) ?? ''}
+      onChange={e => onChange(field, e.target.value)}
+      placeholder={placeholder}
+    />
+    {hint && <p className="text-[10px] text-muted-foreground">{hint}</p>}
+  </div>
+);
+
 const EstudioPerfilConfig = ({ onBack }: { onBack: () => void }) => {
   const [perfil, setPerfil] = useState<EstudioPerfil>({ nombre: '' });
   const [saving, setSaving] = useState(false);
@@ -47,18 +68,6 @@ const EstudioPerfilConfig = ({ onBack }: { onBack: () => void }) => {
     }
   };
 
-  const Field = ({ label, field, placeholder, hint }: { label: string, field: keyof EstudioPerfil, placeholder?: string, hint?: string }) => (
-    <div className="space-y-1.5">
-      <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">{label}</label>
-      <Input
-        value={(perfil[field] as string) ?? ''}
-        onChange={e => set(field, e.target.value)}
-        placeholder={placeholder}
-      />
-      {hint && <p className="text-[10px] text-muted-foreground">{hint}</p>}
-    </div>
-  );
-
   return (
     <div className="space-y-8 max-w-2xl mx-auto pb-20">
       <header className="flex items-center gap-4">
@@ -76,13 +85,13 @@ const EstudioPerfilConfig = ({ onBack }: { onBack: () => void }) => {
       {/* Identidad */}
       <Card className="p-6 space-y-5">
         <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground border-b border-border pb-2">Identidad</h3>
-        <Field label="Nombre del estudio *" field="nombre" placeholder="Ej: López & Asociados" />
+        <PerfilField label="Nombre del estudio *" field="nombre" placeholder="Ej: López & Asociados" perfil={perfil} onChange={set} />
         <div className="grid grid-cols-2 gap-4">
-          <Field label="CUIT" field="cuit" placeholder="20-12345678-9" />
-          <Field label="Teléfono" field="telefono" placeholder="+54 11 1234-5678" />
+          <PerfilField label="CUIT" field="cuit" placeholder="20-12345678-9" perfil={perfil} onChange={set} />
+          <PerfilField label="Teléfono" field="telefono" placeholder="+54 11 1234-5678" perfil={perfil} onChange={set} />
         </div>
-        <Field label="Email" field="email" placeholder="estudio@mail.com" />
-        <Field label="Dirección" field="direccion" placeholder="Av. Corrientes 1234, CABA" />
+        <PerfilField label="Email" field="email" placeholder="estudio@mail.com" perfil={perfil} onChange={set} />
+        <PerfilField label="Dirección" field="direccion" placeholder="Av. Corrientes 1234, CABA" perfil={perfil} onChange={set} />
       </Card>
 
       {/* Logo */}
@@ -108,11 +117,11 @@ const EstudioPerfilConfig = ({ onBack }: { onBack: () => void }) => {
       <Card className="p-6 space-y-5">
         <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground border-b border-border pb-2">Datos bancarios / Instrucciones de pago</h3>
         <div className="grid grid-cols-2 gap-4">
-          <Field label="Banco" field="banco" placeholder="Banco Galicia" />
-          <Field label="Titular de la cuenta" field="titularCuenta" placeholder="Juan Pérez" />
+          <PerfilField label="Banco" field="banco" placeholder="Banco Galicia" perfil={perfil} onChange={set} />
+          <PerfilField label="Titular de la cuenta" field="titularCuenta" placeholder="Juan Pérez" perfil={perfil} onChange={set} />
         </div>
-        <Field label="CBU" field="cbu" placeholder="0000000000000000000000" />
-        <Field label="Alias CBU" field="aliasCbu" placeholder="ESTUDIO.LOPEZ" />
+        <PerfilField label="CBU" field="cbu" placeholder="0000000000000000000000" perfil={perfil} onChange={set} />
+        <PerfilField label="Alias CBU" field="aliasCbu" placeholder="ESTUDIO.LOPEZ" perfil={perfil} onChange={set} />
       </Card>
 
       {/* Firma y pie de página */}
@@ -132,10 +141,12 @@ const EstudioPerfilConfig = ({ onBack }: { onBack: () => void }) => {
             <p className="text-[10px] text-muted-foreground">PNG con fondo transparente recomendado.</p>
           </div>
         </div>
-        <Field
+        <PerfilField
           label="Texto de pie de página"
           field="footerText"
           placeholder="Ej: Este presupuesto tiene validez por 30 días."
+          perfil={perfil}
+          onChange={set}
         />
       </Card>
 
