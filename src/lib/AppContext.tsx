@@ -81,14 +81,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     if (!userId) { setIsLoading(false); return; }
     setIsLoading(true);
+    const safe = <T,>(p: Promise<T[]>, label: string): Promise<T[]> =>
+      p.catch(err => { console.error(`[AppContext] fetchError — ${label}:`, err); return []; });
+
     Promise.all([
-      db.fetchMatters(),
-      db.fetchClients(),
-      db.fetchConsultations(),
-      db.fetchDocuments(),
-      db.fetchTasks(),
-      db.fetchTimeline(),
-      db.fetchProfiles(),
+      safe(db.fetchMatters(),       'matters'),
+      safe(db.fetchClients(),       'clients'),
+      safe(db.fetchConsultations(), 'consultations'),
+      safe(db.fetchDocuments(),     'documents'),
+      safe(db.fetchTasks(),         'tasks'),
+      safe(db.fetchTimeline(),      'timeline'),
+      safe(db.fetchProfiles(),      'profiles'),
     ])
       .then(([m, c, co, d, t, tl, p]) => {
         setMatters(m);
@@ -99,7 +102,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setTimeline(tl);
         setProfiles(p);
       })
-      .catch(err => console.error('Error cargando datos:', err))
       .finally(() => setIsLoading(false));
   }, [userId]);
 
@@ -190,6 +192,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setClients(prev => prev.map(c => c.id === optimistic.id ? saved : c));
     } catch (err) {
       console.error('Error creando cliente:', err);
+      setClients(prev => prev.filter(c => c.id !== optimistic.id));
     }
   };
 
