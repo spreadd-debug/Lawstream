@@ -75,9 +75,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [selectedMatterId, setSelectedMatterId] = useState<string | null>(null);
   const [prefilledMatter, setPrefilledMatter] = useState<any>(null);
 
-  // Carga inicial
+  // Carga inicial — depende solo del user ID para no recargar en cada
+  // token refresh silencioso de Supabase al volver a la pestaña
+  const userId = session?.user?.id ?? null;
   useEffect(() => {
-    if (!session) { setIsLoading(false); return; }
+    if (!userId) { setIsLoading(false); return; }
     setIsLoading(true);
     Promise.all([
       db.fetchMatters(),
@@ -99,7 +101,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       })
       .catch(err => console.error('Error cargando datos:', err))
       .finally(() => setIsLoading(false));
-  }, [session]);
+  }, [userId]);
 
   useEffect(() => {
     const root = window.document.documentElement;
