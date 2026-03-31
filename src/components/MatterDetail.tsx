@@ -382,7 +382,11 @@ export const MatterDetail = ({ matter, timeline, tasks, documents, milestones, o
                         <Badge variant="error" className="text-[8px] font-black uppercase tracking-widest px-1.5 py-0">Bloqueante</Badge>
                       </div>
                       <div className="flex items-center gap-4 text-[10px] font-black text-muted-foreground uppercase tracking-widest opacity-60">
-                        <span className="flex items-center gap-1.5"><Clock size={12} /> Vence: {format(parseISO(task.dueDate), 'd MMM', { locale: es })}</span>
+                        {task.dueDate ? (
+                          <span className="flex items-center gap-1.5"><Clock size={12} /> Vence: {format(parseISO(task.dueDate), 'd MMM', { locale: es })}</span>
+                        ) : task.etapa ? (
+                          <span className="flex items-center gap-1.5"><Clock size={12} /> Etapa: {task.etapa}</span>
+                        ) : null}
                         <span className="flex items-center gap-1.5"><User size={12} /> {matter.responsible.split(' ').pop()}</span>
                       </div>
                     </div>
