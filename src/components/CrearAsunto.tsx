@@ -27,6 +27,7 @@ import {
   Building2,
   MapPin
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { format, addDays } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -54,6 +55,7 @@ interface CrearAsuntoProps {
 
 export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCreateClient }: CrearAsuntoProps) => {
   const [step, setStep] = useState(1);
+  const [direction, setDirection] = useState(1); // 1 = forward, -1 = backward
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCreatingClient, setIsCreatingClient] = useState(false);
   const [clientSearch, setClientSearch] = useState('');
@@ -205,8 +207,8 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
         { id: 4, label: 'Revisión', icon: CheckCircle2 },
       ];
 
-  const nextStep = () => setStep(s => Math.min(s + 1, totalSteps));
-  const prevStep = () => setStep(s => Math.max(s - 1, 1));
+  const nextStep = () => { setDirection(1); setStep(s => Math.min(s + 1, totalSteps)); };
+  const prevStep = () => { setDirection(-1); setStep(s => Math.max(s - 1, 1)); };
 
   const handleToggleItem = (list: 'checklist' | 'docs', itemName: string) => {
     setFormData(prev => ({
@@ -271,7 +273,7 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
   };
 
   const renderWizardFieldsStep = () => (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="space-y-8">
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <h2 className="text-2xl font-black tracking-tighter text-foreground">Datos del Caso</h2>
@@ -292,7 +294,7 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
           return (
             <div key={section.title} className="space-y-4">
               <div className="flex items-center gap-2 pb-2 border-b border-border/50">
-                <SectionIcon size={18} className="text-primary" />
+                <SectionIcon size={18} className="text-teal-700" />
                 <span className="text-xs font-black uppercase tracking-widest text-foreground">{section.title}</span>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -304,7 +306,7 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
                     </Label>
                     {field.type === 'select' ? (
                       <select
-                        className="w-full h-11 bg-muted/30 border border-border/50 rounded-xl px-3 text-sm font-bold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all appearance-none"
+                        className="w-full h-11 bg-muted/30 border border-border/50 rounded-xl px-3 text-sm font-bold text-foreground focus:outline-none focus:ring-2 focus:ring-teal-700/20 transition-all appearance-none"
                         value={formData.caseData[field.key] || ''}
                         onChange={e => setFormData(prev => ({
                           ...prev,
@@ -353,7 +355,7 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
     switch (logical) {
       case 'identification':
         return (
-          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="space-y-8">
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <h2 className="text-2xl font-black tracking-tighter text-foreground">Identificación del Asunto</h2>
@@ -572,7 +574,7 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
         return renderWizardFieldsStep();
       case 'operatividad':
         return (
-          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="space-y-8">
             <div className="space-y-2">
               <h2 className="text-2xl font-black tracking-tighter text-foreground">Operatividad Inicial</h2>
               <p className="text-sm text-muted-foreground font-medium">
@@ -668,7 +670,7 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
         );
       case 'estructura':
         return (
-          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="space-y-8">
             <div className="space-y-2">
               <h2 className="text-2xl font-black tracking-tighter text-foreground">Estructura Operativa</h2>
               <p className="text-sm text-muted-foreground font-medium">
@@ -902,7 +904,7 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
         );
       case 'revision':
         return (
-          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="space-y-8">
             <div className="space-y-2">
               <h2 className="text-2xl font-black tracking-tighter text-foreground">Revisión y Alta</h2>
               <p className="text-sm text-muted-foreground font-medium">
@@ -1052,7 +1054,7 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
                 <ArrowLeft size={20} />
               </button>
               <div>
-                <h1 className="text-xs font-black uppercase tracking-[0.3em] text-primary">Nuevo Asunto</h1>
+                <h1 className="text-xs font-black uppercase tracking-[0.3em] text-teal-700">Nuevo Asunto</h1>
                 <div className="flex items-center gap-2 mt-1">
                   <span className="text-2xl font-black tracking-tighter">LawStream</span>
                   <span className="text-2xl font-light text-muted-foreground">/</span>
@@ -1071,7 +1073,12 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
 
           {/* Stepper */}
           <div className="flex items-center justify-between mb-12 relative">
-            <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-[1px] bg-border -z-10" />
+            <motion.div
+              className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-[1px] -z-10"
+              style={{ background: `linear-gradient(to right, #5eead4 ${((step - 1) / (totalSteps - 1)) * 100}%, #e2e8f0 ${((step - 1) / (totalSteps - 1)) * 100}%)` }}
+              layout
+              transition={{ type: 'spring', stiffness: 200, damping: 30 }}
+            />
             {steps.map((s) => {
               const Icon = s.icon;
               const isActive = step === s.id;
@@ -1079,17 +1086,22 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
               
               return (
                 <div key={s.id} className="flex flex-col items-center gap-3 bg-background px-4">
-                  <div className={cn(
-                    "w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-500 border-2",
-                    isActive ? "bg-primary border-primary text-white shadow-lg shadow-primary/20 scale-110" : 
-                    isCompleted ? "bg-emerald-500 border-emerald-500 text-white" : 
-                    "bg-background border-border text-muted-foreground"
-                  )}>
+                  <motion.div
+                    layout
+                    className={cn(
+                      "w-10 h-10 rounded-xl flex items-center justify-center border-2",
+                      isActive ? "bg-teal-700 border-teal-700 text-white shadow-lg shadow-teal-700/20" :
+                      isCompleted ? "bg-emerald-500 border-emerald-500 text-white" :
+                      "bg-background border-border text-muted-foreground"
+                    )}
+                    animate={{ scale: isActive ? 1.1 : 1 }}
+                    transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+                  >
                     {isCompleted ? <Check size={20} /> : <Icon size={20} />}
-                  </div>
+                  </motion.div>
                   <span className={cn(
-                    "text-[10px] font-black uppercase tracking-widest transition-colors",
-                    isActive ? "text-primary" : "text-muted-foreground"
+                    "text-[10px] font-black uppercase tracking-widest transition-colors duration-300",
+                    isActive ? "text-teal-700" : "text-muted-foreground"
                   )}>
                     {s.label}
                   </span>
@@ -1098,8 +1110,24 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
             })}
           </div>
 
-          <div className="min-h-[450px]">
-            {renderStep()}
+          <div className="min-h-[450px] relative overflow-hidden">
+            <AnimatePresence mode="popLayout" initial={false} custom={direction}>
+              <motion.div
+                key={step}
+                custom={direction}
+                variants={{
+                  enter: (d: number) => ({ x: d * 80, opacity: 0, scale: 0.98 }),
+                  center: { x: 0, opacity: 1, scale: 1 },
+                  exit: (d: number) => ({ x: d * -80, opacity: 0, scale: 0.98 }),
+                }}
+                initial="enter"
+                animate="center"
+                exit="exit"
+                transition={{ type: 'spring', stiffness: 300, damping: 30, mass: 0.8 }}
+              >
+                {renderStep()}
+              </motion.div>
+            </AnimatePresence>
           </div>
 
           <footer className="mt-12 flex items-center justify-between pt-8 border-t border-border">
@@ -1116,31 +1144,35 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
             <div className="flex items-center gap-4">
               <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Paso {step} de {totalSteps}</span>
               {step < totalSteps ? (
-                <Button 
-                  onClick={nextStep}
-                  disabled={!validateStep(step)}
-                  className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2 px-8"
-                >
-                  Continuar
-                  <ArrowRight size={16} />
-                </Button>
+                <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} transition={{ type: 'spring', stiffness: 400, damping: 20 }}>
+                  <Button
+                    onClick={nextStep}
+                    disabled={!validateStep(step)}
+                    className="bg-teal-700 hover:bg-teal-800 text-white gap-2 px-8"
+                  >
+                    Continuar
+                    <ArrowRight size={16} />
+                  </Button>
+                </motion.div>
               ) : (
-                <Button 
-                  disabled={isSubmitting}
-                  onClick={async () => {
-                    if (isSubmitting) return;
-                    setIsSubmitting(true);
-                    try {
-                      await onSave({ ...formData, client: selectedClient?.name || '', clientId: selectedClient?.id || '' });
-                    } finally {
-                      setIsSubmitting(false);
-                    }
-                  }}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2 px-8"
-                >
-                  {isSubmitting ? 'Creando...' : 'Confirmar y Activar'}
-                  {!isSubmitting && <CheckCircle2 size={16} />}
-                </Button>
+                <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} transition={{ type: 'spring', stiffness: 400, damping: 20 }}>
+                  <Button
+                    disabled={isSubmitting}
+                    onClick={async () => {
+                      if (isSubmitting) return;
+                      setIsSubmitting(true);
+                      try {
+                        await onSave({ ...formData, client: selectedClient?.name || '', clientId: selectedClient?.id || '' });
+                      } finally {
+                        setIsSubmitting(false);
+                      }
+                    }}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2 px-8"
+                  >
+                    {isSubmitting ? 'Creando...' : 'Confirmar y Activar'}
+                    {!isSubmitting && <CheckCircle2 size={16} />}
+                  </Button>
+                </motion.div>
               )}
             </div>
           </footer>
@@ -1154,8 +1186,8 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
               <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Resumen en vivo</span>
             </div>
 
-            <Card className="p-6 border border-border/50 bg-card/50 backdrop-blur-sm space-y-8 relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full -mr-16 -mt-16 blur-3xl" />
+            <Card className="p-6 border border-border/50 border-l-2 border-l-teal-400 bg-card/50 backdrop-blur-sm space-y-8 relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-teal-500/[0.08] rounded-full -mr-16 -mt-16 blur-3xl" />
               
               <div className="space-y-6 relative">
                 {/* Matter Identity */}
@@ -1253,9 +1285,10 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
                       <span className="text-foreground">{formData.checklist.length}</span>
                     </div>
                     <div className="w-full h-1 bg-muted rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-emerald-500 transition-all duration-500" 
-                        style={{ width: `${(formData.checklist.length / 5) * 100}%` }} 
+                      <motion.div
+                        className="h-full bg-emerald-500"
+                        animate={{ width: `${(formData.checklist.length / 5) * 100}%` }}
+                        transition={{ type: 'spring', stiffness: 200, damping: 25 }}
                       />
                     </div>
                     <div className="flex items-center justify-between text-[10px] font-bold">
@@ -1263,9 +1296,10 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
                       <span className="text-foreground">{formData.docs.length}</span>
                     </div>
                     <div className="w-full h-1 bg-muted rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-sky-500 transition-all duration-500" 
-                        style={{ width: `${(formData.docs.length / 5) * 100}%` }} 
+                      <motion.div
+                        className="h-full bg-sky-500"
+                        animate={{ width: `${(formData.docs.length / 5) * 100}%` }}
+                        transition={{ type: 'spring', stiffness: 200, damping: 25 }}
                       />
                     </div>
                     <div className="flex items-center justify-between text-[10px] font-bold">
@@ -1273,9 +1307,10 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
                       <span className="text-foreground">{formData.milestones.length}</span>
                     </div>
                     <div className="w-full h-1 bg-muted rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-amber-500 transition-all duration-500" 
-                        style={{ width: `${(formData.milestones.length / 4) * 100}%` }} 
+                      <motion.div
+                        className="h-full bg-amber-500"
+                        animate={{ width: `${(formData.milestones.length / 4) * 100}%` }}
+                        transition={{ type: 'spring', stiffness: 200, damping: 25 }}
                       />
                     </div>
                   </div>
@@ -1283,9 +1318,9 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
               </div>
             </Card>
 
-            <div className="p-4 rounded-2xl bg-muted/30 border border-border/50">
+            <div className="p-4 rounded-2xl bg-muted/30 border border-border/50 border-l-2 border-l-teal-400">
               <div className="flex items-center gap-2 mb-2">
-                <Info size={14} className="text-primary" />
+                <Info size={14} className="text-teal-700" />
                 <span className="text-[10px] font-black uppercase tracking-widest text-foreground">Tip Lawstream</span>
               </div>
               <p className="text-[10px] text-muted-foreground leading-relaxed font-medium">

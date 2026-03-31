@@ -48,6 +48,9 @@
     --input: #e2e8f0;
     --ring: #1e293b;
     --radius: 0.5rem;
+    --accent-teal: #0f766e;
+    --accent-teal-light: #ccfbf1;
+    --accent-teal-mid: #5eead4;
   }
 
   .dark {
