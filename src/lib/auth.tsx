@@ -76,15 +76,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const applySession = async (session: Session | null) => {
       try {
-        // Primero destrabamos la app rápido
-        safeSetState({
-          session,
-          user: session?.user ?? null,
-          profile: null,
-          isLoading: false,
-        });
+        // Si es el mismo usuario (ej: token refresh al volver al tab), conservar el
+        // perfil ya cargado para evitar el flash. Solo vaciamos si cambia el usuario.
+        if (mounted) {
+          setState((prev: AuthState) => ({
+            session,
+            user: session?.user ?? null,
+            profile: session?.user?.id === prev.user?.id ? prev.profile : null,
+            isLoading: false,
+          }));
+        }
 
-        // Después intentamos cargar profile, pero sin bloquear toda la app
+        // Recargar perfil solo si no lo teníamos o cambió el usuario
         if (session?.user) {
           const profile = await fetchProfile(session.user.id);
 
@@ -101,12 +104,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } catch (err) {
         console.error('Error applying session:', err);
 
-        safeSetState({
-          session,
-          user: session?.user ?? null,
-          profile: null,
-          isLoading: false,
-        });
+        if (mounted) {
+          setState((prev: AuthState) => ({
+            session,
+            user: session?.user ?? null,
+            profile: session?.user?.id === prev.user?.id ? prev.profile : null,
+            isLoading: false,
+          }));
+        }
       }
     };
 
