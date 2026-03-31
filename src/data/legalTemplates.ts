@@ -115,6 +115,196 @@ SERÁ JUSTICIA.`,
     content: `INTIMO plazo 30 días corridos a que proceda a REGISTRAR correctamente la relación laboral, consignando como fecha real de ingreso el día {{FECHA_INGRESO_REAL}} (y no el {{FECHA_REGISTRADA}} falsamente registrado), y como remuneración real la suma de \${{REMUNERACION_REAL}} (y no los \${{REMUNERACION_REGISTRADA}} deficientemente registrados), todo ello bajo apercibimiento de considerarme gravemente injuriado y despedido por su exclusiva culpa, con derecho al cobro de las indemnizaciones de ley (arts. 232, 233, 245 LCT) más los incrementos de los arts. 8, 9, 10, 11 y 15 de la Ley 24.013 y art. 1° de la Ley 25.323. Asimismo intimo entrega de certificados art. 80 LCT bajo apercibimiento de Ley 25.345. Queda Ud. debidamente notificado. {{TRABAJADOR}}, DNI {{DNI}}.`,
   },
 
+  {
+    id: 'lab-telegrama-despido-indirecto',
+    title: 'Telegrama de Despido Indirecto',
+    category: 'Laboral',
+    subcategory: 'Despido',
+    description: 'Telegrama obrero (TCL) para notificar al empleador que el trabajador se considera despedido por su exclusiva culpa ante el incumplimiento de las obligaciones contractuales.',
+    tags: ['telegrama', 'despido indirecto', 'TCL', 'art. 242', 'art. 246'],
+    legalBasis: 'Arts. 242, 246 LCT (Ley 20.744); Ley 25.323 art. 2°; Ley 25.345 art. 80',
+    placeholders: [
+      { key: 'TRABAJADOR', label: 'Nombre del trabajador', type: 'text' },
+      { key: 'DNI', label: 'DNI del trabajador', type: 'text' },
+      { key: 'EMPLEADOR', label: 'Razón social del empleador', type: 'text' },
+      { key: 'DOMICILIO_EMPLEADOR', label: 'Domicilio del empleador', type: 'text' },
+      { key: 'MOTIVOS', label: 'Motivos de la injuria (detalle)', type: 'textarea' },
+    ],
+    content: `Habiendo Ud. incumplido gravemente sus obligaciones contractuales y legales — {{MOTIVOS}} —, me considero gravemente injuriado/a y DESPEDIDO/A por su exclusiva culpa en los términos de los arts. 242 y 246 de la LCT. En consecuencia, intimo plazo de ley al pago de las indemnizaciones correspondientes: indemnización por antigüedad (art. 245 LCT), sustitutiva de preaviso (arts. 232/233 LCT), integración mes de despido, SAC proporcional, vacaciones proporcionales, con más el incremento del art. 2° Ley 25.323 en caso de falta de pago. Asimismo intimo entrega de certificados art. 80 LCT bajo apercibimiento de Ley 25.345. Queda Ud. debidamente notificado/a. {{TRABAJADOR}}, DNI {{DNI}}.`,
+  },
+
+  {
+    id: 'lab-telegrama-diferencias',
+    title: 'Telegrama de Intimación por Diferencias Salariales',
+    category: 'Laboral',
+    subcategory: 'Diferencias salariales',
+    description: 'Telegrama obrero (TCL) para intimar al empleador al pago de diferencias salariales adeudadas por salario inferior al CCT, horas extra impagas u otros conceptos.',
+    tags: ['telegrama', 'diferencias', 'TCL', 'salario', 'CCT', 'horas extra'],
+    legalBasis: 'Arts. 103, 119, 201 LCT; CCT aplicable',
+    placeholders: [
+      { key: 'TRABAJADOR', label: 'Nombre del trabajador', type: 'text' },
+      { key: 'DNI', label: 'DNI del trabajador', type: 'text' },
+      { key: 'EMPLEADOR', label: 'Razón social del empleador', type: 'text' },
+      { key: 'DOMICILIO_EMPLEADOR', label: 'Domicilio del empleador', type: 'text' },
+      { key: 'PERIODO', label: 'Período reclamado', type: 'text' },
+      { key: 'CONCEPTO', label: 'Concepto de las diferencias', type: 'textarea' },
+      { key: 'MONTO_ESTIMADO', label: 'Monto estimado de las diferencias', type: 'number' },
+      { key: 'CCT', label: 'CCT aplicable', type: 'text' },
+    ],
+    content: `INTIMO plazo 30 días corridos a que proceda al pago de las DIFERENCIAS SALARIALES adeudadas correspondientes al período {{PERIODO}}, en concepto de: {{CONCEPTO}}, conforme la escala salarial del CCT {{CCT}}, por un monto estimado de PESOS {{MONTO_ESTIMADO}} (\${{MONTO_ESTIMADO}}), o lo que en más o en menos resulte de la liquidación definitiva, bajo apercibimiento de considerarme gravemente injuriado/a y despedido/a por su exclusiva culpa (arts. 242, 246 LCT), reclamando las indemnizaciones de ley con más los incrementos correspondientes. Queda Ud. debidamente notificado/a. {{TRABAJADOR}}, DNI {{DNI}}.`,
+  },
+
+  {
+    id: 'lab-demanda-no-registrado',
+    title: 'Demanda por Empleo No Registrado',
+    category: 'Laboral',
+    subcategory: 'No registrado',
+    description: 'Demanda laboral por empleo no registrado o deficientemente registrado. Incluye multas de la Ley 24.013 y Ley 25.323, más indemnizaciones por despido indirecto si corresponde.',
+    tags: ['no registrado', 'en negro', 'Ley 24.013', 'Ley 25.323', 'multas', 'registración'],
+    legalBasis: 'Arts. 8, 9, 10, 11, 15 Ley 24.013; Art. 1° Ley 25.323; Arts. 232, 233, 245 LCT; Art. 80 LCT; Ley 25.345',
+    placeholders: [
+      { key: 'ACTOR', label: 'Nombre completo del actor', type: 'text' },
+      { key: 'DNI_ACTOR', label: 'DNI del actor', type: 'text' },
+      { key: 'DOMICILIO_ACTOR', label: 'Domicilio del actor', type: 'text' },
+      { key: 'DEMANDADO', label: 'Razón social del demandado', type: 'text' },
+      { key: 'CUIT_DEMANDADO', label: 'CUIT del demandado', type: 'text' },
+      { key: 'DOMICILIO_DEMANDADO', label: 'Domicilio del demandado', type: 'text' },
+      { key: 'FECHA_INGRESO_REAL', label: 'Fecha real de ingreso', type: 'date' },
+      { key: 'FECHA_REGISTRADA', label: 'Fecha registrada (si hay)', type: 'date' },
+      { key: 'REMUNERACION_REAL', label: 'Remuneración real percibida', type: 'number' },
+      { key: 'REMUNERACION_REGISTRADA', label: 'Remuneración registrada (si hay)', type: 'number' },
+      { key: 'MONTO_RECLAMO', label: 'Monto total del reclamo ($)', type: 'number' },
+      { key: 'JUZGADO', label: 'Juzgado / Tribunal', type: 'text', defaultValue: 'Juzgado Nacional de Primera Instancia del Trabajo' },
+      { key: 'LETRADO', label: 'Nombre del letrado', type: 'text' },
+      { key: 'TOMO', label: 'Tomo CPACF', type: 'text' },
+      { key: 'FOLIO', label: 'Folio CPACF', type: 'text' },
+    ],
+    content: `INICIA DEMANDA LABORAL POR EMPLEO NO REGISTRADO
+
+Señor Juez:
+
+{{LETRADO}}, T.° {{TOMO}} F.° {{FOLIO}} del C.P.A.C.F., abogado/a apoderado/a de {{ACTOR}}, D.N.I. {{DNI_ACTOR}}, con domicilio real en {{DOMICILIO_ACTOR}}, constituyendo domicilio procesal electrónico en el sistema Lex100, a V.S. respetuosamente me presento y digo:
+
+I. OBJETO
+
+Que vengo a iniciar formal demanda laboral contra {{DEMANDADO}}, C.U.I.T. {{CUIT_DEMANDADO}}, con domicilio en {{DOMICILIO_DEMANDADO}}, por la suma de PESOS {{MONTO_RECLAMO}} (\${{MONTO_RECLAMO}}), o lo que en más o en menos resulte de la prueba a producirse, con más sus intereses y costas, en concepto de las indemnizaciones y multas derivadas del empleo no registrado y/o deficientemente registrado del que fuera objeto mi mandante.
+
+II. HECHOS
+
+Mi mandante ingresó a trabajar para la demandada con fecha {{FECHA_INGRESO_REAL}}, percibiendo una remuneración real de PESOS {{REMUNERACION_REAL}} (\${{REMUNERACION_REAL}}). Sin embargo, la demandada registró la relación laboral con fecha {{FECHA_REGISTRADA}} y una remuneración de PESOS {{REMUNERACION_REGISTRADA}} (\${{REMUNERACION_REGISTRADA}}), consignando datos falsos que perjudican los derechos de mi mandante en materia de antigüedad, aportes previsionales y cálculo indemnizatorio.
+
+Oportunamente se cursó telegrama obrero intimando la correcta registración, sin que la demandada diera cumplimiento en el plazo de ley.
+
+III. RUBROS RECLAMADOS
+
+a) Multa art. 8° Ley 24.013: Por registración con fecha de ingreso posterior a la real.
+b) Multa art. 9° Ley 24.013: Por registración con remuneración inferior a la real.
+c) Multa art. 10° Ley 24.013: Por falta total de registración (si corresponde).
+d) Multa art. 15° Ley 24.013: Incremento por extinción del contrato.
+e) Multa art. 1° Ley 25.323: Incremento indemnizatorio por falta de registración.
+f) Indemnización por antigüedad (art. 245 LCT).
+g) Indemnización sustitutiva de preaviso (arts. 232/233 LCT).
+h) SAC proporcional, vacaciones proporcionales.
+i) Certificados art. 80 LCT / multa Ley 25.345.
+
+IV. LIQUIDACIÓN
+
+Se acompaña planilla de liquidación detallada como Anexo I.
+
+V. DERECHO
+
+Arts. 14 bis CN; arts. 8, 9, 10, 11, 15 Ley 24.013; art. 1° Ley 25.323; art. 2° Ley 25.323; arts. 232, 233, 245 LCT; art. 80 LCT; art. 45 Ley 25.345.
+
+VI. PRUEBA
+
+a) Documental: Telegramas, recibos, capturas de comunicaciones, transferencias bancarias.
+b) Testimonial: Se ofrecerá en la oportunidad procesal correspondiente.
+c) Informativa: Oficios a AFIP/ARCA, ANSES, entidad bancaria.
+d) Pericial contable: A los fines de acreditar la relación y los montos adeudados.
+
+VII. PETITORIO
+
+Por todo lo expuesto, a V.S. solicito:
+1. Se tenga por presentada la demanda.
+2. Se corra traslado por el término de ley.
+3. Se haga lugar a la demanda con costas.
+
+Proveer de conformidad.
+SERÁ JUSTICIA.`,
+  },
+
+  {
+    id: 'lab-demanda-diferencias',
+    title: 'Demanda por Diferencias Salariales',
+    category: 'Laboral',
+    subcategory: 'Diferencias salariales',
+    description: 'Demanda laboral por diferencias salariales: salario inferior al CCT, horas extra no pagadas, ítems no remunerativos fraudulentos.',
+    tags: ['diferencias', 'salario', 'CCT', 'horas extra', 'ius variandi'],
+    legalBasis: 'Arts. 103, 119, 196, 201 LCT; CCT aplicable; Art. 2° Ley 25.323',
+    placeholders: [
+      { key: 'ACTOR', label: 'Nombre completo del actor', type: 'text' },
+      { key: 'DNI_ACTOR', label: 'DNI del actor', type: 'text' },
+      { key: 'DOMICILIO_ACTOR', label: 'Domicilio del actor', type: 'text' },
+      { key: 'DEMANDADO', label: 'Razón social del demandado', type: 'text' },
+      { key: 'CUIT_DEMANDADO', label: 'CUIT del demandado', type: 'text' },
+      { key: 'DOMICILIO_DEMANDADO', label: 'Domicilio del demandado', type: 'text' },
+      { key: 'FECHA_INGRESO', label: 'Fecha de ingreso', type: 'date' },
+      { key: 'CATEGORIA', label: 'Categoría laboral', type: 'text' },
+      { key: 'CONVENIO', label: 'CCT aplicable', type: 'text' },
+      { key: 'PERIODO', label: 'Período reclamado', type: 'text' },
+      { key: 'MONTO_RECLAMO', label: 'Monto total de diferencias ($)', type: 'number' },
+      { key: 'JUZGADO', label: 'Juzgado / Tribunal', type: 'text' },
+      { key: 'LETRADO', label: 'Nombre del letrado', type: 'text' },
+      { key: 'TOMO', label: 'Tomo CPACF', type: 'text' },
+      { key: 'FOLIO', label: 'Folio CPACF', type: 'text' },
+    ],
+    content: `INICIA DEMANDA POR DIFERENCIAS SALARIALES
+
+Señor Juez:
+
+{{LETRADO}}, T.° {{TOMO}} F.° {{FOLIO}} del C.P.A.C.F., abogado/a apoderado/a de {{ACTOR}}, D.N.I. {{DNI_ACTOR}}, con domicilio real en {{DOMICILIO_ACTOR}}, a V.S. respetuosamente me presento y digo:
+
+I. OBJETO
+
+Que vengo a iniciar formal demanda contra {{DEMANDADO}}, C.U.I.T. {{CUIT_DEMANDADO}}, con domicilio en {{DOMICILIO_DEMANDADO}}, por la suma de PESOS {{MONTO_RECLAMO}} (\${{MONTO_RECLAMO}}), o lo que en más o en menos resulte de la prueba, con más intereses y costas, en concepto de diferencias salariales correspondientes al período {{PERIODO}}.
+
+II. HECHOS
+
+Mi mandante presta/prestó servicios para la demandada desde el {{FECHA_INGRESO}}, bajo la categoría de {{CATEGORIA}} conforme al CCT {{CONVENIO}}.
+
+Durante el período reclamado, la demandada abonó remuneraciones inferiores a las establecidas en la escala salarial del convenio colectivo aplicable, generando diferencias que fueron oportunamente intimadas sin resultado positivo.
+
+III. RUBROS RECLAMADOS
+
+a) Diferencias salariales por el período {{PERIODO}}, calculadas conforme escala salarial del CCT {{CONVENIO}}.
+b) Incidencia de las diferencias sobre SAC, vacaciones y demás rubros.
+c) Art. 2° Ley 25.323: Incremento del 50% por falta de pago (si corresponde por extinción).
+
+IV. LIQUIDACIÓN
+
+Se acompaña planilla de liquidación detallada como Anexo I, con detalle período a período de las diferencias.
+
+V. DERECHO
+
+Arts. 103, 119, 196, 201 LCT; CCT {{CONVENIO}}; Art. 2° Ley 25.323 (si corresponde).
+
+VI. PRUEBA
+
+a) Documental: Recibos de haberes, escala salarial del CCT.
+b) Informativa: Oficios a AFIP, ANSES, entidad bancaria.
+c) Pericial contable: Para determinar las diferencias exactas.
+d) Testimonial: Se reserva el derecho de ofrecer testigos.
+
+VII. PETITORIO
+
+Solicito a V.S.:
+1. Se tenga por presentada la demanda.
+2. Se corra traslado por el término de ley.
+3. Se haga lugar a la demanda con costas.
+
+SERÁ JUSTICIA.`,
+  },
+
   // ═══════════════════════════════════════════════════
   // FAMILIA
   // ═══════════════════════════════════════════════════

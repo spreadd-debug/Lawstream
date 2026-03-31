@@ -322,6 +322,132 @@ export interface FlowSnapshot {
   progress: number; // 0–100
 }
 
+// ── MÓDULO LABORAL ────────────────────────────────────────────
+
+export type JurisdiccionLaboral = 'CABA' | 'PBA';
+export type TipoCasoLaboral = 'DESPIDO' | 'DIFERENCIAS' | 'NO_REGISTRADO' | 'ART' | 'SINDICAL' | 'PLATAFORMA';
+export type EstadoCasoLaboral = 'encuadre' | 'telegramas' | 'seclo' | 'juicio' | 'sentencia' | 'ejecucion' | 'cerrado';
+export type EstadoNormativo = 'VIGENTE' | 'SUSPENDIDA_CAUTELAR' | 'PENDIENTE_REGLAMENTACION' | 'DEROGADA';
+export type ClasificacionDependencia = 'DEPENDIENTE' | 'BORDERLINE' | 'INDEPENDIENTE';
+export type TipoTelegrama = 'INTIMACION_REGISTRACION' | 'DIFERENCIAS' | 'NOTIFICACION_DESPIDO' | 'RENUNCIA' | 'RESPUESTA' | 'OTRO';
+export type ResultadoSeclo = 'ACUERDO' | 'FRACASO' | 'INCOMPARECENCIA';
+export type EstadoProcesalLaboral = 'demanda' | 'contestacion' | 'prueba' | 'vista_de_causa' | 'sentencia' | 'apelacion' | 'ejecucion';
+export type TipoEmpresa = 'GRAN_EMPRESA' | 'MIPYME';
+export type ModuloAfectado = 'ENCUADRE' | 'EXTINCION' | 'LIQUIDACION' | 'PLATAFORMAS' | 'SINDICAL' | 'TODOS';
+
+export interface VersionNormativa {
+  id: string;
+  articulo: string;
+  ley: string;
+  descripcion?: string;
+  estado: EstadoNormativo;
+  vigenteDesde?: string;
+  vigenteHasta?: string;
+  jurisdiccion: 'NACIONAL' | 'CABA' | 'PBA' | 'TODAS';
+  fuente?: string;
+  afectaModulo: ModuloAfectado;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CasoLaboral {
+  id: string;
+  clientId: string;
+  matterId: string;
+  jurisdiccion: JurisdiccionLaboral;
+  tipoCaso: TipoCasoLaboral;
+  modulosActivos: string[];
+  estado: EstadoCasoLaboral;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EncuadreLaboral {
+  id: string;
+  casoId: string;
+  clasificacionDependencia: ClasificacionDependencia;
+  hayTercerizacion: boolean;
+  hayGrupoEconomico: boolean;
+  hayPlataforma: boolean;
+  cctAplicable?: string;
+  teoriaDelCaso?: string;
+  datosDeEncuadre: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Telegrama {
+  id: string;
+  casoId: string;
+  tipo: TipoTelegrama;
+  enviadoPor: 'TRABAJADOR' | 'EMPLEADOR';
+  fechaEnvio?: string;
+  fechaRecepcion?: string;
+  contenido?: string;
+  respondido: boolean;
+  createdAt: string;
+}
+
+export interface SecloTramite {
+  id: string;
+  casoId: string;
+  numeroTramite?: string;
+  conciliador?: string;
+  fechaAudiencia?: string;
+  ofertaEmpleador?: number;
+  calculoInterno?: number;
+  diferencia?: number;
+  resultado?: ResultadoSeclo;
+  acuerdoHomologado: boolean;
+  fechaHomologacion?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LiquidacionLaboral {
+  id: string;
+  casoId: string;
+  fechaIngreso: string;
+  fechaEgreso: string;
+  antiguedadAnios?: number;
+  mejorRemuneracion?: number;
+  incluyeVariables: boolean;
+  indemnizacionArt245?: number;
+  preaviso?: number;
+  integracionMes?: number;
+  sacPreaviso?: number;
+  sacProporcional?: number;
+  vacacionesProporcional?: number;
+  diasTrabajados?: number;
+  multaArt2Ley25323?: number;
+  multaArt80?: number;
+  multasLey24013?: number;
+  otrosRubros: Record<string, unknown>;
+  total?: number;
+  actualizadoCon?: 'IPC' | 'IPC_3' | 'OTRO';
+  tasaInteresAnual?: number;
+  notaCautelar?: string;
+  versionNormativaArt245Id?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ExpedienteLaboral {
+  id: string;
+  casoId: string;
+  jurisdiccion: JurisdiccionLaboral;
+  juzgado?: string;
+  numeroExpediente?: string;
+  caratula?: string;
+  estadoProcesal: EstadoProcesalLaboral;
+  fechaSentencia?: string;
+  montoSentencia?: number;
+  cuotasPago?: number;
+  tipoEmpresa?: TipoEmpresa;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // ── ONBOARDING ──────────────────────────────────────────────
 
 export interface OnboardingItem {

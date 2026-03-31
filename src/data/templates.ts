@@ -611,63 +611,367 @@ export const MATTER_TEMPLATES: MatterTemplate[] = [
   },
 
   // ═══════════════════════════════════════════════════════════
-  // LABORAL
+  // LABORAL — CABA y Provincia de Buenos Aires
+  // Ley 27.802 de Modernización Laboral (parcialmente cautelar)
   // ═══════════════════════════════════════════════════════════
 
+  // ─── DESPIDO — CABA (con SECLO obligatorio) ───────────────
   {
-    id: 'lab-despido',
-    name: 'Despido',
+    id: 'lab-despido-caba',
+    name: 'Despido (CABA)',
     rama: 'Laboral',
     subtipo: 'Despido',
     jurisdiccion: 'CABA',
     via: 'Ordinaria',
-    etapaInicial: 'Inicio',
-    descripcion: 'Reclamo por despido sin causa o con causa controvertida.',
+    etapaInicial: 'Encuadre',
+    descripcion: 'Despido sin causa o con causa controvertida — CABA. Flujo con SECLO obligatorio. ⚠ Art. 245 Ley 27.802 CAUTELAR: aplicar LCT original.',
     stages: [
       {
-        name: 'Inicio',
+        name: 'Encuadre',
         tasks: [
-          { task: 'Verificar fecha de ingreso y categoría', priority: 'crítico', bloqueante: true },
-          { task: 'Validar recibos de sueldo (últimos 12 meses)', priority: 'crítico', bloqueante: true },
-          { task: 'Calcular liquidación final', priority: 'crítico', bloqueante: true },
-          { task: 'Redactar y enviar TCL de intimación', priority: 'crítico', bloqueante: true },
+          { task: 'Definir jurisdicción: verificar domicilio del empleador en CABA', priority: 'crítico', bloqueante: true },
+          { task: 'Clasificar vínculo: dependencia, tercerización o grupo económico', priority: 'crítico', bloqueante: true },
+          { task: 'Verificar fecha de ingreso, categoría y CCT aplicable', priority: 'crítico', bloqueante: true },
+          { task: 'Auditar registración: comparar alta ARCA vs fecha real de ingreso', priority: 'crítico', bloqueante: true },
+          { task: 'Comparar salario registrado vs salario real percibido', priority: 'crítico', bloqueante: true },
+          { task: 'Identificar defectos registrales (fecha, salario, categoría)', priority: 'recomendado' },
         ],
         documents: [
-          { name: 'Recibos de sueldo (últimos 12)', required: true },
-          { name: 'Certificado de servicios (Art. 80)', required: true },
-          { name: 'Telegrama de despido', required: true },
           { name: 'DNI del trabajador', required: true },
+          { name: 'Recibos de sueldo (últimos 12 meses)', required: true },
+          { name: 'Alta en ARCA/AFIP', required: true },
+          { name: 'Certificado de servicios (Art. 80 LCT)', required: true },
         ],
-        milestone: 'Intimación enviada',
+        milestone: 'Encuadre del vínculo completo',
+      },
+      {
+        name: 'Telegramas',
+        tasks: [
+          { task: 'Redactar TCL de intimación por registración/diferencias/despido', priority: 'crítico', bloqueante: true },
+          { task: 'Enviar telegrama obrero (TCL gratuito)', priority: 'crítico', bloqueante: true },
+          { task: 'Registrar fecha de envío y seguimiento de respuesta', priority: 'crítico', bloqueante: true },
+          { task: 'Evaluar respuesta del empleador (si la hay) dentro de los 30 días', priority: 'recomendado' },
+        ],
+        documents: [
+          { name: 'Telegrama de despido / intimación', required: true },
+          { name: 'Acuse de recibo del telegrama', required: true },
+          { name: 'Respuesta del empleador (si existe)', required: false },
+        ],
+        milestone: 'Intercambio telegráfico completo',
+      },
+      {
+        name: 'SECLO',
+        tasks: [
+          { task: 'Iniciar trámite SECLO virtual en Portal de Abogados', priority: 'crítico', bloqueante: true },
+          { task: 'Verificar matriculación en CPACF (obligatoria para SECLO)', priority: 'crítico', bloqueante: true },
+          { task: 'Preparar liquidación interna para comparar con oferta', priority: 'crítico', bloqueante: true },
+          { task: 'Asistir a audiencia virtual (10 días hábiles desde inicio)', priority: 'crítico', bloqueante: true },
+          { task: 'Comparar oferta del empleador vs cálculo interno', priority: 'recomendado' },
+          { task: 'Evaluar acuerdo o registrar acta de fracaso', priority: 'crítico', bloqueante: true },
+        ],
+        documents: [
+          { name: 'Formulario de inicio SECLO', required: true },
+          { name: 'Constancia de audiencia SECLO', required: true },
+          { name: 'Acta de acuerdo o fracaso SECLO', required: true },
+        ],
+        milestone: 'SECLO resuelto (acuerdo homologado o fracaso)',
       },
       {
         name: 'Demanda',
         tasks: [
-          { task: 'Agotar instancia SECLO', priority: 'crítico', bloqueante: true },
-          { task: 'Redactar demanda laboral', priority: 'crítico', bloqueante: true },
-          { task: 'Presentar demanda en juzgado', priority: 'crítico', bloqueante: true },
+          { task: 'Calcular liquidación final art. 245 LCT (⚠ CAUTELAR: usar texto original)', priority: 'crítico', bloqueante: true },
+          { task: 'Verificar rubros reclamables: antigüedad, preaviso, integración, SAC, vacaciones', priority: 'crítico', bloqueante: true },
+          { task: 'Evaluar multas Ley 25.323 arts. 1° y 2° + Ley 24.013 si corresponde', priority: 'crítico', bloqueante: true },
+          { task: 'Redactar demanda laboral ante Juzgado Nacional del Trabajo', priority: 'crítico', bloqueante: true },
+          { task: 'Presentar demanda con liquidación detallada', priority: 'crítico', bloqueante: true },
+          { task: 'Evaluar riesgo de pluspetición (⚠ CAUTELAR: Ley 27.802 reforma costas)', priority: 'recomendado' },
         ],
         documents: [
           { name: 'Constancia SECLO (cierre sin acuerdo)', required: true },
           { name: 'Escrito de demanda', required: true },
-          { name: 'Liquidación detallada', required: true },
+          { name: 'Liquidación detallada con rubros', required: true },
+          { name: 'Prueba documental (recibos, telegramas, certificados)', required: true },
         ],
-        milestone: 'Demanda presentada',
+        milestone: 'Demanda presentada en juzgado',
       },
       {
-        name: 'Audiencia',
+        name: 'Prueba y vista',
         tasks: [
-          { task: 'Preparar cliente para audiencia de conciliación', priority: 'crítico', bloqueante: true },
-          { task: 'Evaluar propuesta de acuerdo si la hay', priority: 'recomendado' },
+          { task: 'Ofrecer prueba: documental, testimonial, informativa, pericial contable', priority: 'crítico', bloqueante: true },
+          { task: 'Solicitar oficios a AFIP, ANSES, banco y empleador', priority: 'recomendado' },
+          { task: 'Preparar cliente para audiencia de vista de causa', priority: 'crítico', bloqueante: true },
+          { task: 'Evaluar propuesta de conciliación si la hay', priority: 'recomendado' },
         ],
-        documents: [],
-        milestone: 'Audiencia SECLO / conciliación',
+        documents: [
+          { name: 'Ofrecimiento de prueba', required: true },
+          { name: 'Oficios librados', required: false },
+          { name: 'Pericia contable', required: false },
+        ],
+        milestone: 'Prueba producida y vista de causa',
       },
       {
         name: 'Sentencia',
         tasks: [
-          { task: 'Verificar sentencia laboral', priority: 'crítico', bloqueante: true },
-          { task: 'Evaluar recurso si corresponde', priority: 'recomendado' },
+          { task: 'Verificar sentencia y regulación de honorarios', priority: 'crítico', bloqueante: true },
+          { task: 'Liquidar sentencia con actualización (⚠ CAUTELAR: art. 276 IPC+3%)', priority: 'crítico', bloqueante: true },
+          { task: 'Evaluar recurso de apelación ante Cámara Nacional si corresponde', priority: 'recomendado' },
+          { task: 'Calcular costas y honorarios', priority: 'recomendado' },
+        ],
+        documents: [
+          { name: 'Sentencia de primera instancia', required: true },
+          { name: 'Liquidación post-sentencia', required: true },
+        ],
+        milestone: 'Sentencia firme',
+      },
+      {
+        name: 'Ejecución',
+        tasks: [
+          { task: 'Iniciar ejecución de sentencia', priority: 'crítico', bloqueante: true },
+          { task: 'Verificar depósito bancario del empleador', priority: 'crítico', bloqueante: true },
+          { task: 'Controlar plan de cuotas si aplica (⚠ CAUTELAR: 6 cuotas gran empresa, 12 MIPYME)', priority: 'recomendado' },
+          { task: 'Confirmar cobro total y cierre del caso', priority: 'crítico', bloqueante: true },
+        ],
+        documents: [
+          { name: 'Constancia de depósito / transferencia', required: true },
+        ],
+        milestone: 'Cobro ejecutado — caso cerrado',
+      },
+    ],
+    checklistBase: [
+      { task: 'Verificar jurisdicción CABA', priority: 'crítico' },
+      { task: 'Encuadrar vínculo laboral', priority: 'crítico' },
+      { task: 'Auditar registración', priority: 'crítico' },
+      { task: 'Enviar TCL de intimación', priority: 'crítico' },
+      { task: 'Tramitar SECLO (obligatorio CABA)', priority: 'crítico' },
+      { task: 'Calcular liquidación art. 245 (⚠ CAUTELAR)', priority: 'crítico' },
+    ],
+    documentosBase: [
+      { name: 'DNI del trabajador', required: true },
+      { name: 'Recibos de sueldo (últimos 12)', required: true },
+      { name: 'Certificado de servicios (Art. 80)', required: true },
+      { name: 'Telegrama de despido / intimación', required: true },
+      { name: 'Alta ARCA/AFIP', required: true },
+    ],
+    hitosProyectados: ['Encuadre', 'Telegramas', 'SECLO', 'Demanda', 'Prueba', 'Sentencia', 'Cobro'],
+    bloqueantesTipicos: ['Faltan recibos de sueldo', 'SECLO sin cerrar', 'Falta alta ARCA', 'Art. 245 bajo cautelar'],
+    proximaAccionSugerida: 'Encuadrar vínculo y auditar registración',
+    fechaSeguimientoSugeridaDays: 3,
+    prioridadSugerida: 'Alta',
+    notasOperativas: '⚠ LEY 27.802 CAUTELAR: Art. 245 (indemnización), art. 276 (IPC+3%), pluspetición. Usar texto original LCT (Ley 20.744). SECLO es obligatorio en CABA — sin constancia de fracaso no se puede demandar.',
+  },
+
+  // ─── DESPIDO — PBA (sin SECLO, demanda directa) ──────────
+  {
+    id: 'lab-despido-pba',
+    name: 'Despido (PBA)',
+    rama: 'Laboral',
+    subtipo: 'Despido',
+    jurisdiccion: 'PBA',
+    via: 'Ordinaria',
+    etapaInicial: 'Encuadre',
+    descripcion: 'Despido sin causa o con causa controvertida — Provincia de Buenos Aires. Sin SECLO, demanda directa ante Tribunal del Trabajo colegiado. ⚠ Paradoja normativa: Ley 15.057 vigente pero no operativa, Ley 11.653 derogada pero aplicada.',
+    stages: [
+      {
+        name: 'Encuadre',
+        tasks: [
+          { task: 'Definir jurisdicción: verificar domicilio del empleador en PBA', priority: 'crítico', bloqueante: true },
+          { task: 'Clasificar vínculo: dependencia, tercerización o grupo económico', priority: 'crítico', bloqueante: true },
+          { task: 'Verificar fecha de ingreso, categoría y CCT aplicable', priority: 'crítico', bloqueante: true },
+          { task: 'Auditar registración: comparar alta ARCA vs fecha real de ingreso', priority: 'crítico', bloqueante: true },
+          { task: 'Comparar salario registrado vs salario real percibido', priority: 'crítico', bloqueante: true },
+          { task: 'Confirmar competencia provincial (domicilio o lugar de tareas en PBA)', priority: 'recomendado' },
+        ],
+        documents: [
+          { name: 'DNI del trabajador', required: true },
+          { name: 'Recibos de sueldo (últimos 12 meses)', required: true },
+          { name: 'Alta en ARCA/AFIP', required: true },
+          { name: 'Certificado de servicios (Art. 80 LCT)', required: true },
+        ],
+        milestone: 'Encuadre del vínculo completo',
+      },
+      {
+        name: 'Telegramas',
+        tasks: [
+          { task: 'Redactar TCL de intimación (no obligatorio en PBA pero estratégicamente clave)', priority: 'crítico', bloqueante: true },
+          { task: 'Enviar telegrama obrero (TCL gratuito)', priority: 'crítico', bloqueante: true },
+          { task: 'Registrar intercambio y evaluar respuesta del empleador', priority: 'recomendado' },
+          { task: 'Construir base del caso pre-judicial con el intercambio', priority: 'recomendado' },
+        ],
+        documents: [
+          { name: 'Telegrama de despido / intimación', required: true },
+          { name: 'Acuse de recibo del telegrama', required: true },
+          { name: 'Respuesta del empleador (si existe)', required: false },
+        ],
+        milestone: 'Intercambio telegráfico completo',
+      },
+      {
+        name: 'Demanda directa',
+        tasks: [
+          { task: 'Calcular liquidación final art. 245 LCT (⚠ CAUTELAR: usar texto original)', priority: 'crítico', bloqueante: true },
+          { task: 'Verificar rubros reclamables: antigüedad, preaviso, integración, SAC, vacaciones', priority: 'crítico', bloqueante: true },
+          { task: 'Evaluar multas Ley 25.323 y Ley 24.013 si corresponde', priority: 'crítico', bloqueante: true },
+          { task: 'Redactar demanda ante Tribunal del Trabajo (colegiado, 3 jueces)', priority: 'crítico', bloqueante: true },
+          { task: 'Presentar demanda — proceso oral y público, actuación exenta de tasas', priority: 'crítico', bloqueante: true },
+          { task: 'Preparar estrategia probatoria para vista de causa oral', priority: 'recomendado' },
+        ],
+        documents: [
+          { name: 'Escrito de demanda', required: true },
+          { name: 'Liquidación detallada con rubros', required: true },
+          { name: 'Prueba documental (recibos, telegramas, certificados)', required: true },
+        ],
+        milestone: 'Demanda presentada ante Tribunal del Trabajo',
+      },
+      {
+        name: 'Vista de causa',
+        tasks: [
+          { task: 'Preparar cliente para audiencia oral y pública ante Tribunal', priority: 'crítico', bloqueante: true },
+          { task: 'Producir prueba testimonial y pericial en audiencia', priority: 'crítico', bloqueante: true },
+          { task: 'Evaluar posibilidad de conciliación ante el Tribunal (art. 25 Ley 11.653)', priority: 'recomendado' },
+        ],
+        documents: [
+          { name: 'Ofrecimiento de prueba', required: true },
+          { name: 'Pericia contable (si se ofreció)', required: false },
+        ],
+        milestone: 'Vista de causa celebrada',
+      },
+      {
+        name: 'Sentencia',
+        tasks: [
+          { task: 'Verificar sentencia del Tribunal del Trabajo', priority: 'crítico', bloqueante: true },
+          { task: 'Liquidar sentencia (⚠ CAUTELAR: art. 276 IPC+3% aplica al fondo LCT, no al proceso provincial)', priority: 'crítico', bloqueante: true },
+          { task: 'Evaluar recursos limitados (instancia única — Ley 15.057 no operativa)', priority: 'recomendado' },
+          { task: 'Calcular regulación de honorarios', priority: 'recomendado' },
+        ],
+        documents: [
+          { name: 'Sentencia del Tribunal del Trabajo', required: true },
+          { name: 'Liquidación post-sentencia', required: true },
+        ],
+        milestone: 'Sentencia firme',
+      },
+      {
+        name: 'Ejecución',
+        tasks: [
+          { task: 'Iniciar ejecución de sentencia', priority: 'crítico', bloqueante: true },
+          { task: 'Trabar embargo de haberes y bienes si corresponde', priority: 'recomendado' },
+          { task: 'Verificar cobro y cerrar caso', priority: 'crítico', bloqueante: true },
+        ],
+        documents: [
+          { name: 'Constancia de depósito / transferencia', required: true },
+        ],
+        milestone: 'Cobro ejecutado — caso cerrado',
+      },
+    ],
+    checklistBase: [
+      { task: 'Verificar jurisdicción PBA', priority: 'crítico' },
+      { task: 'Encuadrar vínculo laboral', priority: 'crítico' },
+      { task: 'Auditar registración', priority: 'crítico' },
+      { task: 'Enviar TCL de intimación', priority: 'crítico' },
+      { task: 'Calcular liquidación art. 245 (⚠ CAUTELAR)', priority: 'crítico' },
+    ],
+    documentosBase: [
+      { name: 'DNI del trabajador', required: true },
+      { name: 'Recibos de sueldo (últimos 12)', required: true },
+      { name: 'Certificado de servicios (Art. 80)', required: true },
+      { name: 'Telegrama de despido / intimación', required: true },
+      { name: 'Alta ARCA/AFIP', required: true },
+    ],
+    hitosProyectados: ['Encuadre', 'Telegramas', 'Demanda', 'Vista de causa', 'Sentencia', 'Cobro'],
+    bloqueantesTipicos: ['Faltan recibos de sueldo', 'Falta alta ARCA', 'Art. 245 bajo cautelar'],
+    proximaAccionSugerida: 'Encuadrar vínculo y auditar registración',
+    fechaSeguimientoSugeridaDays: 3,
+    prioridadSugerida: 'Alta',
+    notasOperativas: '⚠ PBA: NO existe SECLO. Demanda directa ante Tribunal del Trabajo (3 jueces). Paradoja normativa: Ley 15.057 vigente no operativa / Ley 11.653 derogada pero aplicada. ⚠ Art. 245 Ley 27.802 CAUTELAR.',
+  },
+
+  // ─── DIFERENCIAS SALARIALES — CABA ────────────────────────
+  {
+    id: 'lab-diferencias-caba',
+    name: 'Diferencias salariales (CABA)',
+    rama: 'Laboral',
+    subtipo: 'Diferencias salariales',
+    jurisdiccion: 'CABA',
+    via: 'Ordinaria',
+    etapaInicial: 'Encuadre',
+    descripcion: 'Reclamo por diferencias salariales, horas extra, ius variandi — CABA. Relación vigente o extinguida. SECLO obligatorio.',
+    stages: [
+      {
+        name: 'Encuadre',
+        tasks: [
+          { task: 'Verificar jurisdicción CABA y CCT aplicable', priority: 'crítico', bloqueante: true },
+          { task: 'Comparar salario básico y variables vs escala del CCT', priority: 'crítico', bloqueante: true },
+          { task: 'Auditar jornada pactada vs jornada real (horas extra)', priority: 'crítico', bloqueante: true },
+          { task: 'Identificar ítems remunerativos vs no remunerativos', priority: 'crítico', bloqueante: true },
+          { task: 'Evaluar modificaciones funcionales (ius variandi)', priority: 'recomendado' },
+          { task: 'Revisar sanciones y suspensiones si las hay', priority: 'recomendado' },
+        ],
+        documents: [
+          { name: 'DNI del trabajador', required: true },
+          { name: 'Recibos de sueldo (período reclamado)', required: true },
+          { name: 'Escala salarial del CCT vigente', required: true },
+          { name: 'Registro de jornada (si existe)', required: false },
+        ],
+        milestone: 'Planilla de diferencias armada',
+      },
+      {
+        name: 'Telegramas',
+        tasks: [
+          { task: 'Redactar TCL intimando pago de diferencias salariales', priority: 'crítico', bloqueante: true },
+          { task: 'Enviar telegrama obrero', priority: 'crítico', bloqueante: true },
+          { task: 'Registrar respuesta del empleador', priority: 'recomendado' },
+        ],
+        documents: [
+          { name: 'Telegrama de intimación por diferencias', required: true },
+          { name: 'Acuse de recibo', required: true },
+        ],
+        milestone: 'Intimación por diferencias enviada',
+      },
+      {
+        name: 'SECLO',
+        tasks: [
+          { task: 'Iniciar trámite SECLO virtual', priority: 'crítico', bloqueante: true },
+          { task: 'Presentar planilla de diferencias como base del reclamo', priority: 'crítico', bloqueante: true },
+          { task: 'Evaluar oferta del empleador vs cálculo propio', priority: 'recomendado' },
+          { task: 'Registrar resultado: acuerdo homologado o acta de fracaso', priority: 'crítico', bloqueante: true },
+        ],
+        documents: [
+          { name: 'Constancia de audiencia SECLO', required: true },
+          { name: 'Acta de acuerdo o fracaso', required: true },
+        ],
+        milestone: 'SECLO resuelto',
+      },
+      {
+        name: 'Demanda',
+        tasks: [
+          { task: 'Redactar demanda por diferencias salariales ante Juzgado Nacional del Trabajo', priority: 'crítico', bloqueante: true },
+          { task: 'Adjuntar liquidación detallada de diferencias período a período', priority: 'crítico', bloqueante: true },
+          { task: 'Presentar demanda', priority: 'crítico', bloqueante: true },
+        ],
+        documents: [
+          { name: 'Constancia SECLO (fracaso)', required: true },
+          { name: 'Escrito de demanda', required: true },
+          { name: 'Liquidación de diferencias detallada', required: true },
+        ],
+        milestone: 'Demanda presentada',
+      },
+      {
+        name: 'Prueba y vista',
+        tasks: [
+          { task: 'Ofrecer prueba pericial contable para determinar diferencias', priority: 'crítico', bloqueante: true },
+          { task: 'Solicitar oficios a AFIP y banco por depósitos reales', priority: 'recomendado' },
+          { task: 'Preparar audiencia de vista de causa', priority: 'crítico', bloqueante: true },
+        ],
+        documents: [
+          { name: 'Ofrecimiento de prueba', required: true },
+          { name: 'Pericia contable', required: false },
+        ],
+        milestone: 'Prueba producida',
+      },
+      {
+        name: 'Sentencia',
+        tasks: [
+          { task: 'Verificar sentencia', priority: 'crítico', bloqueante: true },
+          { task: 'Liquidar con actualización (⚠ CAUTELAR: art. 276 IPC+3%)', priority: 'crítico', bloqueante: true },
+          { task: 'Evaluar apelación si corresponde', priority: 'recomendado' },
         ],
         documents: [
           { name: 'Sentencia', required: true },
@@ -677,30 +981,577 @@ export const MATTER_TEMPLATES: MatterTemplate[] = [
       {
         name: 'Ejecución',
         tasks: [
-          { task: 'Iniciar ejecución de sentencia', priority: 'crítico', bloqueante: true },
-          { task: 'Verificar cobro', priority: 'recomendado' },
+          { task: 'Ejecutar sentencia y verificar cobro', priority: 'crítico', bloqueante: true },
         ],
         documents: [],
         milestone: 'Cobro ejecutado',
       },
     ],
     checklistBase: [
-      { task: 'Verificar fecha de ingreso', priority: 'crítico' },
-      { task: 'Validar recibos de sueldo', priority: 'crítico' },
-      { task: 'Cálculo de liquidación', priority: 'crítico' },
-      { task: 'Enviar TCL de intimación', priority: 'crítico' },
+      { task: 'Armar planilla de diferencias', priority: 'crítico' },
+      { task: 'Enviar TCL por diferencias', priority: 'crítico' },
+      { task: 'Tramitar SECLO', priority: 'crítico' },
     ],
     documentosBase: [
-      { name: 'Recibos de sueldo (últimos 12)', required: true },
-      { name: 'Certificado de servicios', required: true },
-      { name: 'Telegrama de despido', required: true },
       { name: 'DNI del trabajador', required: true },
+      { name: 'Recibos de sueldo', required: true },
+      { name: 'Escala salarial CCT', required: true },
     ],
-    hitosProyectados: ['Intimación', 'SECLO', 'Demanda', 'Audiencia', 'Sentencia'],
-    bloqueantesTipicos: ['Faltan recibos de sueldo', 'SECLO sin cerrar'],
-    proximaAccionSugerida: 'Redactar TCL de intimación',
+    hitosProyectados: ['Encuadre', 'Telegramas', 'SECLO', 'Demanda', 'Sentencia', 'Cobro'],
+    bloqueantesTipicos: ['Faltan recibos del período', 'SECLO sin cerrar', 'Escala CCT no identificada'],
+    proximaAccionSugerida: 'Armar planilla de diferencias salariales',
+    fechaSeguimientoSugeridaDays: 5,
+    prioridadSugerida: 'Alta',
+  },
+
+  // ─── DIFERENCIAS SALARIALES — PBA ─────────────────────────
+  {
+    id: 'lab-diferencias-pba',
+    name: 'Diferencias salariales (PBA)',
+    rama: 'Laboral',
+    subtipo: 'Diferencias salariales',
+    jurisdiccion: 'PBA',
+    via: 'Ordinaria',
+    etapaInicial: 'Encuadre',
+    descripcion: 'Reclamo por diferencias salariales, horas extra, ius variandi — PBA. Sin SECLO, demanda directa ante Tribunal del Trabajo.',
+    stages: [
+      {
+        name: 'Encuadre',
+        tasks: [
+          { task: 'Verificar jurisdicción PBA y CCT aplicable', priority: 'crítico', bloqueante: true },
+          { task: 'Comparar salario básico y variables vs escala del CCT', priority: 'crítico', bloqueante: true },
+          { task: 'Auditar jornada pactada vs jornada real (horas extra)', priority: 'crítico', bloqueante: true },
+          { task: 'Identificar ítems remunerativos vs no remunerativos', priority: 'crítico', bloqueante: true },
+          { task: 'Evaluar ius variandi y suspensiones', priority: 'recomendado' },
+        ],
+        documents: [
+          { name: 'DNI del trabajador', required: true },
+          { name: 'Recibos de sueldo (período reclamado)', required: true },
+          { name: 'Escala salarial del CCT vigente', required: true },
+        ],
+        milestone: 'Planilla de diferencias armada',
+      },
+      {
+        name: 'Telegramas',
+        tasks: [
+          { task: 'Redactar TCL intimando pago de diferencias', priority: 'crítico', bloqueante: true },
+          { task: 'Enviar telegrama obrero', priority: 'crítico', bloqueante: true },
+          { task: 'Registrar respuesta del empleador', priority: 'recomendado' },
+        ],
+        documents: [
+          { name: 'Telegrama de intimación', required: true },
+          { name: 'Acuse de recibo', required: true },
+        ],
+        milestone: 'Intimación enviada',
+      },
+      {
+        name: 'Demanda directa',
+        tasks: [
+          { task: 'Redactar demanda ante Tribunal del Trabajo', priority: 'crítico', bloqueante: true },
+          { task: 'Adjuntar liquidación detallada de diferencias', priority: 'crítico', bloqueante: true },
+          { task: 'Presentar demanda — proceso oral, exento de tasas', priority: 'crítico', bloqueante: true },
+        ],
+        documents: [
+          { name: 'Escrito de demanda', required: true },
+          { name: 'Liquidación de diferencias', required: true },
+        ],
+        milestone: 'Demanda presentada',
+      },
+      {
+        name: 'Vista de causa',
+        tasks: [
+          { task: 'Preparar audiencia oral ante Tribunal colegiado', priority: 'crítico', bloqueante: true },
+          { task: 'Producir prueba pericial contable', priority: 'crítico', bloqueante: true },
+          { task: 'Evaluar conciliación ante el Tribunal', priority: 'recomendado' },
+        ],
+        documents: [
+          { name: 'Pericia contable', required: false },
+        ],
+        milestone: 'Vista de causa celebrada',
+      },
+      {
+        name: 'Sentencia',
+        tasks: [
+          { task: 'Verificar sentencia del Tribunal', priority: 'crítico', bloqueante: true },
+          { task: 'Liquidar sentencia', priority: 'crítico', bloqueante: true },
+        ],
+        documents: [
+          { name: 'Sentencia', required: true },
+        ],
+        milestone: 'Sentencia firme',
+      },
+      {
+        name: 'Ejecución',
+        tasks: [
+          { task: 'Ejecutar sentencia y verificar cobro', priority: 'crítico', bloqueante: true },
+        ],
+        documents: [],
+        milestone: 'Cobro ejecutado',
+      },
+    ],
+    checklistBase: [
+      { task: 'Armar planilla de diferencias', priority: 'crítico' },
+      { task: 'Enviar TCL por diferencias', priority: 'crítico' },
+    ],
+    documentosBase: [
+      { name: 'DNI del trabajador', required: true },
+      { name: 'Recibos de sueldo', required: true },
+      { name: 'Escala salarial CCT', required: true },
+    ],
+    hitosProyectados: ['Encuadre', 'Telegramas', 'Demanda', 'Vista de causa', 'Sentencia', 'Cobro'],
+    bloqueantesTipicos: ['Faltan recibos del período', 'Escala CCT no identificada'],
+    proximaAccionSugerida: 'Armar planilla de diferencias salariales',
+    fechaSeguimientoSugeridaDays: 5,
+    prioridadSugerida: 'Alta',
+  },
+
+  // ─── NO REGISTRADO — CABA ────────────────────────────────
+  {
+    id: 'lab-no-registrado-caba',
+    name: 'No registrado (CABA)',
+    rama: 'Laboral',
+    subtipo: 'No registrado',
+    jurisdiccion: 'CABA',
+    via: 'Ordinaria',
+    etapaInicial: 'Encuadre',
+    descripcion: 'Reclamo por empleo no registrado o deficientemente registrado — CABA. Multas Ley 24.013 + Ley 25.323. SECLO obligatorio.',
+    stages: [
+      {
+        name: 'Encuadre',
+        tasks: [
+          { task: 'Reconstruir historia laboral: fecha real de inicio, salario real, tareas', priority: 'crítico', bloqueante: true },
+          { task: 'Comparar situación formal vs real (alta ARCA, recibos, aportes)', priority: 'crítico', bloqueante: true },
+          { task: 'Identificar testigos clave y pruebas de la relación (chats, mails, fotos)', priority: 'crítico', bloqueante: true },
+          { task: 'Determinar si es no registrado total o parcial (fecha/sueldo adulterado)', priority: 'crítico', bloqueante: true },
+          { task: 'Calcular aportes omitidos al sistema de seguridad social', priority: 'recomendado' },
+        ],
+        documents: [
+          { name: 'DNI del trabajador', required: true },
+          { name: 'Prueba de la relación (chats, emails, fotos, testigos)', required: true },
+          { name: 'Recibos de sueldo (si existen)', required: false },
+          { name: 'Informe de aportes ANSES/ARCA', required: false },
+        ],
+        milestone: 'Historia laboral reconstruida',
+      },
+      {
+        name: 'Telegramas',
+        tasks: [
+          { task: 'Redactar TCL intimando registración correcta (arts. 8-10 Ley 24.013)', priority: 'crítico', bloqueante: true },
+          { task: 'Enviar telegrama obrero con detalle de fecha real e ingreso real', priority: 'crítico', bloqueante: true },
+          { task: 'Aguardar 30 días corridos para respuesta/cumplimiento', priority: 'crítico', bloqueante: true },
+          { task: 'Evaluar considerarse despedido si no cumple (despido indirecto)', priority: 'recomendado' },
+        ],
+        documents: [
+          { name: 'Telegrama de intimación por registración', required: true },
+          { name: 'Acuse de recibo', required: true },
+        ],
+        milestone: 'Intimación de registración enviada',
+      },
+      {
+        name: 'SECLO',
+        tasks: [
+          { task: 'Iniciar trámite SECLO con reclamo integral', priority: 'crítico', bloqueante: true },
+          { task: 'Incluir multas Ley 24.013 + Ley 25.323 en el reclamo', priority: 'crítico', bloqueante: true },
+          { task: 'Evaluar oferta vs cálculo interno', priority: 'recomendado' },
+          { task: 'Registrar resultado', priority: 'crítico', bloqueante: true },
+        ],
+        documents: [
+          { name: 'Acta SECLO', required: true },
+        ],
+        milestone: 'SECLO resuelto',
+      },
+      {
+        name: 'Demanda',
+        tasks: [
+          { task: 'Redactar demanda con narrativa cronológica de la relación no registrada', priority: 'crítico', bloqueante: true },
+          { task: 'Incluir multas arts. 8, 9, 10, 11 y 15 Ley 24.013 según corresponda', priority: 'crítico', bloqueante: true },
+          { task: 'Incluir multa art. 1° Ley 25.323 por falta de registración', priority: 'crítico', bloqueante: true },
+          { task: 'Reclamar certificados art. 80 + multa Ley 25.345', priority: 'recomendado' },
+          { task: 'Presentar demanda con toda la prueba de la relación', priority: 'crítico', bloqueante: true },
+        ],
+        documents: [
+          { name: 'Constancia SECLO (fracaso)', required: true },
+          { name: 'Escrito de demanda', required: true },
+          { name: 'Liquidación con multas', required: true },
+        ],
+        milestone: 'Demanda presentada',
+      },
+      {
+        name: 'Prueba y vista',
+        tasks: [
+          { task: 'Ofrecer prueba testimonial (clave en casos de no registro)', priority: 'crítico', bloqueante: true },
+          { task: 'Solicitar informes a AFIP/ARCA y ANSES', priority: 'crítico', bloqueante: true },
+          { task: 'Preparar vista de causa', priority: 'crítico', bloqueante: true },
+        ],
+        documents: [
+          { name: 'Ofrecimiento de prueba', required: true },
+        ],
+        milestone: 'Prueba producida',
+      },
+      {
+        name: 'Sentencia',
+        tasks: [
+          { task: 'Verificar sentencia', priority: 'crítico', bloqueante: true },
+          { task: 'Evaluar apelación', priority: 'recomendado' },
+        ],
+        documents: [
+          { name: 'Sentencia', required: true },
+        ],
+        milestone: 'Sentencia firme',
+      },
+      {
+        name: 'Ejecución',
+        tasks: [
+          { task: 'Ejecutar sentencia y verificar cobro', priority: 'crítico', bloqueante: true },
+          { task: 'Remitir informe a ARCA para regularización', priority: 'recomendado' },
+        ],
+        documents: [],
+        milestone: 'Cobro ejecutado',
+      },
+    ],
+    checklistBase: [
+      { task: 'Reconstruir historia laboral', priority: 'crítico' },
+      { task: 'Enviar TCL intimando registración', priority: 'crítico' },
+      { task: 'Tramitar SECLO', priority: 'crítico' },
+      { task: 'Calcular multas Ley 24.013', priority: 'crítico' },
+    ],
+    documentosBase: [
+      { name: 'DNI del trabajador', required: true },
+      { name: 'Prueba de la relación', required: true },
+      { name: 'Telegrama de intimación', required: true },
+    ],
+    hitosProyectados: ['Encuadre', 'Telegramas', 'SECLO', 'Demanda', 'Sentencia', 'Cobro'],
+    bloqueantesTipicos: ['Falta prueba de la relación', 'SECLO sin cerrar', 'Testigos no identificados'],
+    proximaAccionSugerida: 'Reconstruir historia laboral y reunir pruebas',
     fechaSeguimientoSugeridaDays: 3,
     prioridadSugerida: 'Alta',
+  },
+
+  // ─── NO REGISTRADO — PBA ─────────────────────────────────
+  {
+    id: 'lab-no-registrado-pba',
+    name: 'No registrado (PBA)',
+    rama: 'Laboral',
+    subtipo: 'No registrado',
+    jurisdiccion: 'PBA',
+    via: 'Ordinaria',
+    etapaInicial: 'Encuadre',
+    descripcion: 'Reclamo por empleo no registrado o deficientemente registrado — PBA. Sin SECLO, demanda directa. Multas Ley 24.013 + Ley 25.323.',
+    stages: [
+      {
+        name: 'Encuadre',
+        tasks: [
+          { task: 'Reconstruir historia laboral: fecha real, salario real, tareas', priority: 'crítico', bloqueante: true },
+          { task: 'Comparar situación formal vs real', priority: 'crítico', bloqueante: true },
+          { task: 'Identificar testigos y pruebas de la relación', priority: 'crítico', bloqueante: true },
+          { task: 'Determinar si es no registrado total o parcial', priority: 'crítico', bloqueante: true },
+        ],
+        documents: [
+          { name: 'DNI del trabajador', required: true },
+          { name: 'Prueba de la relación', required: true },
+        ],
+        milestone: 'Historia laboral reconstruida',
+      },
+      {
+        name: 'Telegramas',
+        tasks: [
+          { task: 'Redactar TCL intimando registración', priority: 'crítico', bloqueante: true },
+          { task: 'Enviar telegrama obrero', priority: 'crítico', bloqueante: true },
+          { task: 'Aguardar respuesta / vencimiento de plazo', priority: 'recomendado' },
+        ],
+        documents: [
+          { name: 'Telegrama de intimación', required: true },
+          { name: 'Acuse de recibo', required: true },
+        ],
+        milestone: 'Intimación enviada',
+      },
+      {
+        name: 'Demanda directa',
+        tasks: [
+          { task: 'Redactar demanda con narrativa cronológica ante Tribunal del Trabajo', priority: 'crítico', bloqueante: true },
+          { task: 'Incluir multas Ley 24.013 + Ley 25.323', priority: 'crítico', bloqueante: true },
+          { task: 'Presentar con toda la prueba de la relación', priority: 'crítico', bloqueante: true },
+        ],
+        documents: [
+          { name: 'Escrito de demanda', required: true },
+          { name: 'Liquidación con multas', required: true },
+        ],
+        milestone: 'Demanda presentada',
+      },
+      {
+        name: 'Vista de causa',
+        tasks: [
+          { task: 'Producir prueba testimonial en audiencia oral', priority: 'crítico', bloqueante: true },
+          { task: 'Solicitar informes a AFIP/ARCA y ANSES', priority: 'crítico', bloqueante: true },
+        ],
+        documents: [],
+        milestone: 'Vista de causa celebrada',
+      },
+      {
+        name: 'Sentencia',
+        tasks: [
+          { task: 'Verificar sentencia del Tribunal', priority: 'crítico', bloqueante: true },
+        ],
+        documents: [
+          { name: 'Sentencia', required: true },
+        ],
+        milestone: 'Sentencia firme',
+      },
+      {
+        name: 'Ejecución',
+        tasks: [
+          { task: 'Ejecutar sentencia y verificar cobro', priority: 'crítico', bloqueante: true },
+          { task: 'Remitir informe a ARCA', priority: 'recomendado' },
+        ],
+        documents: [],
+        milestone: 'Cobro ejecutado',
+      },
+    ],
+    checklistBase: [
+      { task: 'Reconstruir historia laboral', priority: 'crítico' },
+      { task: 'Enviar TCL intimando registración', priority: 'crítico' },
+      { task: 'Calcular multas Ley 24.013', priority: 'crítico' },
+    ],
+    documentosBase: [
+      { name: 'DNI del trabajador', required: true },
+      { name: 'Prueba de la relación', required: true },
+      { name: 'Telegrama de intimación', required: true },
+    ],
+    hitosProyectados: ['Encuadre', 'Telegramas', 'Demanda', 'Vista de causa', 'Sentencia', 'Cobro'],
+    bloqueantesTipicos: ['Falta prueba de la relación', 'Testigos no identificados'],
+    proximaAccionSugerida: 'Reconstruir historia laboral y reunir pruebas',
+    fechaSeguimientoSugeridaDays: 3,
+    prioridadSugerida: 'Alta',
+  },
+
+  // ─── ART / ACCIDENTES Y ENFERMEDADES — Carril LRT ────────
+  {
+    id: 'lab-art',
+    name: 'ART / Accidente laboral',
+    rama: 'Laboral',
+    subtipo: 'ART / Accidente',
+    jurisdiccion: 'CABA',
+    via: 'Especial (LRT)',
+    etapaInicial: 'Denuncia',
+    descripcion: 'Accidente de trabajo o enfermedad profesional — Trámite ante ART y Comisión Médica. Carril separado (Ley 24.557 de Riesgos del Trabajo). No afectado directamente por cautelar Ley 27.802.',
+    stages: [
+      {
+        name: 'Denuncia',
+        tasks: [
+          { task: 'Verificar denuncia ante la ART (o empleador autoasegurado)', priority: 'crítico', bloqueante: true },
+          { task: 'Registrar fecha de denuncia y tipo de contingencia (accidente / enfermedad)', priority: 'crítico', bloqueante: true },
+          { task: 'Obtener alta médica o constancia de tratamiento en curso', priority: 'crítico', bloqueante: true },
+          { task: 'Recopilar estudios médicos e incapacidad determinada', priority: 'crítico', bloqueante: true },
+          { task: 'Verificar si la ART rechazó el siniestro', priority: 'recomendado' },
+        ],
+        documents: [
+          { name: 'DNI del trabajador', required: true },
+          { name: 'Denuncia ante ART', required: true },
+          { name: 'Estudios médicos / historia clínica', required: true },
+          { name: 'Certificado de alta médica o tratamiento', required: false },
+          { name: 'Rechazo de ART (si existe)', required: false },
+        ],
+        milestone: 'Denuncia registrada y documentación médica completa',
+      },
+      {
+        name: 'Comisión Médica',
+        tasks: [
+          { task: 'Determinar competencia: Comisión Médica jurisdiccional o Central', priority: 'crítico', bloqueante: true },
+          { task: 'Presentar trámite ante Comisión Médica (SRT)', priority: 'crítico', bloqueante: true },
+          { task: 'Asistir a audiencia médica con estudios completos', priority: 'crítico', bloqueante: true },
+          { task: 'Evaluar dictamen de incapacidad (% y prestaciones)', priority: 'crítico', bloqueante: true },
+          { task: 'Evaluar incompatibilidades LCT/LRT si corresponde', priority: 'recomendado' },
+        ],
+        documents: [
+          { name: 'Formulario de presentación ante Comisión Médica', required: true },
+          { name: 'Dictamen de Comisión Médica', required: true },
+        ],
+        milestone: 'Dictamen de Comisión Médica obtenido',
+      },
+      {
+        name: 'Recurso / Demanda',
+        tasks: [
+          { task: 'Evaluar estrategia: apelar dictamen vs demanda judicial directa', priority: 'crítico', bloqueante: true },
+          { task: 'Si recurso: apelar ante Comisión Médica Central', priority: 'recomendado' },
+          { task: 'Si demanda: redactar demanda por reparación integral (art. 1740 CCyCN)', priority: 'recomendado' },
+          { task: 'Evaluar acumulación con reclamo LCT si hay despido', priority: 'recomendado' },
+        ],
+        documents: [
+          { name: 'Recurso o escrito de demanda', required: true },
+        ],
+        milestone: 'Vía elegida e iniciada',
+      },
+      {
+        name: 'Resolución',
+        tasks: [
+          { task: 'Verificar resolución (dictamen final, sentencia o acuerdo)', priority: 'crítico', bloqueante: true },
+          { task: 'Liquidar prestaciones: ILP, ILT, prestaciones en especie', priority: 'crítico', bloqueante: true },
+          { task: 'Verificar cobro de indemnización', priority: 'crítico', bloqueante: true },
+        ],
+        documents: [
+          { name: 'Resolución final / Sentencia', required: true },
+          { name: 'Liquidación de prestaciones', required: true },
+        ],
+        milestone: 'Caso resuelto',
+      },
+    ],
+    checklistBase: [
+      { task: 'Verificar denuncia ante ART', priority: 'crítico' },
+      { task: 'Reunir estudios médicos', priority: 'crítico' },
+      { task: 'Tramitar Comisión Médica', priority: 'crítico' },
+    ],
+    documentosBase: [
+      { name: 'DNI del trabajador', required: true },
+      { name: 'Denuncia ante ART', required: true },
+      { name: 'Estudios médicos', required: true },
+    ],
+    hitosProyectados: ['Denuncia', 'Comisión Médica', 'Recurso/Demanda', 'Resolución'],
+    bloqueantesTipicos: ['ART rechazó siniestro', 'Faltan estudios médicos', 'Comisión Médica pendiente'],
+    proximaAccionSugerida: 'Verificar denuncia y reunir documentación médica',
+    fechaSeguimientoSugeridaDays: 5,
+    prioridadSugerida: 'Alta',
+  },
+
+  // ─── SINDICAL / COLECTIVO ─────────────────────────────────
+  {
+    id: 'lab-sindical',
+    name: 'Sindical / Colectivo',
+    rama: 'Laboral',
+    subtipo: 'Sindical',
+    jurisdiccion: 'CABA',
+    via: 'Especial',
+    etapaInicial: 'Encuadre',
+    descripcion: 'Conflicto sindical o colectivo: tutela sindical, prácticas desleales, asambleas, CCT. ⚠ CAUTELAR PARCIAL: normas sindicales de Ley 27.802 suspendidas. Alto riesgo normativo.',
+    stages: [
+      {
+        name: 'Encuadre',
+        tasks: [
+          { task: 'Identificar sindicato con personería gremial y representación', priority: 'crítico', bloqueante: true },
+          { task: 'Verificar si hay candidatura u oficialización pendiente', priority: 'crítico', bloqueante: true },
+          { task: 'Determinar tipo de conflicto: tutela, práctica desleal, medida de fuerza', priority: 'crítico', bloqueante: true },
+          { task: 'Revisar CCT vigente y ultraactividad', priority: 'recomendado' },
+          { task: '⚠ Verificar estado cautelar de normas sindicales Ley 27.802', priority: 'crítico', bloqueante: true },
+        ],
+        documents: [
+          { name: 'Resolución de personería gremial del sindicato', required: true },
+          { name: 'Acta de asamblea / elección (si aplica)', required: false },
+          { name: 'CCT vigente', required: true },
+        ],
+        milestone: 'Conflicto encuadrado',
+      },
+      {
+        name: 'Acción',
+        tasks: [
+          { task: 'Redactar escrito de exclusión de tutela o acción de amparo sindical', priority: 'crítico', bloqueante: true },
+          { task: 'Presentar denuncia por práctica desleal si corresponde', priority: 'recomendado' },
+          { task: 'Evaluar medida cautelar de no innovar / reinstalación', priority: 'recomendado' },
+          { task: 'Mapear el conflicto colectivo y actores involucrados', priority: 'recomendado' },
+        ],
+        documents: [
+          { name: 'Escrito de acción sindical', required: true },
+          { name: 'Medida cautelar (si se solicitó)', required: false },
+        ],
+        milestone: 'Acción sindical iniciada',
+      },
+      {
+        name: 'Resolución',
+        tasks: [
+          { task: 'Verificar resolución judicial o administrativa', priority: 'crítico', bloqueante: true },
+          { task: 'Evaluar recursos', priority: 'recomendado' },
+        ],
+        documents: [
+          { name: 'Resolución / Sentencia', required: true },
+        ],
+        milestone: 'Caso resuelto',
+      },
+    ],
+    checklistBase: [
+      { task: 'Verificar personería gremial', priority: 'crítico' },
+      { task: 'Determinar tipo de conflicto', priority: 'crítico' },
+      { task: 'Verificar estado cautelar Ley 27.802', priority: 'crítico' },
+    ],
+    documentosBase: [
+      { name: 'Resolución de personería gremial', required: true },
+      { name: 'CCT vigente', required: true },
+    ],
+    hitosProyectados: ['Encuadre', 'Acción', 'Resolución'],
+    bloqueantesTipicos: ['Normas sindicales bajo cautelar', 'Falta personería gremial'],
+    proximaAccionSugerida: 'Encuadrar conflicto y verificar estado cautelar',
+    fechaSeguimientoSugeridaDays: 3,
+    prioridadSugerida: 'Alta',
+    notasOperativas: '⚠ CAUTELAR: Normas sindicales de Ley 27.802 suspendidas. Alto riesgo normativo. Implementar cuando se estabilice la jurisprudencia.',
+  },
+
+  // ─── PLATAFORMAS DIGITALES (Título XII Ley 27.802) ────────
+  {
+    id: 'lab-plataformas',
+    name: 'Plataformas digitales',
+    rama: 'Laboral',
+    subtipo: 'Plataformas',
+    jurisdiccion: 'CABA',
+    via: 'Especial',
+    etapaInicial: 'Encuadre',
+    descripcion: 'Trabajadores de plataformas digitales (movilidad/reparto) — Título XII Ley 27.802. ⚠ CAUTELAR PARCIAL: todo el Título XII suspendido. Evaluar si aplica régimen de dependencia clásica.',
+    stages: [
+      {
+        name: 'Encuadre',
+        tasks: [
+          { task: '⚠ Verificar estado cautelar del Título XII Ley 27.802 (plataformas)', priority: 'crítico', bloqueante: true },
+          { task: 'Clasificar: ¿régimen plataformas (Ley 27.802) o dependencia clásica (LCT)?', priority: 'crítico', bloqueante: true },
+          { task: 'Identificar tipo de plataforma: movilidad o reparto', priority: 'crítico', bloqueante: true },
+          { task: 'Verificar libertad de conexión real vs control de la plataforma', priority: 'crítico', bloqueante: true },
+          { task: 'Recopilar logs de conexión, pagos y comunicaciones de la app', priority: 'crítico', bloqueante: true },
+          { task: 'Detectar desvíos de independencia (exclusividad, sanciones, control)', priority: 'recomendado' },
+        ],
+        documents: [
+          { name: 'DNI del trabajador', required: true },
+          { name: 'Capturas de la app (pagos, conexión, mensajes)', required: true },
+          { name: 'Términos y condiciones de la plataforma', required: true },
+          { name: 'Constancia de seguro de accidentes (si existe)', required: false },
+        ],
+        milestone: 'Clasificación del vínculo definida',
+      },
+      {
+        name: 'Reclamo',
+        tasks: [
+          { task: 'Si dependencia clásica: seguir flujo de Despido CABA o PBA', priority: 'recomendado' },
+          { task: 'Si régimen plataformas: evaluar reclamo por suspensión de cuenta', priority: 'recomendado' },
+          { task: 'Redactar intimación / demanda según encuadre elegido', priority: 'crítico', bloqueante: true },
+          { task: 'Evaluar riesgos regulatorios por estado cautelar', priority: 'recomendado' },
+        ],
+        documents: [
+          { name: 'Escrito de reclamo / demanda', required: true },
+        ],
+        milestone: 'Reclamo iniciado',
+      },
+      {
+        name: 'Resolución',
+        tasks: [
+          { task: 'Verificar resolución', priority: 'crítico', bloqueante: true },
+          { task: 'Evaluar precedentes judiciales sobre plataformas', priority: 'recomendado' },
+        ],
+        documents: [
+          { name: 'Resolución / Sentencia', required: true },
+        ],
+        milestone: 'Caso resuelto',
+      },
+    ],
+    checklistBase: [
+      { task: 'Verificar cautelar Título XII', priority: 'crítico' },
+      { task: 'Clasificar vínculo: plataforma vs dependencia', priority: 'crítico' },
+      { task: 'Reunir logs de conexión', priority: 'crítico' },
+    ],
+    documentosBase: [
+      { name: 'DNI del trabajador', required: true },
+      { name: 'Capturas de la app', required: true },
+      { name: 'TyC de la plataforma', required: true },
+    ],
+    hitosProyectados: ['Encuadre', 'Reclamo', 'Resolución'],
+    bloqueantesTipicos: ['Título XII bajo cautelar total', 'Clasificación incierta', 'Falta logs de conexión'],
+    proximaAccionSugerida: 'Verificar estado cautelar y clasificar vínculo',
+    fechaSeguimientoSugeridaDays: 5,
+    prioridadSugerida: 'Media',
+    notasOperativas: '⚠ CAUTELAR: Todo el Título XII de Ley 27.802 está suspendido. Si el trabajador funciona como dependiente clásico, reconducir al flujo de Despido. Implementar régimen específico cuando se estabilice.',
   },
 
   // ═══════════════════════════════════════════════════════════
@@ -1111,10 +1962,24 @@ export const MATTER_TEMPLATES: MatterTemplate[] = [
   },
 ];
 
-/** Find template by rama + subtipo (case-insensitive partial match) */
-export function findTemplate(rama: string, subtipo?: string): MatterTemplate | undefined {
+/** Find template by rama + subtipo (case-insensitive partial match).
+ *  Para Laboral, el parámetro `jurisdiccion` (CABA/PBA) determina qué
+ *  variante del template se usa, ya que el flujo procesal difiere. */
+export function findTemplate(rama: string, subtipo?: string, jurisdiccion?: string): MatterTemplate | undefined {
   if (subtipo) {
     const sub = subtipo.toLowerCase();
+    // Si hay jurisdicción, buscar match exacto (rama + subtipo + jurisdiccion)
+    if (jurisdiccion) {
+      const jur = jurisdiccion.toUpperCase().includes('PBA') || jurisdiccion.toLowerCase().includes('provincia')
+        ? 'PBA' : jurisdiccion.toUpperCase();
+      const exactMatch = MATTER_TEMPLATES.find(
+        t => t.rama === rama
+          && t.subtipo.toLowerCase().includes(sub)
+          && t.jurisdiccion === jur
+      );
+      if (exactMatch) return exactMatch;
+    }
+    // Sin jurisdicción: primer match por rama + subtipo
     const match = MATTER_TEMPLATES.find(
       t => t.rama === rama && t.subtipo.toLowerCase().includes(sub)
     );
@@ -1378,7 +2243,17 @@ export const WIZARD_FIELDS_BY_TEMPLATE: Record<string, WizardSection[]> = {
     },
   ],
 
-  'lab-despido': [
+  // ─── LABORAL: Secciones comunes reutilizadas por template ID ───
+
+  'lab-despido-caba': [
+    {
+      title: 'Jurisdicción y Encuadre',
+      icon: 'Scale',
+      fields: [
+        { key: 'jurisdiccion_laboral', label: 'Jurisdicción', type: 'select', options: ['CABA', 'Provincia de Buenos Aires'], required: true },
+        { key: 'clasificacion_vinculo', label: 'Clasificación del vínculo', type: 'select', options: ['Dependiente clásico', 'Tercerización / solidaridad', 'Grupo económico', 'Borderline (a determinar)'], required: true },
+      ],
+    },
     {
       title: 'Datos del Trabajador',
       icon: 'User',
@@ -1387,7 +2262,99 @@ export const WIZARD_FIELDS_BY_TEMPLATE: Record<string, WizardSection[]> = {
         { key: 'trabajador_dni', label: 'DNI', type: 'text', required: true },
         { key: 'trabajador_cuil', label: 'CUIL', type: 'text', placeholder: '20-12345678-9' },
         { key: 'trabajador_domicilio', label: 'Domicilio', type: 'text' },
-        { key: 'categoria', label: 'Categoría laboral', type: 'text', placeholder: 'Según CCT...' },
+        { key: 'categoria', label: 'Categoría laboral (según CCT)', type: 'text', placeholder: 'Ej: Administrativo A...' },
+      ],
+    },
+    {
+      title: 'Datos del Empleador',
+      icon: 'Building2',
+      fields: [
+        { key: 'empleador_nombre', label: 'Razón social', type: 'text', required: true },
+        { key: 'empleador_cuit', label: 'CUIT', type: 'text', placeholder: '30-12345678-9' },
+        { key: 'empleador_domicilio', label: 'Domicilio legal (CABA)', type: 'text', required: true },
+        { key: 'empleador_actividad', label: 'Actividad principal', type: 'text' },
+        { key: 'tipo_empresa', label: 'Tipo de empresa', type: 'select', options: ['Gran empresa', 'MIPYME'] },
+      ],
+    },
+    {
+      title: 'Datos de la Relación Laboral',
+      icon: 'Briefcase',
+      fields: [
+        { key: 'fecha_ingreso', label: 'Fecha real de ingreso', type: 'date', required: true },
+        { key: 'fecha_ingreso_registrada', label: 'Fecha registrada en ARCA (si difiere)', type: 'date' },
+        { key: 'fecha_egreso', label: 'Fecha de egreso', type: 'date', required: true },
+        { key: 'tipo_despido', label: 'Tipo de extinción', type: 'select', options: ['Despido sin causa', 'Despido con causa controvertida', 'Despido indirecto', 'Mutuo acuerdo (art. 241)', 'Renuncia forzada'], required: true },
+        { key: 'remuneracion', label: 'Mejor remuneración mensual, normal y habitual', type: 'text', placeholder: '$...' },
+        { key: 'remuneracion_registrada', label: 'Remuneración registrada en recibo (si difiere)', type: 'text', placeholder: '$...' },
+        { key: 'registrado', label: '¿Estaba correctamente registrado?', type: 'select', options: ['Sí, correctamente', 'Parcialmente (fecha o sueldo adulterado)', 'No registrado (en negro)'], required: true },
+        { key: 'cct', label: 'Convenio colectivo aplicable', type: 'text', placeholder: 'CCT Nº...' },
+      ],
+    },
+  ],
+
+  'lab-despido-pba': [
+    {
+      title: 'Jurisdicción y Encuadre',
+      icon: 'Scale',
+      fields: [
+        { key: 'jurisdiccion_laboral', label: 'Jurisdicción', type: 'select', options: ['CABA', 'Provincia de Buenos Aires'], required: true },
+        { key: 'clasificacion_vinculo', label: 'Clasificación del vínculo', type: 'select', options: ['Dependiente clásico', 'Tercerización / solidaridad', 'Grupo económico', 'Borderline (a determinar)'], required: true },
+      ],
+    },
+    {
+      title: 'Datos del Trabajador',
+      icon: 'User',
+      fields: [
+        { key: 'trabajador_nombre', label: 'Nombre completo', type: 'text', required: true },
+        { key: 'trabajador_dni', label: 'DNI', type: 'text', required: true },
+        { key: 'trabajador_cuil', label: 'CUIL', type: 'text', placeholder: '20-12345678-9' },
+        { key: 'trabajador_domicilio', label: 'Domicilio', type: 'text' },
+        { key: 'categoria', label: 'Categoría laboral (según CCT)', type: 'text', placeholder: 'Ej: Administrativo A...' },
+      ],
+    },
+    {
+      title: 'Datos del Empleador',
+      icon: 'Building2',
+      fields: [
+        { key: 'empleador_nombre', label: 'Razón social', type: 'text', required: true },
+        { key: 'empleador_cuit', label: 'CUIT', type: 'text', placeholder: '30-12345678-9' },
+        { key: 'empleador_domicilio', label: 'Domicilio legal (Provincia de Buenos Aires)', type: 'text', required: true },
+        { key: 'empleador_actividad', label: 'Actividad principal', type: 'text' },
+        { key: 'tipo_empresa', label: 'Tipo de empresa', type: 'select', options: ['Gran empresa', 'MIPYME'] },
+      ],
+    },
+    {
+      title: 'Datos de la Relación Laboral',
+      icon: 'Briefcase',
+      fields: [
+        { key: 'fecha_ingreso', label: 'Fecha real de ingreso', type: 'date', required: true },
+        { key: 'fecha_ingreso_registrada', label: 'Fecha registrada en ARCA (si difiere)', type: 'date' },
+        { key: 'fecha_egreso', label: 'Fecha de egreso', type: 'date', required: true },
+        { key: 'tipo_despido', label: 'Tipo de extinción', type: 'select', options: ['Despido sin causa', 'Despido con causa controvertida', 'Despido indirecto', 'Mutuo acuerdo (art. 241)', 'Renuncia forzada'], required: true },
+        { key: 'remuneracion', label: 'Mejor remuneración mensual, normal y habitual', type: 'text', placeholder: '$...' },
+        { key: 'remuneracion_registrada', label: 'Remuneración registrada en recibo (si difiere)', type: 'text', placeholder: '$...' },
+        { key: 'registrado', label: '¿Estaba correctamente registrado?', type: 'select', options: ['Sí, correctamente', 'Parcialmente (fecha o sueldo adulterado)', 'No registrado (en negro)'], required: true },
+        { key: 'cct', label: 'Convenio colectivo aplicable', type: 'text', placeholder: 'CCT Nº...' },
+      ],
+    },
+  ],
+
+  'lab-diferencias-caba': [
+    {
+      title: 'Jurisdicción',
+      icon: 'Scale',
+      fields: [
+        { key: 'jurisdiccion_laboral', label: 'Jurisdicción', type: 'select', options: ['CABA', 'Provincia de Buenos Aires'], required: true },
+      ],
+    },
+    {
+      title: 'Datos del Trabajador',
+      icon: 'User',
+      fields: [
+        { key: 'trabajador_nombre', label: 'Nombre completo', type: 'text', required: true },
+        { key: 'trabajador_dni', label: 'DNI', type: 'text', required: true },
+        { key: 'trabajador_cuil', label: 'CUIL', type: 'text', placeholder: '20-12345678-9' },
+        { key: 'categoria', label: 'Categoría laboral', type: 'text' },
       ],
     },
     {
@@ -1397,19 +2364,247 @@ export const WIZARD_FIELDS_BY_TEMPLATE: Record<string, WizardSection[]> = {
         { key: 'empleador_nombre', label: 'Razón social', type: 'text', required: true },
         { key: 'empleador_cuit', label: 'CUIT', type: 'text', placeholder: '30-12345678-9' },
         { key: 'empleador_domicilio', label: 'Domicilio legal', type: 'text' },
+      ],
+    },
+    {
+      title: 'Datos de las Diferencias',
+      icon: 'Briefcase',
+      fields: [
+        { key: 'fecha_ingreso', label: 'Fecha de ingreso', type: 'date', required: true },
+        { key: 'relacion_vigente', label: '¿La relación está vigente?', type: 'select', options: ['Sí, aún trabaja', 'No, ya fue despedido/renunció'], required: true },
+        { key: 'remuneracion_actual', label: 'Remuneración actual/última', type: 'text', placeholder: '$...' },
+        { key: 'remuneracion_segun_cct', label: 'Remuneración según CCT', type: 'text', placeholder: '$...' },
+        { key: 'tipo_diferencia', label: 'Tipo de diferencia', type: 'select', options: ['Salario básico inferior al CCT', 'Horas extra no pagadas', 'Ítems no remunerativos fraudulentos', 'Ius variandi (cambio de funciones/horario)', 'Múltiples'], required: true },
+        { key: 'periodo_reclamo', label: 'Período reclamado', type: 'text', placeholder: 'Ej: Enero 2024 a Diciembre 2025' },
+        { key: 'cct', label: 'CCT aplicable', type: 'text', placeholder: 'CCT Nº...' },
+      ],
+    },
+  ],
+
+  'lab-diferencias-pba': [
+    {
+      title: 'Jurisdicción',
+      icon: 'Scale',
+      fields: [
+        { key: 'jurisdiccion_laboral', label: 'Jurisdicción', type: 'select', options: ['CABA', 'Provincia de Buenos Aires'], required: true },
+      ],
+    },
+    {
+      title: 'Datos del Trabajador',
+      icon: 'User',
+      fields: [
+        { key: 'trabajador_nombre', label: 'Nombre completo', type: 'text', required: true },
+        { key: 'trabajador_dni', label: 'DNI', type: 'text', required: true },
+        { key: 'trabajador_cuil', label: 'CUIL', type: 'text', placeholder: '20-12345678-9' },
+        { key: 'categoria', label: 'Categoría laboral', type: 'text' },
+      ],
+    },
+    {
+      title: 'Datos del Empleador',
+      icon: 'Building2',
+      fields: [
+        { key: 'empleador_nombre', label: 'Razón social', type: 'text', required: true },
+        { key: 'empleador_cuit', label: 'CUIT', type: 'text', placeholder: '30-12345678-9' },
+        { key: 'empleador_domicilio', label: 'Domicilio legal (PBA)', type: 'text' },
+      ],
+    },
+    {
+      title: 'Datos de las Diferencias',
+      icon: 'Briefcase',
+      fields: [
+        { key: 'fecha_ingreso', label: 'Fecha de ingreso', type: 'date', required: true },
+        { key: 'relacion_vigente', label: '¿La relación está vigente?', type: 'select', options: ['Sí, aún trabaja', 'No, ya fue despedido/renunció'], required: true },
+        { key: 'remuneracion_actual', label: 'Remuneración actual/última', type: 'text', placeholder: '$...' },
+        { key: 'remuneracion_segun_cct', label: 'Remuneración según CCT', type: 'text', placeholder: '$...' },
+        { key: 'tipo_diferencia', label: 'Tipo de diferencia', type: 'select', options: ['Salario básico inferior al CCT', 'Horas extra no pagadas', 'Ítems no remunerativos fraudulentos', 'Ius variandi', 'Múltiples'], required: true },
+        { key: 'periodo_reclamo', label: 'Período reclamado', type: 'text', placeholder: 'Ej: Enero 2024 a Diciembre 2025' },
+        { key: 'cct', label: 'CCT aplicable', type: 'text', placeholder: 'CCT Nº...' },
+      ],
+    },
+  ],
+
+  'lab-no-registrado-caba': [
+    {
+      title: 'Jurisdicción',
+      icon: 'Scale',
+      fields: [
+        { key: 'jurisdiccion_laboral', label: 'Jurisdicción', type: 'select', options: ['CABA', 'Provincia de Buenos Aires'], required: true },
+      ],
+    },
+    {
+      title: 'Datos del Trabajador',
+      icon: 'User',
+      fields: [
+        { key: 'trabajador_nombre', label: 'Nombre completo', type: 'text', required: true },
+        { key: 'trabajador_dni', label: 'DNI', type: 'text', required: true },
+        { key: 'trabajador_cuil', label: 'CUIL', type: 'text', placeholder: '20-12345678-9' },
+        { key: 'trabajador_domicilio', label: 'Domicilio', type: 'text' },
+      ],
+    },
+    {
+      title: 'Datos del Empleador',
+      icon: 'Building2',
+      fields: [
+        { key: 'empleador_nombre', label: 'Razón social / Nombre', type: 'text', required: true },
+        { key: 'empleador_cuit', label: 'CUIT (si se conoce)', type: 'text', placeholder: '30-12345678-9' },
+        { key: 'empleador_domicilio', label: 'Domicilio conocido', type: 'text' },
         { key: 'empleador_actividad', label: 'Actividad', type: 'text' },
       ],
     },
     {
-      title: 'Datos de la Relación Laboral',
-      icon: 'Briefcase',
+      title: 'Situación de Registro',
+      icon: 'AlertCircle',
       fields: [
-        { key: 'fecha_ingreso', label: 'Fecha de ingreso', type: 'date', required: true },
-        { key: 'fecha_egreso', label: 'Fecha de egreso', type: 'date', required: true },
-        { key: 'tipo_despido', label: 'Tipo de despido', type: 'select', options: ['Sin causa', 'Con causa (injustificada)', 'Indirecto', 'Mutuo acuerdo (art. 241)', 'Renuncia forzada'], required: true },
-        { key: 'remuneracion', label: 'Última remuneración bruta', type: 'text', placeholder: '$...' },
-        { key: 'registrado', label: '¿Estaba registrado?', type: 'select', options: ['Sí, correctamente', 'Parcialmente (fecha o sueldo adulterado)', 'No registrado (en negro)'] },
-        { key: 'cct', label: 'Convenio colectivo', type: 'text', placeholder: 'CCT Nº...' },
+        { key: 'tipo_no_registro', label: 'Tipo de defecto', type: 'select', options: ['Totalmente no registrado (en negro)', 'Fecha de ingreso adulterada', 'Salario registrado inferior al real', 'Categoría inferior a la real', 'Múltiples defectos'], required: true },
+        { key: 'fecha_ingreso_real', label: 'Fecha real de ingreso', type: 'date', required: true },
+        { key: 'fecha_ingreso_registrada', label: 'Fecha registrada (si existe)', type: 'date' },
+        { key: 'salario_real', label: 'Salario real percibido', type: 'text', placeholder: '$...', required: true },
+        { key: 'salario_registrado', label: 'Salario registrado (si existe)', type: 'text', placeholder: '$...' },
+        { key: 'tiene_recibos', label: '¿Tiene recibos de sueldo?', type: 'select', options: ['Sí, todos', 'Algunos', 'Ninguno'] },
+        { key: 'prueba_disponible', label: 'Prueba de la relación disponible', type: 'textarea', placeholder: 'Ej: chats de WhatsApp, emails, testigos, fotos, transferencias bancarias...' },
+      ],
+    },
+  ],
+
+  'lab-no-registrado-pba': [
+    {
+      title: 'Jurisdicción',
+      icon: 'Scale',
+      fields: [
+        { key: 'jurisdiccion_laboral', label: 'Jurisdicción', type: 'select', options: ['CABA', 'Provincia de Buenos Aires'], required: true },
+      ],
+    },
+    {
+      title: 'Datos del Trabajador',
+      icon: 'User',
+      fields: [
+        { key: 'trabajador_nombre', label: 'Nombre completo', type: 'text', required: true },
+        { key: 'trabajador_dni', label: 'DNI', type: 'text', required: true },
+        { key: 'trabajador_cuil', label: 'CUIL', type: 'text', placeholder: '20-12345678-9' },
+        { key: 'trabajador_domicilio', label: 'Domicilio', type: 'text' },
+      ],
+    },
+    {
+      title: 'Datos del Empleador',
+      icon: 'Building2',
+      fields: [
+        { key: 'empleador_nombre', label: 'Razón social / Nombre', type: 'text', required: true },
+        { key: 'empleador_cuit', label: 'CUIT (si se conoce)', type: 'text', placeholder: '30-12345678-9' },
+        { key: 'empleador_domicilio', label: 'Domicilio conocido (PBA)', type: 'text' },
+        { key: 'empleador_actividad', label: 'Actividad', type: 'text' },
+      ],
+    },
+    {
+      title: 'Situación de Registro',
+      icon: 'AlertCircle',
+      fields: [
+        { key: 'tipo_no_registro', label: 'Tipo de defecto', type: 'select', options: ['Totalmente no registrado (en negro)', 'Fecha de ingreso adulterada', 'Salario registrado inferior al real', 'Categoría inferior a la real', 'Múltiples defectos'], required: true },
+        { key: 'fecha_ingreso_real', label: 'Fecha real de ingreso', type: 'date', required: true },
+        { key: 'fecha_ingreso_registrada', label: 'Fecha registrada (si existe)', type: 'date' },
+        { key: 'salario_real', label: 'Salario real percibido', type: 'text', placeholder: '$...', required: true },
+        { key: 'salario_registrado', label: 'Salario registrado (si existe)', type: 'text', placeholder: '$...' },
+        { key: 'tiene_recibos', label: '¿Tiene recibos de sueldo?', type: 'select', options: ['Sí, todos', 'Algunos', 'Ninguno'] },
+        { key: 'prueba_disponible', label: 'Prueba de la relación disponible', type: 'textarea', placeholder: 'Ej: chats, emails, testigos, fotos, transferencias...' },
+      ],
+    },
+  ],
+
+  'lab-art': [
+    {
+      title: 'Datos del Trabajador',
+      icon: 'User',
+      fields: [
+        { key: 'trabajador_nombre', label: 'Nombre completo', type: 'text', required: true },
+        { key: 'trabajador_dni', label: 'DNI', type: 'text', required: true },
+        { key: 'trabajador_cuil', label: 'CUIL', type: 'text', placeholder: '20-12345678-9' },
+        { key: 'trabajador_domicilio', label: 'Domicilio', type: 'text' },
+      ],
+    },
+    {
+      title: 'Datos del Empleador y ART',
+      icon: 'Building2',
+      fields: [
+        { key: 'empleador_nombre', label: 'Razón social del empleador', type: 'text', required: true },
+        { key: 'art_nombre', label: 'ART (aseguradora de riesgos)', type: 'text', required: true },
+        { key: 'art_nro_siniestro', label: 'Nro. de siniestro', type: 'text' },
+        { key: 'empleador_autoasegurado', label: '¿Empleador autoasegurado?', type: 'select', options: ['No', 'Sí'] },
+      ],
+    },
+    {
+      title: 'Datos del Accidente / Enfermedad',
+      icon: 'AlertCircle',
+      fields: [
+        { key: 'tipo_contingencia', label: 'Tipo de contingencia', type: 'select', options: ['Accidente de trabajo', 'Accidente in itinere', 'Enfermedad profesional'], required: true },
+        { key: 'fecha_siniestro', label: 'Fecha del siniestro / primera manifestación', type: 'date', required: true },
+        { key: 'descripcion_siniestro', label: 'Descripción del siniestro', type: 'textarea', placeholder: 'Qué pasó, dónde, cómo...', required: true },
+        { key: 'lesiones', label: 'Lesiones / diagnóstico', type: 'textarea', placeholder: 'Descripción de lesiones o enfermedad...' },
+        { key: 'incapacidad_porcentaje', label: 'Incapacidad determinada (%)', type: 'text', placeholder: 'Si se determinó...' },
+        { key: 'art_rechazo', label: '¿La ART rechazó el siniestro?', type: 'select', options: ['No', 'Sí, rechazó', 'Parcialmente (reconoció menor incapacidad)'] },
+        { key: 'alta_medica', label: 'Estado del alta médica', type: 'select', options: ['En tratamiento', 'Alta médica con incapacidad', 'Alta médica sin incapacidad', 'Pendiente'] },
+      ],
+    },
+  ],
+
+  'lab-sindical': [
+    {
+      title: 'Datos del Trabajador / Representante',
+      icon: 'User',
+      fields: [
+        { key: 'trabajador_nombre', label: 'Nombre completo', type: 'text', required: true },
+        { key: 'trabajador_dni', label: 'DNI', type: 'text', required: true },
+        { key: 'cargo_sindical', label: 'Cargo sindical (si aplica)', type: 'text', placeholder: 'Delegado, Secretario, Candidato...' },
+      ],
+    },
+    {
+      title: 'Datos del Sindicato',
+      icon: 'Building2',
+      fields: [
+        { key: 'sindicato_nombre', label: 'Nombre del sindicato', type: 'text', required: true },
+        { key: 'sindicato_personeria', label: '¿Tiene personería gremial?', type: 'select', options: ['Sí', 'No, solo inscripción simple'], required: true },
+        { key: 'cct_vigente', label: 'CCT vigente', type: 'text', placeholder: 'CCT Nº...' },
+      ],
+    },
+    {
+      title: 'Datos del Conflicto',
+      icon: 'AlertCircle',
+      fields: [
+        { key: 'tipo_conflicto', label: 'Tipo de conflicto', type: 'select', options: ['Exclusión de tutela sindical', 'Práctica desleal del empleador', 'Práctica desleal del sindicato', 'Medida de fuerza / huelga', 'Elecciones sindicales', 'Negociación colectiva / CCT', 'Otro'], required: true },
+        { key: 'tutela_vigente', label: '¿Hay tutela sindical vigente?', type: 'select', options: ['Sí, delegado electo', 'Sí, candidato oficializado', 'No', 'Por determinar'] },
+        { key: 'medida_vigente', label: '¿Hay medida cautelar vigente?', type: 'select', options: ['Sí', 'No'] },
+        { key: 'descripcion_conflicto', label: 'Descripción del conflicto', type: 'textarea', placeholder: 'Resumen de la situación...', required: true },
+      ],
+    },
+  ],
+
+  'lab-plataformas': [
+    {
+      title: 'Datos del Trabajador',
+      icon: 'User',
+      fields: [
+        { key: 'trabajador_nombre', label: 'Nombre completo', type: 'text', required: true },
+        { key: 'trabajador_dni', label: 'DNI', type: 'text', required: true },
+        { key: 'trabajador_cuil', label: 'CUIL', type: 'text', placeholder: '20-12345678-9' },
+      ],
+    },
+    {
+      title: 'Datos de la Plataforma',
+      icon: 'Building2',
+      fields: [
+        { key: 'plataforma_nombre', label: 'Nombre de la plataforma', type: 'text', required: true, placeholder: 'Ej: Rappi, PedidosYa, Uber, Cabify...' },
+        { key: 'tipo_plataforma', label: 'Tipo de plataforma', type: 'select', options: ['Reparto / delivery', 'Movilidad / transporte', 'Servicios profesionales', 'Otro'], required: true },
+        { key: 'razon_social', label: 'Razón social (si se conoce)', type: 'text' },
+      ],
+    },
+    {
+      title: 'Situación del Vínculo',
+      icon: 'AlertCircle',
+      fields: [
+        { key: 'libertad_conexion', label: '¿Tiene libertad de conexión real?', type: 'select', options: ['Sí, se conecta cuando quiere', 'Parcial (penalizaciones por no conectarse)', 'No, horarios obligatorios'], required: true },
+        { key: 'exclusividad', label: '¿Trabaja en exclusiva para esta plataforma?', type: 'select', options: ['Sí', 'No, usa varias plataformas'] },
+        { key: 'motivo_reclamo', label: 'Motivo del reclamo', type: 'select', options: ['Suspensión / bloqueo de cuenta', 'Despido encubierto (baja de la app)', 'Reclamo salarial / tarifario', 'Accidente de trabajo sin cobertura', 'Reconocimiento de relación de dependencia', 'Otro'], required: true },
+        { key: 'cuenta_suspendida', label: '¿Le suspendieron la cuenta?', type: 'select', options: ['Sí', 'No'] },
+        { key: 'tiene_seguro_accidentes', label: '¿Tiene seguro de accidentes?', type: 'select', options: ['Sí, provisto por la plataforma', 'Sí, propio', 'No'] },
+        { key: 'descripcion_situacion', label: 'Descripción de la situación', type: 'textarea', placeholder: 'Resumen de la situación y evidencia disponible...' },
       ],
     },
   ],

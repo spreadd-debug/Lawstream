@@ -31,6 +31,13 @@ import {
   OnboardingItem,
   Communication,
   MatterMilestone,
+  VersionNormativa,
+  CasoLaboral,
+  EncuadreLaboral,
+  Telegrama,
+  SecloTramite,
+  LiquidacionLaboral,
+  ExpedienteLaboral,
 } from '../types';
 
 // ── Profiles ──────────────────────────────────────────────────────
@@ -1148,5 +1155,434 @@ export const updateMilestone = async (id: string, changes: Partial<MatterMilesto
   if (changes.label       !== undefined) row.label        = changes.label;
   if (changes.orden       !== undefined) row.orden        = changes.orden;
   const { error } = await supabase.from('matter_milestones').update(row).eq('id', id);
+  if (error) throw error;
+};
+
+// ── MÓDULO LABORAL ───────────────────────────────────────────────
+
+// ── Version Normativa ────────────────────────────────────────────
+
+const toVersionNormativa = (r: any): VersionNormativa => ({
+  id:            r.id,
+  articulo:      r.articulo,
+  ley:           r.ley,
+  descripcion:   r.descripcion    ?? undefined,
+  estado:        r.estado,
+  vigenteDesde:  r.vigente_desde  ?? undefined,
+  vigenteHasta:  r.vigente_hasta  ?? undefined,
+  jurisdiccion:  r.jurisdiccion,
+  fuente:        r.fuente         ?? undefined,
+  afectaModulo:  r.afecta_modulo,
+  createdAt:     r.created_at,
+  updatedAt:     r.updated_at,
+});
+
+export const fetchVersionesNormativas = async (modulo?: string): Promise<VersionNormativa[]> => {
+  let q = supabase.from('version_normativa').select('*').order('ley').order('articulo');
+  if (modulo) q = q.or(`afecta_modulo.eq.${modulo},afecta_modulo.eq.TODOS`);
+  const { data, error } = await q;
+  if (error) throw error;
+  return (data ?? []).map(toVersionNormativa);
+};
+
+export const fetchVersionesSuspendidas = async (): Promise<VersionNormativa[]> => {
+  const { data, error } = await supabase
+    .from('version_normativa')
+    .select('*')
+    .eq('estado', 'SUSPENDIDA_CAUTELAR')
+    .order('articulo');
+  if (error) throw error;
+  return (data ?? []).map(toVersionNormativa);
+};
+
+export const updateVersionNormativa = async (id: string, changes: Partial<VersionNormativa>): Promise<void> => {
+  const row: any = {};
+  if (changes.estado        !== undefined) row.estado         = changes.estado;
+  if (changes.vigenteHasta  !== undefined) row.vigente_hasta  = changes.vigenteHasta || null;
+  if (changes.fuente        !== undefined) row.fuente         = changes.fuente;
+  if (changes.descripcion   !== undefined) row.descripcion    = changes.descripcion;
+  row.updated_at = new Date().toISOString();
+  const { error } = await supabase.from('version_normativa').update(row).eq('id', id);
+  if (error) throw error;
+};
+
+// ── Caso Laboral ─────────────────────────────────────────────────
+
+const toCasoLaboral = (r: any): CasoLaboral => ({
+  id:              r.id,
+  clientId:        r.client_id,
+  matterId:        r.matter_id,
+  jurisdiccion:    r.jurisdiccion,
+  tipoCaso:        r.tipo_caso,
+  modulosActivos:  r.modulos_activos ?? [],
+  estado:          r.estado,
+  createdAt:       r.created_at,
+  updatedAt:       r.updated_at,
+});
+
+const casoLaboralToRow = (m: Partial<CasoLaboral>) => ({
+  ...(m.clientId        !== undefined && { client_id:        m.clientId }),
+  ...(m.matterId        !== undefined && { matter_id:        m.matterId }),
+  ...(m.jurisdiccion    !== undefined && { jurisdiccion:     m.jurisdiccion }),
+  ...(m.tipoCaso        !== undefined && { tipo_caso:        m.tipoCaso }),
+  ...(m.modulosActivos  !== undefined && { modulos_activos:  m.modulosActivos }),
+  ...(m.estado          !== undefined && { estado:           m.estado }),
+});
+
+export const fetchCasoLaboral = async (matterId: string): Promise<CasoLaboral | null> => {
+  const { data, error } = await supabase
+    .from('casos_laborales')
+    .select('*')
+    .eq('matter_id', matterId)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? toCasoLaboral(data) : null;
+};
+
+export const createCasoLaboral = async (c: Omit<CasoLaboral, 'id' | 'createdAt' | 'updatedAt'>): Promise<CasoLaboral> => {
+  const { data, error } = await supabase
+    .from('casos_laborales')
+    .insert(casoLaboralToRow(c))
+    .select()
+    .single();
+  if (error) throw error;
+  return toCasoLaboral(data);
+};
+
+export const updateCasoLaboral = async (id: string, changes: Partial<CasoLaboral>): Promise<void> => {
+  const row = { ...casoLaboralToRow(changes), updated_at: new Date().toISOString() };
+  const { error } = await supabase.from('casos_laborales').update(row).eq('id', id);
+  if (error) throw error;
+};
+
+// ── Encuadre Laboral ─────────────────────────────────────────────
+
+const toEncuadreLaboral = (r: any): EncuadreLaboral => ({
+  id:                        r.id,
+  casoId:                    r.caso_id,
+  clasificacionDependencia:  r.clasificacion_dependencia,
+  hayTercerizacion:          r.hay_tercerizacion   ?? false,
+  hayGrupoEconomico:         r.hay_grupo_economico ?? false,
+  hayPlataforma:             r.hay_plataforma      ?? false,
+  cctAplicable:              r.cct_aplicable       ?? undefined,
+  teoriaDelCaso:             r.teoria_del_caso     ?? undefined,
+  datosDeEncuadre:           r.datos_de_encuadre   ?? {},
+  createdAt:                 r.created_at,
+  updatedAt:                 r.updated_at,
+});
+
+export const fetchEncuadreLaboral = async (casoId: string): Promise<EncuadreLaboral | null> => {
+  const { data, error } = await supabase
+    .from('encuadres_laborales')
+    .select('*')
+    .eq('caso_id', casoId)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? toEncuadreLaboral(data) : null;
+};
+
+export const createEncuadreLaboral = async (e: Omit<EncuadreLaboral, 'id' | 'createdAt' | 'updatedAt'>): Promise<EncuadreLaboral> => {
+  const { data, error } = await supabase
+    .from('encuadres_laborales')
+    .insert({
+      caso_id:                    e.casoId,
+      clasificacion_dependencia:  e.clasificacionDependencia,
+      hay_tercerizacion:          e.hayTercerizacion,
+      hay_grupo_economico:        e.hayGrupoEconomico,
+      hay_plataforma:             e.hayPlataforma,
+      cct_aplicable:              e.cctAplicable   ?? null,
+      teoria_del_caso:            e.teoriaDelCaso  ?? null,
+      datos_de_encuadre:          e.datosDeEncuadre,
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return toEncuadreLaboral(data);
+};
+
+export const updateEncuadreLaboral = async (id: string, changes: Partial<EncuadreLaboral>): Promise<void> => {
+  const row: any = { updated_at: new Date().toISOString() };
+  if (changes.clasificacionDependencia !== undefined) row.clasificacion_dependencia = changes.clasificacionDependencia;
+  if (changes.hayTercerizacion         !== undefined) row.hay_tercerizacion          = changes.hayTercerizacion;
+  if (changes.hayGrupoEconomico        !== undefined) row.hay_grupo_economico        = changes.hayGrupoEconomico;
+  if (changes.hayPlataforma            !== undefined) row.hay_plataforma             = changes.hayPlataforma;
+  if (changes.cctAplicable             !== undefined) row.cct_aplicable              = changes.cctAplicable;
+  if (changes.teoriaDelCaso            !== undefined) row.teoria_del_caso            = changes.teoriaDelCaso;
+  if (changes.datosDeEncuadre          !== undefined) row.datos_de_encuadre          = changes.datosDeEncuadre;
+  const { error } = await supabase.from('encuadres_laborales').update(row).eq('id', id);
+  if (error) throw error;
+};
+
+// ── Telegramas ───────────────────────────────────────────────────
+
+const toTelegrama = (r: any): Telegrama => ({
+  id:              r.id,
+  casoId:          r.caso_id,
+  tipo:            r.tipo,
+  enviadoPor:      r.enviado_por,
+  fechaEnvio:      r.fecha_envio     ?? undefined,
+  fechaRecepcion:  r.fecha_recepcion ?? undefined,
+  contenido:       r.contenido       ?? undefined,
+  respondido:      r.respondido      ?? false,
+  createdAt:       r.created_at,
+});
+
+export const fetchTelegramas = async (casoId: string): Promise<Telegrama[]> => {
+  const { data, error } = await supabase
+    .from('telegramas')
+    .select('*')
+    .eq('caso_id', casoId)
+    .order('fecha_envio', { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map(toTelegrama);
+};
+
+export const createTelegrama = async (t: Omit<Telegrama, 'id' | 'createdAt'>): Promise<Telegrama> => {
+  const { data, error } = await supabase
+    .from('telegramas')
+    .insert({
+      caso_id:          t.casoId,
+      tipo:             t.tipo,
+      enviado_por:      t.enviadoPor,
+      fecha_envio:      t.fechaEnvio     ?? null,
+      fecha_recepcion:  t.fechaRecepcion ?? null,
+      contenido:        t.contenido      ?? null,
+      respondido:       t.respondido     ?? false,
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return toTelegrama(data);
+};
+
+export const updateTelegrama = async (id: string, changes: Partial<Telegrama>): Promise<void> => {
+  const row: any = {};
+  if (changes.fechaRecepcion !== undefined) row.fecha_recepcion = changes.fechaRecepcion || null;
+  if (changes.respondido     !== undefined) row.respondido      = changes.respondido;
+  if (changes.contenido      !== undefined) row.contenido       = changes.contenido;
+  const { error } = await supabase.from('telegramas').update(row).eq('id', id);
+  if (error) throw error;
+};
+
+// ── SECLO Tramites ───────────────────────────────────────────────
+
+const toSecloTramite = (r: any): SecloTramite => ({
+  id:                  r.id,
+  casoId:              r.caso_id,
+  numeroTramite:       r.numero_tramite       ?? undefined,
+  conciliador:         r.conciliador          ?? undefined,
+  fechaAudiencia:      r.fecha_audiencia      ?? undefined,
+  ofertaEmpleador:     r.oferta_empleador != null ? parseFloat(r.oferta_empleador) : undefined,
+  calculoInterno:      r.calculo_interno  != null ? parseFloat(r.calculo_interno)  : undefined,
+  diferencia:          r.diferencia       != null ? parseFloat(r.diferencia)        : undefined,
+  resultado:           r.resultado            ?? undefined,
+  acuerdoHomologado:   r.acuerdo_homologado   ?? false,
+  fechaHomologacion:   r.fecha_homologacion   ?? undefined,
+  createdAt:           r.created_at,
+  updatedAt:           r.updated_at,
+});
+
+export const fetchSecloTramite = async (casoId: string): Promise<SecloTramite | null> => {
+  const { data, error } = await supabase
+    .from('seclo_tramites')
+    .select('*')
+    .eq('caso_id', casoId)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? toSecloTramite(data) : null;
+};
+
+export const createSecloTramite = async (s: Omit<SecloTramite, 'id' | 'createdAt' | 'updatedAt'>): Promise<SecloTramite> => {
+  const { data, error } = await supabase
+    .from('seclo_tramites')
+    .insert({
+      caso_id:            s.casoId,
+      numero_tramite:     s.numeroTramite    ?? null,
+      conciliador:        s.conciliador      ?? null,
+      fecha_audiencia:    s.fechaAudiencia   ?? null,
+      oferta_empleador:   s.ofertaEmpleador  ?? null,
+      calculo_interno:    s.calculoInterno   ?? null,
+      diferencia:         s.diferencia       ?? null,
+      resultado:          s.resultado        ?? null,
+      acuerdo_homologado: s.acuerdoHomologado ?? false,
+      fecha_homologacion: s.fechaHomologacion ?? null,
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return toSecloTramite(data);
+};
+
+export const updateSecloTramite = async (id: string, changes: Partial<SecloTramite>): Promise<void> => {
+  const row: any = { updated_at: new Date().toISOString() };
+  if (changes.numeroTramite     !== undefined) row.numero_tramite     = changes.numeroTramite;
+  if (changes.conciliador       !== undefined) row.conciliador        = changes.conciliador;
+  if (changes.fechaAudiencia    !== undefined) row.fecha_audiencia    = changes.fechaAudiencia || null;
+  if (changes.ofertaEmpleador   !== undefined) row.oferta_empleador   = changes.ofertaEmpleador;
+  if (changes.calculoInterno    !== undefined) row.calculo_interno    = changes.calculoInterno;
+  if (changes.diferencia        !== undefined) row.diferencia         = changes.diferencia;
+  if (changes.resultado         !== undefined) row.resultado          = changes.resultado;
+  if (changes.acuerdoHomologado !== undefined) row.acuerdo_homologado = changes.acuerdoHomologado;
+  if (changes.fechaHomologacion !== undefined) row.fecha_homologacion = changes.fechaHomologacion || null;
+  const { error } = await supabase.from('seclo_tramites').update(row).eq('id', id);
+  if (error) throw error;
+};
+
+// ── Liquidacion Laboral ──────────────────────────────────────────
+
+const toLiquidacionLaboral = (r: any): LiquidacionLaboral => ({
+  id:                         r.id,
+  casoId:                     r.caso_id,
+  fechaIngreso:               r.fecha_ingreso,
+  fechaEgreso:                r.fecha_egreso,
+  antiguedadAnios:            r.antiguedad_anios       ?? undefined,
+  mejorRemuneracion:          r.mejor_remuneracion != null ? parseFloat(r.mejor_remuneracion) : undefined,
+  incluyeVariables:           r.incluye_variables      ?? false,
+  indemnizacionArt245:        r.indemnizacion_art_245 != null ? parseFloat(r.indemnizacion_art_245) : undefined,
+  preaviso:                   r.preaviso            != null ? parseFloat(r.preaviso)               : undefined,
+  integracionMes:             r.integracion_mes     != null ? parseFloat(r.integracion_mes)        : undefined,
+  sacPreaviso:                r.sac_preaviso        != null ? parseFloat(r.sac_preaviso)           : undefined,
+  sacProporcional:            r.sac_proporcional    != null ? parseFloat(r.sac_proporcional)       : undefined,
+  vacacionesProporcional:     r.vacaciones_proporcional != null ? parseFloat(r.vacaciones_proporcional) : undefined,
+  diasTrabajados:             r.dias_trabajados     != null ? parseFloat(r.dias_trabajados)        : undefined,
+  multaArt2Ley25323:          r.multa_art_2_ley_25323 != null ? parseFloat(r.multa_art_2_ley_25323) : undefined,
+  multaArt80:                 r.multa_art_80        != null ? parseFloat(r.multa_art_80)           : undefined,
+  multasLey24013:             r.multas_ley_24013    != null ? parseFloat(r.multas_ley_24013)       : undefined,
+  otrosRubros:                r.otros_rubros        ?? {},
+  total:                      r.total               != null ? parseFloat(r.total)                  : undefined,
+  actualizadoCon:             r.actualizado_con     ?? undefined,
+  tasaInteresAnual:           r.tasa_interes_anual  != null ? parseFloat(r.tasa_interes_anual)     : undefined,
+  notaCautelar:               r.nota_cautelar       ?? undefined,
+  versionNormativaArt245Id:   r.version_normativa_art_245_id ?? undefined,
+  createdAt:                  r.created_at,
+  updatedAt:                  r.updated_at,
+});
+
+export const fetchLiquidacionLaboral = async (casoId: string): Promise<LiquidacionLaboral | null> => {
+  const { data, error } = await supabase
+    .from('liquidaciones_laborales')
+    .select('*')
+    .eq('caso_id', casoId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? toLiquidacionLaboral(data) : null;
+};
+
+export const createLiquidacionLaboral = async (l: Omit<LiquidacionLaboral, 'id' | 'createdAt' | 'updatedAt'>): Promise<LiquidacionLaboral> => {
+  const { data, error } = await supabase
+    .from('liquidaciones_laborales')
+    .insert({
+      caso_id:                       l.casoId,
+      fecha_ingreso:                 l.fechaIngreso,
+      fecha_egreso:                  l.fechaEgreso,
+      antiguedad_anios:              l.antiguedadAnios        ?? null,
+      mejor_remuneracion:            l.mejorRemuneracion      ?? null,
+      incluye_variables:             l.incluyeVariables       ?? false,
+      indemnizacion_art_245:         l.indemnizacionArt245    ?? null,
+      preaviso:                      l.preaviso               ?? null,
+      integracion_mes:               l.integracionMes         ?? null,
+      sac_preaviso:                  l.sacPreaviso            ?? null,
+      sac_proporcional:              l.sacProporcional        ?? null,
+      vacaciones_proporcional:       l.vacacionesProporcional ?? null,
+      dias_trabajados:               l.diasTrabajados         ?? null,
+      multa_art_2_ley_25323:         l.multaArt2Ley25323      ?? null,
+      multa_art_80:                  l.multaArt80             ?? null,
+      multas_ley_24013:              l.multasLey24013         ?? null,
+      otros_rubros:                  l.otrosRubros            ?? {},
+      total:                         l.total                  ?? null,
+      actualizado_con:               l.actualizadoCon         ?? null,
+      tasa_interes_anual:            l.tasaInteresAnual       ?? null,
+      nota_cautelar:                 l.notaCautelar           ?? null,
+      version_normativa_art_245_id:  l.versionNormativaArt245Id ?? null,
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return toLiquidacionLaboral(data);
+};
+
+export const updateLiquidacionLaboral = async (id: string, changes: Partial<LiquidacionLaboral>): Promise<void> => {
+  const row: any = { updated_at: new Date().toISOString() };
+  if (changes.mejorRemuneracion      !== undefined) row.mejor_remuneracion       = changes.mejorRemuneracion;
+  if (changes.indemnizacionArt245    !== undefined) row.indemnizacion_art_245     = changes.indemnizacionArt245;
+  if (changes.preaviso               !== undefined) row.preaviso                  = changes.preaviso;
+  if (changes.integracionMes         !== undefined) row.integracion_mes           = changes.integracionMes;
+  if (changes.sacPreaviso            !== undefined) row.sac_preaviso              = changes.sacPreaviso;
+  if (changes.sacProporcional        !== undefined) row.sac_proporcional          = changes.sacProporcional;
+  if (changes.vacacionesProporcional !== undefined) row.vacaciones_proporcional   = changes.vacacionesProporcional;
+  if (changes.diasTrabajados         !== undefined) row.dias_trabajados           = changes.diasTrabajados;
+  if (changes.multaArt2Ley25323      !== undefined) row.multa_art_2_ley_25323     = changes.multaArt2Ley25323;
+  if (changes.multaArt80             !== undefined) row.multa_art_80              = changes.multaArt80;
+  if (changes.multasLey24013         !== undefined) row.multas_ley_24013          = changes.multasLey24013;
+  if (changes.otrosRubros            !== undefined) row.otros_rubros              = changes.otrosRubros;
+  if (changes.total                  !== undefined) row.total                     = changes.total;
+  if (changes.actualizadoCon         !== undefined) row.actualizado_con           = changes.actualizadoCon;
+  if (changes.tasaInteresAnual       !== undefined) row.tasa_interes_anual        = changes.tasaInteresAnual;
+  const { error } = await supabase.from('liquidaciones_laborales').update(row).eq('id', id);
+  if (error) throw error;
+};
+
+// ── Expediente Laboral ───────────────────────────────────────────
+
+const toExpedienteLaboral = (r: any): ExpedienteLaboral => ({
+  id:                r.id,
+  casoId:            r.caso_id,
+  jurisdiccion:      r.jurisdiccion,
+  juzgado:           r.juzgado            ?? undefined,
+  numeroExpediente:  r.numero_expediente  ?? undefined,
+  caratula:          r.caratula           ?? undefined,
+  estadoProcesal:    r.estado_procesal,
+  fechaSentencia:    r.fecha_sentencia    ?? undefined,
+  montoSentencia:    r.monto_sentencia != null ? parseFloat(r.monto_sentencia) : undefined,
+  cuotasPago:        r.cuotas_pago        ?? undefined,
+  tipoEmpresa:       r.tipo_empresa       ?? undefined,
+  createdAt:         r.created_at,
+  updatedAt:         r.updated_at,
+});
+
+export const fetchExpedienteLaboral = async (casoId: string): Promise<ExpedienteLaboral | null> => {
+  const { data, error } = await supabase
+    .from('expedientes_laborales')
+    .select('*')
+    .eq('caso_id', casoId)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? toExpedienteLaboral(data) : null;
+};
+
+export const createExpedienteLaboral = async (e: Omit<ExpedienteLaboral, 'id' | 'createdAt' | 'updatedAt'>): Promise<ExpedienteLaboral> => {
+  const { data, error } = await supabase
+    .from('expedientes_laborales')
+    .insert({
+      caso_id:           e.casoId,
+      jurisdiccion:      e.jurisdiccion,
+      juzgado:           e.juzgado           ?? null,
+      numero_expediente: e.numeroExpediente  ?? null,
+      caratula:          e.caratula          ?? null,
+      estado_procesal:   e.estadoProcesal    ?? 'demanda',
+      fecha_sentencia:   e.fechaSentencia    ?? null,
+      monto_sentencia:   e.montoSentencia    ?? null,
+      cuotas_pago:       e.cuotasPago        ?? null,
+      tipo_empresa:      e.tipoEmpresa       ?? null,
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return toExpedienteLaboral(data);
+};
+
+export const updateExpedienteLaboral = async (id: string, changes: Partial<ExpedienteLaboral>): Promise<void> => {
+  const row: any = { updated_at: new Date().toISOString() };
+  if (changes.juzgado          !== undefined) row.juzgado           = changes.juzgado;
+  if (changes.numeroExpediente !== undefined) row.numero_expediente = changes.numeroExpediente;
+  if (changes.caratula         !== undefined) row.caratula          = changes.caratula;
+  if (changes.estadoProcesal   !== undefined) row.estado_procesal   = changes.estadoProcesal;
+  if (changes.fechaSentencia   !== undefined) row.fecha_sentencia   = changes.fechaSentencia || null;
+  if (changes.montoSentencia   !== undefined) row.monto_sentencia   = changes.montoSentencia;
+  if (changes.cuotasPago       !== undefined) row.cuotas_pago       = changes.cuotasPago;
+  if (changes.tipoEmpresa      !== undefined) row.tipo_empresa      = changes.tipoEmpresa;
+  const { error } = await supabase.from('expedientes_laborales').update(row).eq('id', id);
   if (error) throw error;
 };
