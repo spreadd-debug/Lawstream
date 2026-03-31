@@ -110,7 +110,7 @@ export const AppLayout: React.FC = () => {
     { to: '/hoy',          label: 'Hoy',          icon: Clock },
     { to: '/consultas',    label: 'Consultas',     icon: Inbox,          badge: '3' },
     { to: '/asuntos',      label: 'Asuntos',       icon: Briefcase },
-    { to: '/vencimientos', label: 'Vencimientos',  icon: Calendar,       badge: '2' },
+    { to: '/vencimientos', label: 'Calendario',    icon: Calendar,       badge: '2' },
     ...(isSocioOrSecretario ? [{ to: '/equipo', label: 'Equipo', icon: UsersRound }] : []),
     { to: '/clientes',     label: 'Clientes',      icon: Users },
     { to: '/documentos',   label: 'Documentos',    icon: FileText },

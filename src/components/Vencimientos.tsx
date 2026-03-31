@@ -75,7 +75,7 @@ export const Vencimientos = ({ matters, consultations = [], onSelectMatter, onSe
     <div className="space-y-8 max-w-6xl mx-auto">
       <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-2xl font-black tracking-tighter text-foreground">Agenda de Vencimientos</h1>
+          <h1 className="text-2xl font-black tracking-tighter text-foreground">Calendario</h1>
           <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest mt-1">
             Control de plazos críticos y próximas acciones
           </p>
