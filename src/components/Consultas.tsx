@@ -86,15 +86,21 @@ interface PipelineProps {
   onStatusChange: (s: Consultation['status']) => void;
   onOpenPresupuesto: () => void;
   onConvertToMatter: () => void;
-  onToggleFeePaid: () => void;
+  onMarkFeePaid: (formaPago: 'Efectivo' | 'Transferencia') => void;
+  onUnmarkFeePaid: () => void;
 }
 
 const ConsultationPipeline: React.FC<PipelineProps> = ({
-  consultation, onStatusChange, onOpenPresupuesto, onConvertToMatter, onToggleFeePaid,
+  consultation, onStatusChange, onOpenPresupuesto, onConvertToMatter, onMarkFeePaid, onUnmarkFeePaid,
 }) => {
-  const [showManual, setShowManual] = useState(false);
+  const [showManual, setShowManual]           = useState(false);
+  const [interviewMethod, setInterviewMethod] = useState<'Efectivo' | 'Transferencia'>('Transferencia');
+
   const isClosed = consultation.status === 'Rechazada' || consultation.status === 'Archivada';
   const stageIdx = STATUS_TO_STAGE_IDX[consultation.status] ?? 0;
+
+  // En Contactada, la entrevista es el paso bloqueante
+  const needsInterview = consultation.status === 'Contactada' && !consultation.consultationFeePaid;
 
   if (isClosed) {
     return (
@@ -122,6 +128,8 @@ const ConsultationPipeline: React.FC<PipelineProps> = ({
   };
 
   const getNextAction = (): NextAction | null => {
+    if (needsInterview) return null; // bloqueado — se muestra el form de entrevista
+
     switch (consultation.status) {
       case 'Nueva':
         return {
@@ -130,13 +138,11 @@ const ConsultationPipeline: React.FC<PipelineProps> = ({
           action: () => onStatusChange('Contactada'),
         };
       case 'Contactada':
+        // Acá solo llega si ya pagó la entrevista
         return {
-          desc: 'Realizá la entrevista inicial para conocer el caso en detalle.',
+          desc: 'Entrevista realizada y cobrada. Pasá a evaluar la viabilidad del caso.',
           label: 'Pasar a Evaluación del caso',
           action: () => onStatusChange('Evaluando viabilidad'),
-          secondary: !consultation.consultationFeePaid
-            ? { label: '+ Registrar entrevista cobrada', action: onToggleFeePaid }
-            : null,
         };
       case 'Esperando info':
         return {
@@ -201,6 +207,80 @@ const ConsultationPipeline: React.FC<PipelineProps> = ({
           </React.Fragment>
         ))}
       </div>
+
+      {/* Paso bloqueante: entrevista inicial */}
+      {needsInterview && (
+        <div className="p-4 bg-amber-500/5 border border-amber-500/30 rounded-2xl space-y-4">
+          <div className="flex items-start gap-2">
+            <ArrowRight size={14} className="text-amber-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-xs font-black text-amber-800 dark:text-amber-400 uppercase tracking-wide">
+                Registrar entrevista inicial
+              </p>
+              <p className="text-xs text-amber-700/80 dark:text-amber-500/80 mt-0.5 leading-relaxed">
+                Confirmá si la entrevista fue realizada y cobrada para continuar con el caso.
+              </p>
+            </div>
+          </div>
+
+          {/* Método de pago */}
+          <div className="space-y-1.5">
+            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Método de cobro</p>
+            <div className="flex gap-2">
+              {(['Efectivo', 'Transferencia'] as const).map(m => (
+                <button
+                  key={m}
+                  onClick={() => setInterviewMethod(m)}
+                  className={cn(
+                    'flex-1 py-2 rounded-xl border text-xs font-black transition-all',
+                    interviewMethod === m
+                      ? 'bg-amber-500 border-amber-500 text-white'
+                      : 'border-border bg-background text-muted-foreground hover:border-amber-400'
+                  )}
+                >
+                  {m}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <Button
+            onClick={() => onMarkFeePaid(interviewMethod)}
+            className="w-full bg-amber-500 hover:bg-amber-600 text-white font-black gap-2"
+            size="sm"
+          >
+            <CheckCircle2 size={14} /> Confirmar entrevista cobrada ({interviewMethod})
+          </Button>
+        </div>
+      )}
+
+      {/* Entrevista ya cobrada — badge compacto */}
+      {consultation.status !== 'Nueva' && consultation.consultationFeePaid && (
+        <div className="flex items-center justify-between px-3 py-2 bg-emerald-500/8 border border-emerald-500/20 rounded-xl">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 size={13} className="text-emerald-600 shrink-0" />
+            <span className="text-[10px] font-black text-emerald-700 dark:text-emerald-400 uppercase tracking-wide">
+              Entrevista cobrada
+            </span>
+            {consultation.consultationFeeFormaPago && (
+              <span className="text-[9px] font-bold text-emerald-600/70 uppercase tracking-wider">
+                · {consultation.consultationFeeFormaPago}
+              </span>
+            )}
+            {consultation.consultationFeeSnapshot && (
+              <span className="text-[9px] font-bold text-emerald-600/70">
+                · ${consultation.consultationFeeSnapshot.toLocaleString('es-AR')}
+              </span>
+            )}
+          </div>
+          <button
+            onClick={onUnmarkFeePaid}
+            className="text-[9px] font-bold text-muted-foreground hover:text-foreground transition-colors underline"
+          >
+            deshacer
+          </button>
+        </div>
+      )}
 
       {/* Next action card */}
       {next && (
@@ -283,13 +363,24 @@ export const Consultas = ({ consultations, profiles = [], onConvertToMatter, onU
       .finally(() => setLoadingPresupuesto(false));
   }, [selectedConsultation?.id]);
 
-  const handleToggleFeePaid = async (consultation: Consultation) => {
-    const newVal = !consultation.consultationFeePaid;
-    // Al cobrar, guardar snapshot del valor actual; al descobrar, borrar snapshot
-    const feeSnapshot = newVal ? await fetchConsultaValor() : undefined;
+  const handleMarkFeePaid = async (consultation: Consultation, formaPago: 'Efectivo' | 'Transferencia') => {
+    const feeSnapshot = await fetchConsultaValor();
     const changes: Partial<Consultation> = {
-      consultationFeePaid: newVal,
-      ...(newVal ? { consultationFeeSnapshot: feeSnapshot || undefined } : { consultationFeeSnapshot: undefined }),
+      consultationFeePaid:        true,
+      consultationFeeSnapshot:    feeSnapshot || undefined,
+      consultationFeeFormaPago:   formaPago,
+    };
+    await updateConsultation(consultation.id, changes);
+    const updated = { ...consultation, ...changes };
+    setSelectedConsultation(updated);
+    onUpdateConsultation?.(consultation.id, changes);
+  };
+
+  const handleUnmarkFeePaid = async (consultation: Consultation) => {
+    const changes: Partial<Consultation> = {
+      consultationFeePaid:        false,
+      consultationFeeSnapshot:    undefined,
+      consultationFeeFormaPago:   undefined,
     };
     await updateConsultation(consultation.id, changes);
     const updated = { ...consultation, ...changes };
@@ -468,7 +559,8 @@ export const Consultas = ({ consultations, profiles = [], onConvertToMatter, onU
                 }}
                 onOpenPresupuesto={() => setShowPresupuestoForm(true)}
                 onConvertToMatter={() => handleConvert(selectedConsultation)}
-                onToggleFeePaid={() => handleToggleFeePaid(selectedConsultation)}
+                onMarkFeePaid={(m) => handleMarkFeePaid(selectedConsultation, m)}
+                onUnmarkFeePaid={() => handleUnmarkFeePaid(selectedConsultation)}
               />
 
               {/* Data Sufficiency Check */}
@@ -485,32 +577,6 @@ export const Consultas = ({ consultations, profiles = [], onConvertToMatter, onU
                   </div>
                 </section>
               )}
-
-              {/* Entrevista paga */}
-              <section className="space-y-2">
-                <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Entrevista inicial</label>
-                <button
-                  onClick={() => handleToggleFeePaid(selectedConsultation)}
-                  className={cn(
-                    'w-full flex items-center gap-3 p-3 rounded-xl border transition-colors text-left',
-                    selectedConsultation.consultationFeePaid
-                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700'
-                      : 'bg-muted/30 border-border text-muted-foreground hover:border-primary/40'
-                  )}
-                >
-                  <div className={cn(
-                    'w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0',
-                    selectedConsultation.consultationFeePaid
-                      ? 'border-emerald-500 bg-emerald-500'
-                      : 'border-muted-foreground'
-                  )}>
-                    {selectedConsultation.consultationFeePaid && <CheckCircle2 size={12} className="text-white" />}
-                  </div>
-                  <span className="text-xs font-bold">
-                    {selectedConsultation.consultationFeePaid ? 'Entrevista cobrada ✓' : 'Marcar entrevista como cobrada'}
-                  </span>
-                </button>
-              </section>
 
               {/* Presupuesto de honorarios */}
               {['Evaluando viabilidad', 'Presupuestada', 'Aceptada'].includes(selectedConsultation.status) && (

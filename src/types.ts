@@ -49,6 +49,7 @@ export interface Consultation {
   notes?: string[];
   consultationFeePaid?: boolean;
   consultationFeeSnapshot?: number;
+  consultationFeeFormaPago?: 'Efectivo' | 'Transferencia';
 }
 
 export interface Client {

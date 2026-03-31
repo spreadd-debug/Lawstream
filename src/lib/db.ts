@@ -140,8 +140,9 @@ const toConsultation = (r: any): Consultation => ({
   email:                r.email                 ?? undefined,
   phone:                r.phone                 ?? undefined,
   notes:                r.notes                 ?? undefined,
-  consultationFeePaid:      r.consultation_fee_paid     ?? false,
-  consultationFeeSnapshot:  r.consulta_fee_snapshot != null ? parseFloat(r.consulta_fee_snapshot) : undefined,
+  consultationFeePaid:        r.consultation_fee_paid     ?? false,
+  consultationFeeSnapshot:    r.consulta_fee_snapshot   != null ? parseFloat(r.consulta_fee_snapshot) : undefined,
+  consultationFeeFormaPago:   r.consulta_fee_forma_pago  ?? undefined,
 });
 
 const toDocument = (r: any): LegalDocument => ({
@@ -252,8 +253,9 @@ export const updateConsultation = async (id: string, changes: Partial<Consultati
   if (changes.email               !== undefined) row.email                = changes.email;
   if (changes.phone               !== undefined) row.phone                = changes.phone;
   if (changes.notes               !== undefined) row.notes                = changes.notes;
-  if (changes.consultationFeePaid    !== undefined) row.consultation_fee_paid  = changes.consultationFeePaid;
-  if (changes.consultationFeeSnapshot !== undefined) row.consulta_fee_snapshot = changes.consultationFeeSnapshot;
+  if (changes.consultationFeePaid      !== undefined) row.consultation_fee_paid    = changes.consultationFeePaid;
+  if (changes.consultationFeeSnapshot  !== undefined) row.consulta_fee_snapshot   = changes.consultationFeeSnapshot;
+  if (changes.consultationFeeFormaPago !== undefined) row.consulta_fee_forma_pago  = changes.consultationFeeFormaPago;
   const { error } = await supabase.from('consultations').update(row).eq('id', id);
   if (error) throw error;
 };
@@ -273,8 +275,9 @@ export const createConsultation = async (c: Omit<Consultation, 'id'>): Promise<C
       email:                c.email ?? null,
       phone:                c.phone ?? null,
       notes:                c.notes ?? null,
-      consultation_fee_paid:  c.consultationFeePaid ?? false,
-      consulta_fee_snapshot:  c.consultationFeeSnapshot ?? null,
+      consultation_fee_paid:    c.consultationFeePaid     ?? false,
+      consulta_fee_snapshot:    c.consultationFeeSnapshot ?? null,
+      consulta_fee_forma_pago:  c.consultationFeeFormaPago ?? null,
     })
     .select()
     .single();
