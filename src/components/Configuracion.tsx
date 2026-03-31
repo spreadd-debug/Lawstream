@@ -61,8 +61,8 @@ const EstudioPerfilConfig = ({ onBack }: { onBack: () => void }) => {
       const url = await uploadEstudioAsset(file, type);
       if (type === 'logo')  set('logoUrl',  url);
       if (type === 'firma') set('firmaUrl', url);
-    } catch {
-      alert('Error al subir la imagen. Verificá que el bucket "estudio-assets" existe en Supabase Storage.');
+    } catch (err: any) {
+      alert(`Error al subir la imagen:\n${err?.message ?? JSON.stringify(err)}`);
     } finally {
       setUploading(null);
     }
