@@ -43,6 +43,7 @@ interface AppContextType {
   handleUpdateDocument: (id: string, changes: any) => Promise<void>;
   handleAddDocument: (doc: any) => Promise<void>;
   handleCloseMatter: (matterId: string) => Promise<void>;
+  handleUpdateMatterDirect: (matterId: string, changes: Partial<Matter>) => Promise<void>;
   handleCreateMatter: (data: any) => Promise<Matter>;
   handleCreateConsultation: (data: Omit<Consultation, 'id'>) => Promise<void>;
   handleUpdateConsultation: (id: string, changes: Partial<Consultation>) => void;
@@ -58,6 +59,7 @@ interface AppContextType {
   // Milestones
   milestones: MatterMilestone[];
   handleUpdateMilestone: (id: string, changes: Partial<MatterMilestone>) => Promise<void>;
+  handleCreateMilestone: (ms: Omit<MatterMilestone, 'id'>) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -255,6 +257,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const handleUpdateMatterDirect = async (matterId: string, changes: Partial<Matter>) => {
+    setMatters(prev => prev.map(m => m.id === matterId ? { ...m, ...changes, lastActivity: new Date().toISOString() } : m));
+    try {
+      await db.updateMatter(matterId, { ...changes, lastActivity: new Date().toISOString() });
+    } catch (err) {
+      console.error('Error actualizando asunto:', err);
+    }
+  };
+
   const handleCreateMatter = async (data: any): Promise<Matter> => {
     // Find matching flow template
     const template = findTemplate(data.type, data.subtype);
@@ -433,6 +444,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const handleCreateMilestone = async (ms: Omit<MatterMilestone, 'id'>) => {
+    const optimistic: MatterMilestone = { ...ms, id: crypto.randomUUID() };
+    setMilestones(prev => [...prev, optimistic]);
+    try {
+      const saved = await db.createMilestone(ms);
+      setMilestones(prev => prev.map(m => m.id === optimistic.id ? saved : m));
+    } catch (err) {
+      console.error('Error creando hito:', err);
+      setMilestones(prev => prev.filter(m => m.id !== optimistic.id));
+    }
+  };
+
   const handleRefreshExpedientes = async () => {
     try {
       const exps = await db.fetchAllExpedientes();
@@ -456,12 +479,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       handleSaveAction, handleSaveMatterEdit,
       handleCreateClient, handleUpdateClient,
       handleUpdateDocument, handleAddDocument,
-      handleCloseMatter, handleCreateMatter,
+      handleCloseMatter, handleUpdateMatterDirect, handleCreateMatter,
       handleCreateConsultation, handleUpdateConsultation,
       handleCreateTask, handleUpdateTask, handleCompleteTask,
       handleConsultationStatusChange,
       expedientes, handleRefreshExpedientes,
-      milestones, handleUpdateMilestone,
+      milestones, handleUpdateMilestone, handleCreateMilestone,
     }}>
       {children}
     </AppContext.Provider>

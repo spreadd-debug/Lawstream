@@ -46,21 +46,40 @@ interface MatterDetailProps {
   tasks: Task[];
   documents: LegalDocument[];
   milestones: MatterMilestone[];
+  profiles?: { fullName: string }[];
   onBack: () => void;
   onNewAction: () => void;
   onEditMatter: () => void;
   onCompleteMilestone?: (id: string) => void;
+  onCompleteTask?: (taskId: string) => void;
+  onReopenTask?: (taskId: string) => void;
+  onUpdateMatter?: (changes: Partial<Matter>) => void;
+  onUpdateDocument?: (docId: string, changes: Partial<LegalDocument>) => void;
+  onAddDocument?: (doc: Omit<LegalDocument, 'id'>) => void;
+  onAddMilestone?: (ms: Omit<MatterMilestone, 'id'>) => void;
 }
 
 import { ACTION_ICONS } from '../constants';
 
-export const MatterDetail = ({ matter, timeline, tasks, documents, milestones, onBack, onNewAction, onEditMatter, onCompleteMilestone }: MatterDetailProps) => {
+export const MatterDetail = ({ matter, timeline, tasks, documents, milestones, profiles, onBack, onNewAction, onEditMatter, onCompleteMilestone, onCompleteTask, onReopenTask, onUpdateMatter, onUpdateDocument, onAddDocument, onAddMilestone }: MatterDetailProps) => {
   const [isRequestDocOpen, setIsRequestDocOpen] = useState(false);
   const [isAddMilestoneOpen, setIsAddMilestoneOpen] = useState(false);
+  const [isBlockageOpen, setIsBlockageOpen] = useState(false);
+  const [isResponsableOpen, setIsResponsableOpen] = useState(false);
+  const [blockageText, setBlockageText] = useState(matter.blockage || '');
   const [showAllTasks, setShowAllTasks] = useState(false);
   const [showAllHistory, setShowAllHistory] = useState(false);
   const [expediente, setExpediente] = useState<Expediente | null | undefined>(undefined);
   const [showExpedienteForm, setShowExpedienteForm] = useState(false);
+  // Doc request form
+  const [newDocName, setNewDocName] = useState('');
+  const [newDocCriticality, setNewDocCriticality] = useState<'Crítico' | 'Recomendado' | 'Opcional'>('Crítico');
+  const [newDocBlocks, setNewDocBlocks] = useState(false);
+  // Milestone form
+  const [newMilestoneLabel, setNewMilestoneLabel] = useState('');
+  const [newMilestoneDate, setNewMilestoneDate] = useState('');
+  // Doc context menu
+  const [docMenuOpen, setDocMenuOpen] = useState<string | null>(null);
 
   useEffect(() => {
     fetchExpediente(matter.id).then(setExpediente);
@@ -244,7 +263,7 @@ export const MatterDetail = ({ matter, timeline, tasks, documents, milestones, o
               </p>
             </div>
             <div className="pt-6">
-              <Button variant="ghost" size="sm" className="text-[9px] font-black uppercase tracking-widest h-8 px-3 border border-border/50 opacity-0 group-hover:opacity-100 transition-all">Reportar Bloqueo</Button>
+              <Button variant="ghost" size="sm" className="text-[9px] font-black uppercase tracking-widest h-8 px-3 border border-border/50 opacity-0 group-hover:opacity-100 transition-all" onClick={() => { setBlockageText(matter.blockage || ''); setIsBlockageOpen(true); }}>Reportar Bloqueo</Button>
             </div>
           </div>
 
@@ -270,7 +289,7 @@ export const MatterDetail = ({ matter, timeline, tasks, documents, milestones, o
                   {matter.responsible || 'Sin asignar'}
                 </div>
                 {(matter.responsible === 'Sin asignar' || !matter.responsible) && (
-                  <button className="text-[9px] font-black text-primary uppercase tracking-widest hover:underline mt-1">Asignar para activar</button>
+                  <button className="text-[9px] font-black text-primary uppercase tracking-widest hover:underline mt-1" onClick={onEditMatter}>Asignar para activar</button>
                 )}
               </div>
             </div>
@@ -339,14 +358,20 @@ export const MatterDetail = ({ matter, timeline, tasks, documents, milestones, o
             <div className="grid grid-cols-1 gap-3">
               {documents.length > 0 ? (
                 documents.map((doc) => (
-                  <DocumentMatterItem key={doc.id} doc={doc} />
+                  <DocumentMatterItem
+                    key={doc.id}
+                    doc={doc}
+                    menuOpen={docMenuOpen === doc.id}
+                    onToggleMenu={() => setDocMenuOpen(docMenuOpen === doc.id ? null : doc.id)}
+                    onChangeStatus={(docId, status) => { onUpdateDocument?.(docId, { status }); setDocMenuOpen(null); }}
+                  />
                 ))
               ) : (
                 <div className="py-12 text-center border-2 border-dashed border-border/50 rounded-3xl bg-muted/5">
                   <FileSearch size={40} className="mx-auto text-muted-foreground/20 mb-4" />
                   <p className="text-sm font-bold text-muted-foreground uppercase tracking-widest">No hay documentos sugeridos</p>
                   <p className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-widest mt-1">Podés cargar la estructura manualmente</p>
-                  <Button variant="outline" size="sm" className="mt-6 text-[10px] font-black uppercase tracking-widest h-9 rounded-xl">Cargar Documento</Button>
+                  <Button variant="outline" size="sm" className="mt-6 text-[10px] font-black uppercase tracking-widest h-9 rounded-xl" onClick={() => setIsRequestDocOpen(true)}>Cargar Documento</Button>
                 </div>
               )}
             </div>
@@ -390,7 +415,9 @@ export const MatterDetail = ({ matter, timeline, tasks, documents, milestones, o
                         <span className="flex items-center gap-1.5"><User size={12} /> {matter.responsible.split(' ').pop()}</span>
                       </div>
                     </div>
-                    <Button variant="outline" size="sm" className="text-[10px] font-black uppercase tracking-widest rounded-xl opacity-0 group-hover:opacity-100 transition-all">Resolver</Button>
+                    <Button variant="outline" size="sm" className="text-[10px] font-black uppercase tracking-widest rounded-xl opacity-0 group-hover:opacity-100 transition-all" onClick={(e) => { e.stopPropagation(); onCompleteTask?.(task.id); }}>
+                      {task.status === 'Completada' ? 'Reabrir' : 'Resolver'}
+                    </Button>
                   </Card>
                 ))
               ) : (
@@ -449,7 +476,7 @@ export const MatterDetail = ({ matter, timeline, tasks, documents, milestones, o
                       <p className="text-[10px] font-medium uppercase tracking-widest mt-1">Todavía no se registraron actividades en este asunto</p>
                     </div>
                   </div>
-                  <Button variant="outline" size="sm" className="mt-6 text-[10px] font-black uppercase tracking-widest h-9 rounded-xl">Registrar Primer Movimiento</Button>
+                  <Button variant="outline" size="sm" className="mt-6 text-[10px] font-black uppercase tracking-widest h-9 rounded-xl" onClick={onNewAction}>Registrar Primer Movimiento</Button>
                 </div>
               )}
             </div>
@@ -575,7 +602,7 @@ export const MatterDetail = ({ matter, timeline, tasks, documents, milestones, o
               ) : (
                 <div className="p-6 text-center border border-border/50 rounded-2xl bg-muted/5">
                   <p className="text-[10px] font-black text-muted-foreground/40 uppercase tracking-widest">No hay hitos programados</p>
-                  <button className="text-[9px] font-black text-primary uppercase tracking-widest hover:underline mt-2">Programar Hitos</button>
+                  <button className="text-[9px] font-black text-primary uppercase tracking-widest hover:underline mt-2" onClick={() => setIsAddMilestoneOpen(true)}>Programar Hitos</button>
                 </div>
               )}
             </div>
@@ -698,26 +725,99 @@ export const MatterDetail = ({ matter, timeline, tasks, documents, milestones, o
         <div className="space-y-4 py-4">
           <div className="space-y-2">
             <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Nombre del Documento</label>
-            <Input placeholder="Ej: Poder Especial, Copia de DNI..." />
+            <Input placeholder="Ej: Poder Especial, Copia de DNI..." value={newDocName} onChange={(e) => setNewDocName(e.target.value)} />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Criticidad</label>
-              <Select options={['Crítico', 'Recomendado', 'Opcional']} defaultValue="Crítico" />
-            </div>
-            <div className="space-y-2">
-              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Responsable</label>
-              <Select options={['Cliente', 'Estudio', 'Tercero']} defaultValue="Cliente" />
+              <select
+                className="w-full h-10 bg-background border border-border rounded-lg px-3 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary/20"
+                value={newDocCriticality}
+                onChange={(e) => setNewDocCriticality(e.target.value as any)}
+              >
+                <option value="Crítico">Crítico</option>
+                <option value="Recomendado">Recomendado</option>
+                <option value="Opcional">Opcional</option>
+              </select>
             </div>
           </div>
           <div className="flex items-center gap-2 py-2">
-            <input type="checkbox" id="blocks" className="rounded border-border" />
+            <input type="checkbox" id="blocks" className="rounded border-border" checked={newDocBlocks} onChange={(e) => setNewDocBlocks(e.target.checked)} />
             <label htmlFor="blocks" className="text-xs font-bold text-foreground">Bloquea el avance del asunto</label>
           </div>
           <div className="pt-4 flex gap-3">
             <Button variant="outline" className="flex-1" onClick={() => setIsRequestDocOpen(false)}>Cancelar</Button>
-            <Button className="flex-1" onClick={() => setIsRequestDocOpen(false)}>Solicitar Documento</Button>
+            <Button className="flex-1" disabled={!newDocName.trim()} onClick={() => {
+              onAddDocument?.({
+                matterId: matter.id,
+                matterTitle: matter.title,
+                client: matter.client,
+                responsible: matter.responsible,
+                name: newDocName.trim(),
+                status: 'Solicitado',
+                criticality: newDocCriticality,
+                blocksProgress: newDocBlocks,
+                updatedAt: new Date().toISOString(),
+              });
+              setNewDocName(''); setNewDocCriticality('Crítico'); setNewDocBlocks(false);
+              setIsRequestDocOpen(false);
+            }}>Solicitar Documento</Button>
           </div>
+        </div>
+      </Modal>
+
+      {/* Reportar Bloqueo Modal */}
+      <Modal
+        isOpen={isBlockageOpen}
+        onClose={() => setIsBlockageOpen(false)}
+        title="Reportar Bloqueo"
+      >
+        <div className="space-y-4 py-4">
+          <div className="space-y-2">
+            <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Descripción del bloqueo</label>
+            <Textarea
+              placeholder="Ej: Esperando contestación de demanda..."
+              value={blockageText}
+              onChange={(e) => setBlockageText(e.target.value)}
+              rows={3}
+            />
+          </div>
+          <div className="pt-4 flex gap-3">
+            <Button variant="outline" className="flex-1" onClick={() => {
+              onUpdateMatter?.({ blockage: undefined, health: matter.health === 'Trabado' ? 'Sano' : matter.health });
+              setIsBlockageOpen(false);
+            }}>Limpiar Bloqueo</Button>
+            <Button className="flex-1" disabled={!blockageText.trim()} onClick={() => {
+              onUpdateMatter?.({ blockage: blockageText.trim(), health: 'Trabado' });
+              setIsBlockageOpen(false);
+            }}>Guardar Bloqueo</Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Cambiar Responsable Modal */}
+      <Modal
+        isOpen={isResponsableOpen}
+        onClose={() => setIsResponsableOpen(false)}
+        title="Cambiar Responsable"
+      >
+        <div className="space-y-2 py-4">
+          {(profiles || []).map(p => (
+            <button
+              key={p.fullName}
+              onClick={() => { onUpdateMatter?.({ responsible: p.fullName }); setIsResponsableOpen(false); }}
+              className={cn(
+                "w-full flex items-center gap-3 p-3 rounded-xl border transition-all text-left",
+                p.fullName === matter.responsible ? "border-primary bg-primary/5" : "border-border hover:border-primary/30 hover:bg-muted/30"
+              )}
+            >
+              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-black text-primary border border-primary/20">
+                {p.fullName.split(' ').map(n => n[0]).join('')}
+              </div>
+              <span className="text-sm font-bold">{p.fullName}</span>
+              {p.fullName === matter.responsible && <CheckCircle2 size={14} className="ml-auto text-primary" />}
+            </button>
+          ))}
         </div>
       </Modal>
 
@@ -729,15 +829,25 @@ export const MatterDetail = ({ matter, timeline, tasks, documents, milestones, o
         <div className="space-y-4 py-4">
           <div className="space-y-2">
             <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Nombre del Hito</label>
-            <Input placeholder="Ej: Audiencia de Conciliación" />
+            <Input placeholder="Ej: Audiencia de Conciliación" value={newMilestoneLabel} onChange={(e) => setNewMilestoneLabel(e.target.value)} />
           </div>
           <div className="space-y-2">
             <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Fecha Estimada</label>
-            <Input type="date" />
+            <Input type="date" value={newMilestoneDate} onChange={(e) => setNewMilestoneDate(e.target.value)} />
           </div>
           <div className="pt-4 flex gap-3">
             <Button variant="outline" className="flex-1" onClick={() => setIsAddMilestoneOpen(false)}>Cancelar</Button>
-            <Button className="flex-1" onClick={() => setIsAddMilestoneOpen(false)}>Agregar Hito</Button>
+            <Button className="flex-1" disabled={!newMilestoneLabel.trim()} onClick={() => {
+              onAddMilestone?.({
+                matterId: matter.id,
+                label: newMilestoneLabel.trim(),
+                orden: milestones.length + 1,
+                status: 'Pendiente',
+                targetDate: newMilestoneDate || undefined,
+              });
+              setNewMilestoneLabel(''); setNewMilestoneDate('');
+              setIsAddMilestoneOpen(false);
+            }}>Agregar Hito</Button>
           </div>
         </div>
       </Modal>
@@ -745,7 +855,9 @@ export const MatterDetail = ({ matter, timeline, tasks, documents, milestones, o
   );
 };
 
-const DocumentMatterItem: React.FC<{ doc: LegalDocument }> = ({ doc }) => {
+const DOC_STATUS_FLOW: LegalDocument['status'][] = ['Faltante', 'Solicitado', 'Recibido', 'En revisión', 'Aprobado', 'Listo para presentar', 'Presentado'];
+
+const DocumentMatterItem: React.FC<{ doc: LegalDocument; menuOpen: boolean; onToggleMenu: () => void; onChangeStatus?: (docId: string, status: LegalDocument['status']) => void }> = ({ doc, menuOpen, onToggleMenu, onChangeStatus }) => {
   const statusStyles = {
     'Faltante': 'text-rose-600 bg-rose-500/10 border-rose-500/20',
     'Solicitado': 'text-sky-600 bg-sky-500/10 border-sky-500/20',
@@ -805,9 +917,28 @@ const DocumentMatterItem: React.FC<{ doc: LegalDocument }> = ({ doc }) => {
             <div className="text-[10px] font-bold text-foreground">{format(parseISO(doc.updatedAt), 'd MMM', { locale: es })}</div>
           </div>
         )}
-        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-lg opacity-0 group-hover:opacity-100 transition-all">
-          <MoreHorizontal size={16} />
-        </Button>
+        <div className="relative">
+          <Button variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-lg opacity-0 group-hover:opacity-100 transition-all" onClick={(e) => { e.stopPropagation(); onToggleMenu(); }}>
+            <MoreHorizontal size={16} />
+          </Button>
+          {menuOpen && (
+            <div className="absolute right-0 top-9 z-50 w-48 bg-card border border-border rounded-xl shadow-xl py-1 animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="px-3 py-1.5 text-[9px] font-black text-muted-foreground uppercase tracking-widest">Cambiar estado</div>
+              {DOC_STATUS_FLOW.map(s => (
+                <button
+                  key={s}
+                  onClick={(e) => { e.stopPropagation(); onChangeStatus?.(doc.id, s); }}
+                  className={cn(
+                    "w-full text-left px-3 py-1.5 text-xs font-bold hover:bg-muted/50 transition-colors",
+                    s === doc.status ? "text-primary bg-primary/5" : "text-foreground"
+                  )}
+                >
+                  {s === doc.status ? `✓ ${s}` : s}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </Card>
   );

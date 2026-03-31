@@ -106,7 +106,7 @@ export const PresupuestoDetail: React.FC<PresupuestoDetailProps> = ({ presupuest
             </div>
             <p className="text-xs text-muted-foreground">
               Creado {format(parseISO(presupuesto.createdAt), "d 'de' MMMM yyyy", { locale: es })}
-              {' · '}IUS al momento: ${presupuesto.iusValorSnapshot.toLocaleString('es-AR')}
+              {' · '}JUS al momento: ${presupuesto.iusValorSnapshot.toLocaleString('es-AR')}
             </p>
           </div>
           <Button variant="ghost" size="sm" onClick={onEdit}>Editar</Button>
@@ -119,7 +119,7 @@ export const PresupuestoDetail: React.FC<PresupuestoDetailProps> = ({ presupuest
               <tr>
                 <th className="text-left px-4 py-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">Concepto</th>
                 <th className="text-left px-4 py-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">Tipo</th>
-                <th className="text-right px-4 py-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">IUS</th>
+                <th className="text-right px-4 py-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">JUS</th>
                 <th className="text-right px-4 py-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">Pesos</th>
               </tr>
             </thead>
@@ -134,7 +134,7 @@ export const PresupuestoDetail: React.FC<PresupuestoDetailProps> = ({ presupuest
                   </td>
                   <td className="px-4 py-2.5 text-muted-foreground text-xs">{TIPO_LABEL[item.tipo]}</td>
                   <td className="px-4 py-2.5 text-right font-mono text-xs">
-                    {item.cantidadIus ? `${item.cantidadIus} IUS` : '—'}
+                    {item.cantidadIus ? `${item.cantidadIus} JUS` : '—'}
                   </td>
                   <td className="px-4 py-2.5 text-right font-bold">
                     ${item.montoPesos.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
@@ -146,7 +146,7 @@ export const PresupuestoDetail: React.FC<PresupuestoDetailProps> = ({ presupuest
               <tr className="bg-muted/30">
                 <td colSpan={2} className="px-4 py-3" />
                 <td className="px-4 py-3 text-right text-xs text-muted-foreground font-bold">
-                  {presupuesto.subtotalIus.toFixed(2)} IUS
+                  {presupuesto.subtotalIus.toFixed(2)} JUS
                 </td>
                 <td className="px-4 py-3 text-right font-black text-base text-primary">
                   ${presupuesto.subtotalPesos.toLocaleString('es-AR', { minimumFractionDigits: 2 })}

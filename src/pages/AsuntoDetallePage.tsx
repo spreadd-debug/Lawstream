@@ -12,9 +12,10 @@ export const AsuntoDetallePage = () => {
   const navigate = useNavigate();
   const { profile } = useAuth();
   const {
-    matters, timeline, tasks, documents, milestones,
+    matters, timeline, tasks, documents, milestones, profiles,
     handleNewAction, handleEditMatter,
-    handleCompleteTask, handleUpdateDocument, handleUpdateMilestone,
+    handleCompleteTask, handleUpdateTask, handleUpdateDocument, handleAddDocument,
+    handleUpdateMilestone, handleCreateMilestone, handleUpdateMatterDirect,
   } = useAppContext();
 
   const matter = matters.find(m => m.id === id);
@@ -33,6 +34,7 @@ export const AsuntoDetallePage = () => {
         tasks={matterTasks}
         documents={matterDocs}
         milestones={matterMilestones}
+        profiles={profiles}
         onBack={() => navigate('/asuntos')}
         onNewAction={() => handleNewAction(id!)}
         onEditMatter={() => handleEditMatter(id!)}
@@ -41,6 +43,12 @@ export const AsuntoDetallePage = () => {
           completedAt: new Date().toISOString(),
           completedBy: profile?.fullName || 'Usuario',
         })}
+        onCompleteTask={(taskId) => handleCompleteTask(taskId, profile?.fullName || 'Usuario')}
+        onReopenTask={(taskId) => handleUpdateTask(taskId, { status: 'Pendiente', completedAt: undefined, completedBy: undefined })}
+        onUpdateMatter={(changes) => handleUpdateMatterDirect(id!, changes)}
+        onUpdateDocument={(docId, changes) => handleUpdateDocument(docId, changes)}
+        onAddDocument={(doc) => handleAddDocument(doc as any)}
+        onAddMilestone={(ms) => handleCreateMilestone(ms)}
       />
 
       {/* Blocking tasks */}

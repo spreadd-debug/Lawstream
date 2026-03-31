@@ -202,7 +202,7 @@ const IUSConfig = ({ onBack }: { onBack: () => void }) => {
           <ArrowLeft size={20} />
         </button>
         <div>
-          <h1 className="text-2xl font-black tracking-tighter">Valor del IUS</h1>
+          <h1 className="text-2xl font-black tracking-tighter">Valor del JUS</h1>
           <p className="text-xs text-muted-foreground uppercase tracking-widest font-bold mt-0.5">
             Ley 14.967 — Unidad de honorarios profesionales
           </p>
@@ -213,10 +213,10 @@ const IUSConfig = ({ onBack }: { onBack: () => void }) => {
         <div className="flex items-center gap-4 p-4 bg-amber-50 border border-amber-200 rounded-xl">
           <Calculator size={24} className="text-amber-600 shrink-0" />
           <div>
-            <p className="text-xs font-bold text-amber-700 uppercase tracking-wide">Valor vigente del IUS</p>
+            <p className="text-xs font-bold text-amber-700 uppercase tracking-wide">Valor vigente del JUS</p>
             <p className="text-3xl font-black text-amber-800">
               ${currentValue.toLocaleString('es-AR')}
-              <span className="text-sm font-bold ml-2">por IUS</span>
+              <span className="text-sm font-bold ml-2">por JUS</span>
             </p>
             {lastUpdated && (
               <p className="text-xs text-amber-600 mt-1">
@@ -370,7 +370,7 @@ export const Configuracion = () => {
   const sections = [
     { id: 'estudio',        label: 'Datos del Estudio',    icon: Briefcase,  desc: 'Nombre, CUIT, dirección y contacto.' },
     { id: 'usuarios',       label: 'Usuarios y Roles',     icon: Shield,     desc: 'Gestionar quién accede y qué puede hacer.' },
-    { id: 'ius',            label: 'Valor del IUS',        icon: Calculator, desc: 'Actualizar el valor vigente del IUS para presupuestos (Ley 14.967).' },
+    { id: 'ius',            label: 'Valor del JUS',        icon: Calculator, desc: 'Actualizar el valor vigente del JUS para presupuestos (Ley 14.967).' },
     { id: 'consulta',       label: 'Valor de Consulta',    icon: Calculator, desc: 'Precio de la entrevista inicial. Se guarda históricamente en cada consulta cobrada.' },
     { id: 'asuntos',        label: 'Tipos de Asunto',      icon: FileText,   desc: 'Configurar tipos, estados y checklists.' },
     { id: 'notificaciones', label: 'Notificaciones',       icon: Bell,       desc: 'Alertas de vencimientos y actividad.' },

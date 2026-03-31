@@ -37,11 +37,16 @@ import { ACTION_ICONS } from '../constants';
 
 interface AsuntosProps {
   matters: Matter[];
+  profiles?: { fullName: string }[];
   onSelectMatter: (id: string) => void;
   onCreateMatter: () => void;
+  onNewAction?: (matterId: string) => void;
+  onCloseMatter?: (matterId: string) => void;
+  onUpdateMatter?: (matterId: string, changes: Partial<Matter>) => void;
+  onEditMatter?: (matterId: string) => void;
 }
 
-export const Asuntos = ({ matters, onSelectMatter, onCreateMatter }: AsuntosProps) => {
+export const Asuntos = ({ matters, profiles, onSelectMatter, onCreateMatter, onNewAction, onCloseMatter, onUpdateMatter, onEditMatter }: AsuntosProps) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
   const [filterHealth, setFilterHealth] = useState<string>('Todos');
@@ -61,6 +66,9 @@ export const Asuntos = ({ matters, onSelectMatter, onCreateMatter }: AsuntosProp
     });
   }, []);
   const [activeQuickFilters, setActiveQuickFilters] = useState<string[]>([]);
+  const [respPickerMatterId, setRespPickerMatterId] = useState<string | null>(null);
+  const [moreMenuMatterId, setMoreMenuMatterId] = useState<string | null>(null);
+  const [confirmCloseId, setConfirmCloseId] = useState<string | null>(null);
 
   const responsibles = Array.from(new Set(matters.map(m => m.responsible))).filter(Boolean);
   const types = Array.from(new Set(matters.map(m => m.type))).filter(Boolean);
@@ -291,6 +299,17 @@ export const Asuntos = ({ matters, onSelectMatter, onCreateMatter }: AsuntosProp
               viewMode={viewMode}
               onClick={() => onSelectMatter(matter.id)}
               expediente={expedientesMap[matter.id]}
+              profiles={profiles}
+              onNewAction={() => onNewAction?.(matter.id)}
+              onCloseMatter={() => setConfirmCloseId(matter.id)}
+              onUpdateMatter={(changes) => onUpdateMatter?.(matter.id, changes)}
+              onEditMatter={() => onEditMatter?.(matter.id)}
+              respPickerOpen={respPickerMatterId === matter.id}
+              onToggleRespPicker={() => setRespPickerMatterId(respPickerMatterId === matter.id ? null : matter.id)}
+              moreMenuOpen={moreMenuMatterId === matter.id}
+              onToggleMoreMenu={() => setMoreMenuMatterId(moreMenuMatterId === matter.id ? null : matter.id)}
+              confirmCloseOpen={confirmCloseId === matter.id}
+              onToggleConfirmClose={() => setConfirmCloseId(confirmCloseId === matter.id ? null : matter.id)}
             />
           ))
         ) : (
@@ -365,9 +384,20 @@ interface MatterItemProps {
   viewMode: 'list' | 'grid';
   onClick: () => void;
   expediente?: Expediente;
+  profiles?: { fullName: string }[];
+  onNewAction?: () => void;
+  onCloseMatter?: () => void;
+  onUpdateMatter?: (changes: Partial<Matter>) => void;
+  onEditMatter?: () => void;
+  respPickerOpen?: boolean;
+  onToggleRespPicker?: () => void;
+  moreMenuOpen?: boolean;
+  onToggleMoreMenu?: () => void;
+  confirmCloseOpen?: boolean;
+  onToggleConfirmClose?: () => void;
 }
 
-const MatterItem: React.FC<MatterItemProps> = ({ matter, viewMode, onClick, expediente }) => {
+const MatterItem: React.FC<MatterItemProps> = ({ matter, viewMode, onClick, expediente, profiles, onNewAction, onCloseMatter, onUpdateMatter, onEditMatter, respPickerOpen, onToggleRespPicker, moreMenuOpen, onToggleMoreMenu, confirmCloseOpen, onToggleConfirmClose }) => {
   const isOverdue = matter.nextActionDate && isPast(parseISO(matter.nextActionDate)) && !isToday(parseISO(matter.nextActionDate));
   const isTodayAction = matter.nextActionDate && isToday(parseISO(matter.nextActionDate));
   const daysSinceActivity = differenceInDays(new Date(), parseISO(matter.lastActivity));
@@ -467,11 +497,49 @@ const MatterItem: React.FC<MatterItemProps> = ({ matter, viewMode, onClick, expe
         {/* Quick Actions Overlay on Hover */}
         <div className="absolute inset-x-0 bottom-0 bg-background/95 backdrop-blur-sm border-t border-border p-3 translate-y-full group-hover:translate-y-0 transition-transform duration-300 flex items-center justify-around">
           <QuickAction icon={ExternalLink} label="Abrir" onClick={(e) => { e.stopPropagation(); onClick(); }} />
-          <QuickAction icon={FilePlus} label="Acción" onClick={(e) => { e.stopPropagation(); }} />
-          <QuickAction icon={History} label="Mov." onClick={(e) => { e.stopPropagation(); }} />
-          <QuickAction icon={UserCog} label="Resp." onClick={(e) => { e.stopPropagation(); }} />
-          <QuickAction icon={CheckCircle2} label="Cerrar" onClick={(e) => { e.stopPropagation(); }} />
+          <QuickAction icon={FilePlus} label="Acción" onClick={(e) => { e.stopPropagation(); onNewAction?.(); }} />
+          <QuickAction icon={History} label="Mov." onClick={(e) => { e.stopPropagation(); onNewAction?.(); }} />
+          <QuickAction icon={UserCog} label="Resp." onClick={(e) => { e.stopPropagation(); onToggleRespPicker?.(); }} />
+          <QuickAction icon={CheckCircle2} label="Cerrar" onClick={(e) => { e.stopPropagation(); onToggleConfirmClose?.(); }} />
         </div>
+
+        {/* Responsable Picker Overlay */}
+        {respPickerOpen && (
+          <div className="absolute inset-0 z-50 bg-background/98 backdrop-blur-sm p-4 flex flex-col animate-in fade-in duration-200" onClick={(e) => e.stopPropagation()}>
+            <div className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-3">Cambiar Responsable</div>
+            <div className="space-y-1 flex-1 overflow-y-auto">
+              {(profiles || []).map(p => (
+                <button
+                  key={p.fullName}
+                  onClick={(e) => { e.stopPropagation(); onUpdateMatter?.({ responsible: p.fullName }); onToggleRespPicker?.(); }}
+                  className={cn(
+                    "w-full flex items-center gap-2 p-2 rounded-lg text-left transition-all text-xs font-bold",
+                    p.fullName === matter.responsible ? "bg-primary/10 text-primary" : "hover:bg-muted/50"
+                  )}
+                >
+                  <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-[8px] font-black text-primary">
+                    {p.fullName.split(' ').map(n => n[0]).join('')}
+                  </div>
+                  {p.fullName.split(' ').pop()}
+                </button>
+              ))}
+            </div>
+            <button onClick={(e) => { e.stopPropagation(); onToggleRespPicker?.(); }} className="mt-2 text-[9px] font-black text-muted-foreground uppercase tracking-widest hover:text-foreground">Cancelar</button>
+          </div>
+        )}
+
+        {/* Confirm Close Overlay */}
+        {confirmCloseOpen && (
+          <div className="absolute inset-0 z-50 bg-background/98 backdrop-blur-sm p-6 flex flex-col items-center justify-center animate-in fade-in duration-200" onClick={(e) => e.stopPropagation()}>
+            <ShieldAlert size={32} className="text-rose-500 mb-3" />
+            <p className="text-sm font-bold text-center mb-1">¿Cerrar este asunto?</p>
+            <p className="text-[10px] text-muted-foreground text-center mb-4">Esta acción cambia el estado a "Cerrado"</p>
+            <div className="flex gap-2 w-full">
+              <Button variant="outline" size="sm" className="flex-1 text-[10px] font-black uppercase" onClick={(e) => { e.stopPropagation(); onToggleConfirmClose?.(); }}>No</Button>
+              <Button size="sm" className="flex-1 text-[10px] font-black uppercase bg-rose-600 hover:bg-rose-700 text-white" onClick={(e) => { e.stopPropagation(); onCloseMatter?.(); onToggleConfirmClose?.(); }}>Sí, Cerrar</Button>
+            </div>
+          </div>
+        )}
       </Card>
     );
   }
@@ -579,20 +647,70 @@ const MatterItem: React.FC<MatterItemProps> = ({ matter, viewMode, onClick, expe
           <button className="p-2 text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-lg transition-all" title="Abrir Asunto" onClick={(e) => { e.stopPropagation(); onClick(); }}>
             <ExternalLink size={16} />
           </button>
-          <button className="p-2 text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-lg transition-all" title="Nueva Acción" onClick={(e) => { e.stopPropagation(); }}>
+          <button className="p-2 text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-lg transition-all" title="Nueva Acción" onClick={(e) => { e.stopPropagation(); onNewAction?.(); }}>
             <FilePlus size={16} />
           </button>
-          <button className="p-2 text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-lg transition-all" title="Registrar Movimiento" onClick={(e) => { e.stopPropagation(); }}>
+          <button className="p-2 text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-lg transition-all" title="Registrar Movimiento" onClick={(e) => { e.stopPropagation(); onNewAction?.(); }}>
             <History size={16} />
           </button>
-          <button className="p-2 text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-lg transition-all" title="Cambiar Responsable" onClick={(e) => { e.stopPropagation(); }}>
-            <UserCog size={16} />
-          </button>
-          <button className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-all" title="Más opciones" onClick={(e) => { e.stopPropagation(); }}>
-            <MoreVertical size={16} />
-          </button>
+          <div className="relative">
+            <button className="p-2 text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-lg transition-all" title="Cambiar Responsable" onClick={(e) => { e.stopPropagation(); onToggleRespPicker?.(); }}>
+              <UserCog size={16} />
+            </button>
+            {respPickerOpen && (
+              <div className="absolute right-0 top-10 z-50 w-52 bg-card border border-border rounded-xl shadow-xl py-2 animate-in fade-in slide-in-from-top-2 duration-200" onClick={(e) => e.stopPropagation()}>
+                <div className="px-3 py-1 text-[9px] font-black text-muted-foreground uppercase tracking-widest">Cambiar Responsable</div>
+                {(profiles || []).map(p => (
+                  <button
+                    key={p.fullName}
+                    onClick={(e) => { e.stopPropagation(); onUpdateMatter?.({ responsible: p.fullName }); onToggleRespPicker?.(); }}
+                    className={cn(
+                      "w-full flex items-center gap-2 px-3 py-1.5 text-left transition-all text-xs font-bold",
+                      p.fullName === matter.responsible ? "bg-primary/10 text-primary" : "hover:bg-muted/50"
+                    )}
+                  >
+                    <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center text-[8px] font-black text-primary">
+                      {p.fullName.split(' ').map(n => n[0]).join('')}
+                    </div>
+                    {p.fullName}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="relative">
+            <button className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-all" title="Más opciones" onClick={(e) => { e.stopPropagation(); onToggleMoreMenu?.(); }}>
+              <MoreVertical size={16} />
+            </button>
+            {moreMenuOpen && (
+              <div className="absolute right-0 top-10 z-50 w-44 bg-card border border-border rounded-xl shadow-xl py-1 animate-in fade-in slide-in-from-top-2 duration-200" onClick={(e) => e.stopPropagation()}>
+                <button onClick={(e) => { e.stopPropagation(); onEditMatter?.(); onToggleMoreMenu?.(); }} className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold hover:bg-muted/50 transition-colors">
+                  <MoreHorizontal size={14} /> Editar Caso
+                </button>
+                <button onClick={(e) => { e.stopPropagation(); onNewAction?.(); onToggleMoreMenu?.(); }} className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold hover:bg-muted/50 transition-colors">
+                  <FilePlus size={14} /> Nueva Acción
+                </button>
+                <div className="border-t border-border my-1" />
+                <button onClick={(e) => { e.stopPropagation(); onToggleConfirmClose?.(); onToggleMoreMenu?.(); }} className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-rose-600 hover:bg-rose-500/5 transition-colors">
+                  <XCircle size={14} /> Cerrar Asunto
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
+
+      {/* Confirm Close Overlay - List View */}
+      {confirmCloseOpen && (
+        <div className="absolute inset-0 z-50 bg-background/98 backdrop-blur-sm px-6 flex items-center justify-center gap-4 animate-in fade-in duration-200" onClick={(e) => e.stopPropagation()}>
+          <ShieldAlert size={20} className="text-rose-500 shrink-0" />
+          <p className="text-sm font-bold">¿Cerrar este asunto?</p>
+          <div className="flex gap-2 ml-auto">
+            <Button variant="outline" size="sm" className="text-[10px] font-black uppercase" onClick={(e) => { e.stopPropagation(); onToggleConfirmClose?.(); }}>No</Button>
+            <Button size="sm" className="text-[10px] font-black uppercase bg-rose-600 hover:bg-rose-700 text-white" onClick={(e) => { e.stopPropagation(); onCloseMatter?.(); onToggleConfirmClose?.(); }}>Sí, Cerrar</Button>
+          </div>
+        </div>
+      )}
     </Card>
   );
 };

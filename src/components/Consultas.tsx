@@ -744,7 +744,7 @@ export const Consultas = ({ consultations, profiles = [], onConvertToMatter, onU
                       <DollarSign size={18} className="text-muted-foreground group-hover:text-primary" />
                       <div className="text-left">
                         <p className="text-sm font-bold text-foreground">Crear presupuesto de honorarios</p>
-                        <p className="text-xs text-muted-foreground">BONO CAO, honorarios en IUS, otros bonos</p>
+                        <p className="text-xs text-muted-foreground">BONO CAO, honorarios en JUS, otros bonos</p>
                       </div>
                     </button>
                   )}

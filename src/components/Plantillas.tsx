@@ -22,6 +22,111 @@ import {
   Wand2,
 } from 'lucide-react';
 
+// ── Document type classification ──────────────────────────────
+type TipoDocumento = 'Demanda' | 'Telegrama' | 'Contrato' | 'Recurso' | 'Solicitud' | 'Otro';
+
+function getTipoDocumento(template: LegalTemplate): TipoDocumento {
+  const t = template.title.toLowerCase();
+  if (t.includes('demanda') || t.includes('acción de amparo') || t.includes('amparo') || t.includes('ejecuci')) return 'Demanda';
+  if (t.includes('telegrama') || t.includes('intimación')) return 'Telegrama';
+  if (t.includes('contrato')) return 'Contrato';
+  if (t.includes('recurso') || t.includes('apelación')) return 'Recurso';
+  if (t.includes('solicitud') || t.includes('oficio') || t.includes('inicio de proceso')) return 'Solicitud';
+  if (t.includes('medida cautelar')) return 'Solicitud';
+  return 'Otro';
+}
+
+const TIPO_DOC_ORDER: TipoDocumento[] = ['Demanda', 'Telegrama', 'Contrato', 'Recurso', 'Solicitud', 'Otro'];
+const TIPO_DOC_LABELS: Record<TipoDocumento, string> = {
+  Demanda: 'Demandas y Acciones',
+  Telegrama: 'Telegramas e Intimaciones',
+  Contrato: 'Contratos',
+  Recurso: 'Recursos',
+  Solicitud: 'Solicitudes y Oficios',
+  Otro: 'Otros',
+};
+
+// ── Auto-fill key mapping (template placeholder → caseData/matter fields) ──
+const AUTOFILL_MAP: Record<string, string[]> = {
+  // Actor / trabajador
+  ACTOR: ['trabajador_nombre', 'victima_nombre', 'conyuge1_nombre', 'progenitor_nombre', 'adoptante_nombre', 'persona_nombre'],
+  DNI_ACTOR: ['trabajador_dni', 'victima_dni', 'conyuge1_dni', 'progenitor_dni', 'adoptante_dni', 'persona_dni'],
+  DOMICILIO_ACTOR: ['trabajador_domicilio', 'victima_domicilio', 'conyuge1_domicilio', 'adoptante_domicilio'],
+  TRABAJADOR: ['trabajador_nombre'],
+  DNI: ['trabajador_dni', 'victima_dni', 'persona_dni'],
+  // Demandado / empleador
+  DEMANDADO: ['empleador_nombre', 'agresor_nombre', 'conyuge2_nombre', 'otro_progenitor_nombre', 'alimentante_nombre'],
+  CUIT_DEMANDADO: ['empleador_cuit'],
+  DOMICILIO_DEMANDADO: ['empleador_domicilio', 'agresor_domicilio', 'conyuge2_domicilio', 'otro_progenitor_domicilio', 'alimentante_domicilio'],
+  EMPLEADOR: ['empleador_nombre'],
+  DOMICILIO_EMPLEADOR: ['empleador_domicilio'],
+  // Fechas y datos laborales
+  FECHA_INGRESO: ['fecha_ingreso'],
+  FECHA_INGRESO_REAL: ['fecha_ingreso'],
+  FECHA_REGISTRADA: ['fecha_ingreso_registrada'],
+  FECHA_DESPIDO: ['fecha_egreso'],
+  CATEGORIA: ['categoria'],
+  CONVENIO: ['cct_aplicable'],
+  CCT: ['cct_aplicable'],
+  REMUNERACION: ['mejor_remuneracion'],
+  REMUNERACION_REAL: ['mejor_remuneracion'],
+  REMUNERACION_REGISTRADA: ['remuneracion_registrada'],
+  // Familia
+  PARTE_1: ['conyuge1_nombre'],
+  DNI_1: ['conyuge1_dni'],
+  DOMICILIO_1: ['conyuge1_domicilio'],
+  PARTE_2: ['conyuge2_nombre'],
+  DNI_2: ['conyuge2_dni'],
+  DOMICILIO_2: ['conyuge2_domicilio'],
+  FECHA_MATRIMONIO: ['fecha_matrimonio'],
+  LUGAR_MATRIMONIO: ['registro_civil'],
+  HIJOS: ['hijo_nombre'],
+  PROGENITOR_ACTOR: ['conyuge1_nombre', 'progenitor_nombre'],
+  PROGENITOR_DEMANDADO: ['alimentante_nombre', 'otro_progenitor_nombre'],
+  PROGENITOR: ['conyuge1_nombre', 'progenitor_nombre'],
+  OTRO_PROGENITOR: ['otro_progenitor_nombre'],
+  // Letrado / estudio
+  LETRADO: ['__responsable'],
+  JUZGADO: ['__juzgado'],
+};
+
+function autoFillFromMatter(
+  template: LegalTemplate,
+  matter: Matter,
+  client?: Client,
+): Record<string, string> {
+  const values: Record<string, string> = {};
+  const cd = matter.caseData || {};
+
+  for (const ph of template.placeholders) {
+    const key = ph.key;
+
+    // 1. Check direct match in caseData (lowercase keys)
+    if (cd[key]) { values[key] = cd[key]; continue; }
+    if (cd[key.toLowerCase()]) { values[key] = cd[key.toLowerCase()]; continue; }
+
+    // 2. Check AUTOFILL_MAP
+    const mapSources = AUTOFILL_MAP[key];
+    if (mapSources) {
+      for (const src of mapSources) {
+        if (src === '__responsable' && matter.responsible) { values[key] = matter.responsible; break; }
+        if (src === '__juzgado' && matter.expediente) { values[key] = matter.expediente; break; }
+        if (cd[src]) { values[key] = cd[src]; break; }
+      }
+      if (values[key]) continue;
+    }
+
+    // 3. Fallback: try common patterns from matter/client
+    const keyLower = key.toLowerCase();
+    if ((keyLower.includes('actor') || keyLower.includes('cliente') || keyLower.includes('trabajador')) && keyLower.includes('nombre') === false && keyLower.includes('dni') === false && keyLower.includes('domicilio') === false) {
+      // skip complex patterns
+    }
+    if (keyLower === 'monto_reclamo' && cd['monto_reclamo']) values[key] = cd['monto_reclamo'];
+  }
+
+  return values;
+}
+
 const CATEGORY_COLORS: Record<MatterType, string> = {
   Laboral: 'bg-blue-500/10 text-blue-600 border-blue-500/20',
   Familia: 'bg-pink-500/10 text-pink-600 border-pink-500/20',
@@ -59,25 +164,8 @@ export const Plantillas = ({ matters = [], clients = [] }: PlantillasProps) => {
     const matter = matters.find(m => m.id === autoFillMatterId);
     if (!matter) return;
     const client = clients.find(c => c.name === matter.client);
-    const filled = fillTemplate(selectedTemplate.content, { matter, client });
-    // Extract values back into placeholderValues by matching
-    const newValues = { ...placeholderValues };
-    selectedTemplate.placeholders.forEach(p => {
-      // Map common placeholder keys to template variables
-      const keyMap: Record<string, string> = {
-        nombre_cliente: matter.client,
-        cliente: matter.client,
-        responsable: matter.responsible,
-        abogado: matter.responsible,
-        tipo_causa: matter.type,
-        expediente: matter.expediente || '',
-        fecha: new Date().toLocaleDateString('es-AR'),
-      };
-      if (keyMap[p.key]) {
-        newValues[p.key] = keyMap[p.key];
-      }
-    });
-    setPlaceholderValues(newValues);
+    const autoValues = autoFillFromMatter(selectedTemplate, matter, client);
+    setPlaceholderValues(prev => ({ ...prev, ...autoValues }));
   };
 
   const categories: (MatterType | 'Todas')[] = ['Todas', 'Laboral', 'Familia', 'Daños', 'Comercial', 'Sucesiones', 'Civil'];
@@ -93,6 +181,28 @@ export const Plantillas = ({ matters = [], clients = [] }: PlantillasProps) => {
       return matchesCategory && matchesSearch;
     });
   }, [searchTerm, selectedCategory]);
+
+  // Group filtered templates by document type → category
+  const grouped = useMemo(() => {
+    const groups: { tipo: TipoDocumento; label: string; byCategory: { cat: MatterType; templates: LegalTemplate[] }[] }[] = [];
+    for (const tipo of TIPO_DOC_ORDER) {
+      const ofTipo = filtered.filter(t => getTipoDocumento(t) === tipo);
+      if (ofTipo.length === 0) continue;
+      // Group by category within this tipo
+      const catMap = new Map<MatterType, LegalTemplate[]>();
+      for (const t of ofTipo) {
+        const arr = catMap.get(t.category) || [];
+        arr.push(t);
+        catMap.set(t.category, arr);
+      }
+      groups.push({
+        tipo,
+        label: TIPO_DOC_LABELS[tipo],
+        byCategory: Array.from(catMap.entries()).map(([cat, templates]) => ({ cat, templates })),
+      });
+    }
+    return groups;
+  }, [filtered]);
 
   const categoryCount = useMemo(() => {
     const counts: Record<string, number> = { Todas: LEGAL_TEMPLATES.length };
@@ -215,62 +325,83 @@ export const Plantillas = ({ matters = [], clients = [] }: PlantillasProps) => {
         </div>
       </Card>
 
-      {/* Template Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filtered.length > 0 ? (
-          filtered.map(template => (
-            <Card
-              key={template.id}
-              className="p-6 flex flex-col justify-between group bg-card border-border/50 hover:border-primary/30 hover:shadow-lg transition-all cursor-pointer rounded-2xl"
-              onClick={() => openTemplate(template)}
-            >
-              <div>
-                <div className="flex items-start justify-between mb-4">
-                  <div className={cn(
-                    'w-12 h-12 rounded-xl flex items-center justify-center text-sm font-black border',
-                    CATEGORY_COLORS[template.category]
-                  )}>
-                    {CATEGORY_ICONS[template.category]}
+      {/* Template Grid — grouped by document type → category */}
+      {grouped.length > 0 ? (
+        <div className="space-y-10">
+          {grouped.map(group => (
+            <section key={group.tipo} className="space-y-5">
+              <div className="flex items-center gap-3">
+                <div className="w-1.5 h-6 bg-primary rounded-full" />
+                <h2 className="text-lg font-black text-foreground uppercase tracking-widest">{group.label}</h2>
+                <Badge variant="outline" className="text-[9px] font-black uppercase tracking-widest ml-1">
+                  {group.byCategory.reduce((acc, c) => acc + c.templates.length, 0)}
+                </Badge>
+              </div>
+
+              {group.byCategory.map(({ cat, templates }) => (
+                <div key={cat} className="space-y-3">
+                  <div className="flex items-center gap-2 ml-5">
+                    <div className={cn('w-6 h-6 rounded-md flex items-center justify-center text-[9px] font-black border', CATEGORY_COLORS[cat])}>
+                      {CATEGORY_ICONS[cat]}
+                    </div>
+                    <span className="text-[11px] font-black text-muted-foreground uppercase tracking-widest">{cat}</span>
                   </div>
-                  <ChevronRight size={18} className="text-muted-foreground/30 group-hover:text-primary transition-colors" />
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {templates.map(template => (
+                      <Card
+                        key={template.id}
+                        className="p-6 flex flex-col justify-between group bg-card border-border/50 hover:border-primary/30 hover:shadow-lg transition-all cursor-pointer rounded-2xl"
+                        onClick={() => openTemplate(template)}
+                      >
+                        <div>
+                          <div className="flex items-start justify-between mb-4">
+                            <div className={cn(
+                              'w-12 h-12 rounded-xl flex items-center justify-center text-sm font-black border',
+                              CATEGORY_COLORS[template.category]
+                            )}>
+                              {CATEGORY_ICONS[template.category]}
+                            </div>
+                            <ChevronRight size={18} className="text-muted-foreground/30 group-hover:text-primary transition-colors" />
+                          </div>
+
+                          <h3 className="text-base font-black tracking-tight text-foreground group-hover:text-primary transition-colors mb-2 leading-tight">
+                            {template.title}
+                          </h3>
+
+                          <p className="text-xs text-muted-foreground line-clamp-2 mb-4 leading-relaxed">
+                            {template.description}
+                          </p>
+
+                          <div className="flex flex-wrap gap-1.5 mb-4">
+                            <Badge variant="outline" className="text-[8px] font-bold tracking-wide py-0.5 rounded-md">
+                              {template.subcategory}
+                            </Badge>
+                          </div>
+                        </div>
+
+                        <div className="pt-4 border-t border-border/50">
+                          <div className="flex items-center gap-2 text-[9px] font-bold text-muted-foreground uppercase tracking-wider">
+                            <Scale size={10} className="text-primary/60" />
+                            {template.legalBasis.length > 60
+                              ? template.legalBasis.slice(0, 60) + '...'
+                              : template.legalBasis}
+                          </div>
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
                 </div>
-
-                <h3 className="text-base font-black tracking-tight text-foreground group-hover:text-primary transition-colors mb-2 leading-tight">
-                  {template.title}
-                </h3>
-
-                <p className="text-xs text-muted-foreground line-clamp-2 mb-4 leading-relaxed">
-                  {template.description}
-                </p>
-
-                <div className="flex flex-wrap gap-1.5 mb-4">
-                  <Badge className={cn('text-[8px] font-black uppercase tracking-widest py-0.5 rounded-md border', CATEGORY_COLORS[template.category])}>
-                    {template.category}
-                  </Badge>
-                  <Badge variant="outline" className="text-[8px] font-bold tracking-wide py-0.5 rounded-md">
-                    {template.subcategory}
-                  </Badge>
-                </div>
-              </div>
-
-              <div className="pt-4 border-t border-border/50">
-                <div className="flex items-center gap-2 text-[9px] font-bold text-muted-foreground uppercase tracking-wider">
-                  <Scale size={10} className="text-primary/60" />
-                  {template.legalBasis.length > 60
-                    ? template.legalBasis.slice(0, 60) + '...'
-                    : template.legalBasis}
-                </div>
-              </div>
-            </Card>
-          ))
-        ) : (
-          <div className="col-span-full py-20 text-center border-2 border-dashed border-border/50 rounded-3xl bg-muted/5">
-            <FileText size={48} className="mx-auto text-muted-foreground/20 mb-4" />
-            <p className="text-sm font-black text-muted-foreground uppercase tracking-widest">No se encontraron plantillas</p>
-            <p className="text-xs text-muted-foreground mt-2">Probá con otro término de búsqueda o categoría.</p>
-          </div>
-        )}
-      </div>
+              ))}
+            </section>
+          ))}
+        </div>
+      ) : (
+        <div className="py-20 text-center border-2 border-dashed border-border/50 rounded-3xl bg-muted/5">
+          <FileText size={48} className="mx-auto text-muted-foreground/20 mb-4" />
+          <p className="text-sm font-black text-muted-foreground uppercase tracking-widest">No se encontraron plantillas</p>
+          <p className="text-xs text-muted-foreground mt-2">Probá con otro término de búsqueda o categoría.</p>
+        </div>
+      )}
 
       {/* Template Detail Drawer */}
       <Drawer
@@ -394,7 +525,7 @@ export const Plantillas = ({ matters = [], clients = [] }: PlantillasProps) => {
                           className="gap-1.5 text-[9px] font-black uppercase tracking-widest"
                         >
                           <Wand2 size={12} />
-                          Auto-completar
+                          Completar desde asunto
                         </Button>
                       </div>
                     )}

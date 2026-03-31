@@ -241,7 +241,7 @@ export const PresupuestoEditor: React.FC<PresupuestoEditorProps> = ({
           <div>
             <h2 className="text-xl font-black tracking-tight">Presupuesto de Honorarios</h2>
             <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest mt-0.5">
-              Ley 14.967 · IUS = ${iusValor.toLocaleString('es-AR')} por unidad
+              Ley 14.967 · JUS = ${iusValor.toLocaleString('es-AR')} por unidad
             </p>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-muted rounded-xl transition-colors">
@@ -252,12 +252,12 @@ export const PresupuestoEditor: React.FC<PresupuestoEditorProps> = ({
         {/* Body */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
 
-          {/* IUS notice */}
+          {/* JUS notice */}
           {iusValor === 0 && (
             <div className="flex items-start gap-3 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl">
               <Info size={16} className="text-amber-600 shrink-0 mt-0.5" />
               <p className="text-xs font-medium text-amber-700">
-                El valor del IUS no está configurado. Configuralo en <strong>Configuración → Valor del IUS</strong> para que los cálculos sean automáticos.
+                El valor del JUS no está configurado. Configuralo en <strong>Configuración → Valor del JUS</strong> para que los cálculos sean automáticos.
               </p>
             </div>
           )}
@@ -268,7 +268,7 @@ export const PresupuestoEditor: React.FC<PresupuestoEditorProps> = ({
               <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground">Servicios y Honorarios</h3>
               <div className="flex gap-2">
                 <Button size="sm" variant="outline" onClick={addItem} className="gap-1.5 text-xs">
-                  <Plus size={14} /> Agregar ítem IUS
+                  <Plus size={14} /> Agregar ítem JUS
                 </Button>
                 <Button size="sm" variant="outline" onClick={addCostoExtra} className="gap-1.5 text-xs text-amber-700 border-amber-200 hover:bg-amber-50 dark:border-amber-800 dark:text-amber-400 dark:hover:bg-amber-950">
                   <Plus size={14} /> Costo adicional
@@ -276,12 +276,12 @@ export const PresupuestoEditor: React.FC<PresupuestoEditorProps> = ({
               </div>
             </div>
             <p className="text-[10px] text-muted-foreground -mt-1">
-              Usá <strong>Costo adicional</strong> para fotocopias, sellados y otros gastos fijos sin IUS — ingresá el monto en pesos directamente.
+              Usá <strong>Costo adicional</strong> para fotocopias, sellados y otros gastos fijos sin JUS — ingresá el monto en pesos directamente.
             </p>
 
             {/* Table header */}
             <div className="hidden lg:grid grid-cols-[2fr_1fr_1.2fr_0.7fr_0.7fr_1fr_auto] gap-3 px-3 py-2 bg-[#1A3C5E] text-white rounded-lg">
-              {['Descripción', 'Cant. IUS', 'Monto $', 'Fiscal %', 'Desc. %', 'Subtotal $', ''].map(h => (
+              {['Descripción', 'Cant. JUS', 'Monto $', 'Fiscal %', 'Desc. %', 'Subtotal $', ''].map(h => (
                 <div key={h} className="text-[9px] font-black uppercase tracking-widest">{h}</div>
               ))}
             </div>
@@ -319,9 +319,9 @@ export const PresupuestoEditor: React.FC<PresupuestoEditorProps> = ({
                     </div>
                   </div>
 
-                  {/* Cant. IUS */}
+                  {/* Cant. JUS */}
                   <div className="flex flex-col gap-1">
-                    <label className="lg:hidden text-[9px] font-black uppercase tracking-widest text-muted-foreground">Cant. IUS</label>
+                    <label className="lg:hidden text-[9px] font-black uppercase tracking-widest text-muted-foreground">Cant. JUS</label>
                     {item.tipo === 'gasto' ? (
                       <div className="text-sm h-8 text-right px-2 flex items-center justify-end text-muted-foreground/40 border border-border/30 rounded-lg bg-muted/30">—</div>
                     ) : (
@@ -413,8 +413,8 @@ export const PresupuestoEditor: React.FC<PresupuestoEditorProps> = ({
             <div className="space-y-3">
               <div className="p-4 bg-muted/30 rounded-xl border border-border space-y-2.5">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Subtotal IUS</span>
-                  <span className="font-bold">{totalIus.toLocaleString('es-AR', { minimumFractionDigits: 2 })} IUS</span>
+                  <span className="text-muted-foreground">Subtotal JUS</span>
+                  <span className="font-bold">{totalIus.toLocaleString('es-AR', { minimumFractionDigits: 2 })} JUS</span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">Subtotal en pesos</span>
@@ -449,7 +449,7 @@ export const PresupuestoEditor: React.FC<PresupuestoEditorProps> = ({
 
               <div className="flex items-center gap-2 text-[10px] text-muted-foreground bg-muted/20 rounded-lg px-3 py-2 border border-border/50">
                 <Calculator size={12} className="shrink-0" />
-                <span>IUS vigente: <strong>${iusValor.toLocaleString('es-AR')}</strong>. Los montos en pesos se calculan automáticamente al ingresar cantidades IUS.</span>
+                <span>JUS vigente: <strong>${iusValor.toLocaleString('es-AR')}</strong>. Los montos en pesos se calculan automáticamente al ingresar cantidades JUS.</span>
               </div>
             </div>
           </div>
