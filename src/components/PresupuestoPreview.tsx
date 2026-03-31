@@ -106,7 +106,7 @@ export const PresupuestoPreview: React.FC<PresupuestoPreviewProps> = ({
             {/* Logo */}
             <div style={{ width: '30%' }}>
               {perfil.logoUrl ? (
-                <img src={perfil.logoUrl} alt="Logo" style={{ maxHeight: 80, maxWidth: 160, objectFit: 'contain' }} />
+                <img src={perfil.logoUrl} alt="Logo" style={{ maxHeight: 130, maxWidth: 220, objectFit: 'contain' }} />
               ) : (
                 <div style={{ width: 80, height: 80, backgroundColor: '#f1f5f9', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: 10, textAlign: 'center' }}>
                   Logo

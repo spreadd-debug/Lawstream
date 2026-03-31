@@ -38,7 +38,7 @@ const s = StyleSheet.create({
 
   // Header
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 28 },
-  logo:   { width: 110, height: 70, objectFit: 'contain' },
+  logo:   { width: 160, height: 100, objectFit: 'contain' },
   logoPlaceholder: { width: 70, height: 70, backgroundColor: '#F1F5F9', borderRadius: 6 },
   titleBlock: { alignItems: 'flex-end' },
   title:  { fontSize: 30, fontFamily: 'Helvetica-Bold', letterSpacing: -0.5, color: BLACK },
