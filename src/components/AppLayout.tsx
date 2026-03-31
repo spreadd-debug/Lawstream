@@ -36,7 +36,7 @@ interface SidebarLinkProps {
   to: string;
   icon: React.ElementType;
   label: string;
-  badge?: string;
+  badge?: string | number;
   theme: 'light' | 'dark';
   onClick?: () => void;
 }
@@ -95,7 +95,7 @@ export const AppLayout: React.FC = () => {
   const navigate = useNavigate();
   const {
     theme, toggleTheme,
-    matters, consultations, profiles,
+    matters, consultations, tasks, profiles,
     isNewActionOpen, setIsNewActionOpen,
     isEditMatterOpen, setIsEditMatterOpen,
     isFiltersOpen, setIsFiltersOpen,
@@ -113,9 +113,9 @@ export const AppLayout: React.FC = () => {
 
   const menuItems = [
     { to: '/hoy',          label: 'Hoy',          icon: Clock },
-    { to: '/consultas',    label: 'Consultas',     icon: Inbox,          badge: '3' },
+    { to: '/consultas',    label: 'Consultas',     icon: Inbox,          badge: consultations.filter(c => c.status === 'Nueva' || c.status === 'Esperando info').length || undefined },
     { to: '/asuntos',      label: 'Asuntos',       icon: Briefcase },
-    { to: '/agenda',       label: 'Agenda',         icon: Calendar,       badge: '2' },
+    { to: '/agenda',       label: 'Agenda',         icon: Calendar,       badge: tasks.filter(t => t.status === 'Pendiente' && t.dueDate && new Date(t.dueDate) <= new Date()).length || undefined },
     ...(isSocioOrSecretario ? [{ to: '/equipo', label: 'Equipo', icon: UsersRound }] : []),
     { to: '/clientes',     label: 'Clientes',      icon: Users },
     { to: '/documentos',   label: 'Documentos',    icon: FileText },
