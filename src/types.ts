@@ -48,6 +48,7 @@ export interface Consultation {
   phone?: string;
   notes?: string[];
   consultationFeePaid?: boolean;
+  consultationFeeSnapshot?: number;
 }
 
 export interface Client {

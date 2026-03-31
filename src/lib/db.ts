@@ -140,7 +140,8 @@ const toConsultation = (r: any): Consultation => ({
   email:                r.email                 ?? undefined,
   phone:                r.phone                 ?? undefined,
   notes:                r.notes                 ?? undefined,
-  consultationFeePaid:  r.consultation_fee_paid ?? false,
+  consultationFeePaid:      r.consultation_fee_paid     ?? false,
+  consultationFeeSnapshot:  r.consulta_fee_snapshot != null ? parseFloat(r.consulta_fee_snapshot) : undefined,
 });
 
 const toDocument = (r: any): LegalDocument => ({
@@ -251,7 +252,8 @@ export const updateConsultation = async (id: string, changes: Partial<Consultati
   if (changes.email               !== undefined) row.email                = changes.email;
   if (changes.phone               !== undefined) row.phone                = changes.phone;
   if (changes.notes               !== undefined) row.notes                = changes.notes;
-  if (changes.consultationFeePaid !== undefined) row.consultation_fee_paid = changes.consultationFeePaid;
+  if (changes.consultationFeePaid    !== undefined) row.consultation_fee_paid  = changes.consultationFeePaid;
+  if (changes.consultationFeeSnapshot !== undefined) row.consulta_fee_snapshot = changes.consultationFeeSnapshot;
   const { error } = await supabase.from('consultations').update(row).eq('id', id);
   if (error) throw error;
 };
@@ -271,7 +273,8 @@ export const createConsultation = async (c: Omit<Consultation, 'id'>): Promise<C
       email:                c.email ?? null,
       phone:                c.phone ?? null,
       notes:                c.notes ?? null,
-      consultation_fee_paid: c.consultationFeePaid ?? false,
+      consultation_fee_paid:  c.consultationFeePaid ?? false,
+      consulta_fee_snapshot:  c.consultationFeeSnapshot ?? null,
     })
     .select()
     .single();
@@ -419,6 +422,12 @@ export const upsertStudioConfig = async (key: string, value: Record<string, unkn
     .from('studio_config')
     .upsert({ key, value, updated_at: new Date().toISOString(), updated_by: updatedBy ?? null }, { onConflict: 'key' });
   if (error) throw error;
+};
+
+/** Devuelve el valor actual de la consulta en pesos (0 si no está configurado). */
+export const fetchConsultaValor = async (): Promise<number> => {
+  const cfg = await fetchStudioConfig('consulta_valor');
+  return cfg ? ((cfg.value as any).pesos ?? 0) : 0;
 };
 
 // ── Presupuestos ──────────────────────────────────────────────────

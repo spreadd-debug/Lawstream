@@ -252,6 +252,117 @@ const IUSConfig = ({ onBack }: { onBack: () => void }) => {
   );
 };
 
+const ConsultaValorConfig = ({ onBack }: { onBack: () => void }) => {
+  const [currentValue, setCurrentValue] = useState<number>(0);
+  const [inputValue, setInputValue]     = useState('');
+  const [lastUpdated, setLastUpdated]   = useState<string | null>(null);
+  const [saving, setSaving]             = useState(false);
+  const [saved, setSaved]               = useState(false);
+
+  useEffect(() => {
+    fetchStudioConfig('consulta_valor').then(cfg => {
+      if (cfg) {
+        const val = (cfg.value as any).pesos ?? 0;
+        setCurrentValue(val);
+        setInputValue(val.toString());
+        setLastUpdated(cfg.updatedAt);
+      }
+    });
+  }, []);
+
+  const handleSave = async () => {
+    const newVal = parseFloat(inputValue);
+    if (isNaN(newVal) || newVal <= 0) return;
+    setSaving(true);
+    try {
+      await upsertStudioConfig('consulta_valor', { pesos: newVal }, 'usuario');
+      setCurrentValue(newVal);
+      setLastUpdated(new Date().toISOString());
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-8 max-w-2xl mx-auto pb-20">
+      <header className="flex items-center gap-4">
+        <button onClick={onBack} className="p-2 hover:bg-muted rounded-xl transition-colors">
+          <ArrowLeft size={20} />
+        </button>
+        <div>
+          <h1 className="text-2xl font-black tracking-tighter">Valor de Consulta</h1>
+          <p className="text-xs text-muted-foreground uppercase tracking-widest font-bold mt-0.5">
+            Precio de la entrevista inicial
+          </p>
+        </div>
+      </header>
+
+      <Card className="p-6 space-y-6">
+        <div className="flex items-center gap-4 p-4 bg-teal-50 border border-teal-200 rounded-xl">
+          <Calculator size={24} className="text-teal-600 shrink-0" />
+          <div>
+            <p className="text-xs font-bold text-teal-700 uppercase tracking-wide">Valor vigente de consulta</p>
+            <p className="text-3xl font-black text-teal-800">
+              {currentValue > 0
+                ? `$${currentValue.toLocaleString('es-AR')}`
+                : <span className="text-lg text-muted-foreground">Sin configurar</span>
+              }
+            </p>
+            {lastUpdated && (
+              <p className="text-xs text-teal-600 mt-1">
+                Actualizado: {format(parseISO(lastUpdated), "d 'de' MMMM yyyy", { locale: es })}
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+            Nuevo valor (en pesos)
+          </label>
+          <div className="flex gap-3">
+            <Input
+              type="number"
+              placeholder="Ej: 15000"
+              value={inputValue}
+              onChange={e => setInputValue(e.target.value)}
+              className="flex-1"
+            />
+            <Button onClick={handleSave} disabled={saving} className="gap-2 shrink-0">
+              {saved ? <Check size={16} /> : null}
+              {saving ? 'Guardando...' : saved ? 'Guardado' : 'Actualizar'}
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Cada vez que se marca una consulta como cobrada, se guarda el valor vigente en ese momento.
+            Así las métricas históricas siempre reflejan el precio real al que se cobró cada entrevista.
+          </p>
+        </div>
+      </Card>
+
+      <Card className="p-6 space-y-3">
+        <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">¿Cómo funciona?</p>
+        <div className="space-y-2 text-sm text-muted-foreground">
+          <div className="flex gap-3">
+            <span className="text-primary font-black shrink-0">1.</span>
+            <span>Configurás el valor actual de la consulta aquí.</span>
+          </div>
+          <div className="flex gap-3">
+            <span className="text-primary font-black shrink-0">2.</span>
+            <span>Al marcar una consulta como cobrada, el sistema guarda automáticamente el precio de ese momento.</span>
+          </div>
+          <div className="flex gap-3">
+            <span className="text-primary font-black shrink-0">3.</span>
+            <span>Si en el futuro actualizás el precio, las consultas ya cobradas siguen mostrando el valor histórico correcto.</span>
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+};
+
 export const Configuracion = () => {
   const { signOut } = useAuth();
   const [activeSection, setActiveSection] = useState<string | null>(null);
@@ -260,6 +371,7 @@ export const Configuracion = () => {
     { id: 'estudio',        label: 'Datos del Estudio',    icon: Briefcase,  desc: 'Nombre, CUIT, dirección y contacto.' },
     { id: 'usuarios',       label: 'Usuarios y Roles',     icon: Shield,     desc: 'Gestionar quién accede y qué puede hacer.' },
     { id: 'ius',            label: 'Valor del IUS',        icon: Calculator, desc: 'Actualizar el valor vigente del IUS para presupuestos (Ley 14.967).' },
+    { id: 'consulta',       label: 'Valor de Consulta',    icon: Calculator, desc: 'Precio de la entrevista inicial. Se guarda históricamente en cada consulta cobrada.' },
     { id: 'asuntos',        label: 'Tipos de Asunto',      icon: FileText,   desc: 'Configurar tipos, estados y checklists.' },
     { id: 'notificaciones', label: 'Notificaciones',       icon: Bell,       desc: 'Alertas de vencimientos y actividad.' },
     { id: 'perfil',         label: 'Mi Perfil',            icon: User,       desc: 'Cambiar contraseña y preferencias personales.' },
@@ -268,6 +380,7 @@ export const Configuracion = () => {
 
   if (activeSection === 'usuarios') return <UsuariosConfig onBack={() => setActiveSection(null)} />;
   if (activeSection === 'ius')      return <IUSConfig onBack={() => setActiveSection(null)} />;
+  if (activeSection === 'consulta') return <ConsultaValorConfig onBack={() => setActiveSection(null)} />;
   if (activeSection === 'estudio')  return <EstudioPerfilConfig onBack={() => setActiveSection(null)} />;
 
   return (

@@ -25,7 +25,7 @@ import {
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '../lib/utils';
-import { fetchPresupuestoByConsultation, updateConsultation } from '../lib/db';
+import { fetchPresupuestoByConsultation, updateConsultation, fetchConsultaValor } from '../lib/db';
 import { PresupuestoEditor } from './PresupuestoEditor';
 import { PresupuestoDetail } from './PresupuestoDetail';
 import { NuevaConsultaForm } from './NuevaConsultaForm';
@@ -285,10 +285,16 @@ export const Consultas = ({ consultations, profiles = [], onConvertToMatter, onU
 
   const handleToggleFeePaid = async (consultation: Consultation) => {
     const newVal = !consultation.consultationFeePaid;
-    await updateConsultation(consultation.id, { consultationFeePaid: newVal });
-    const updated = { ...consultation, consultationFeePaid: newVal };
+    // Al cobrar, guardar snapshot del valor actual; al descobrar, borrar snapshot
+    const feeSnapshot = newVal ? await fetchConsultaValor() : undefined;
+    const changes: Partial<Consultation> = {
+      consultationFeePaid: newVal,
+      ...(newVal ? { consultationFeeSnapshot: feeSnapshot || undefined } : { consultationFeeSnapshot: undefined }),
+    };
+    await updateConsultation(consultation.id, changes);
+    const updated = { ...consultation, ...changes };
     setSelectedConsultation(updated);
-    onUpdateConsultation?.(consultation.id, { consultationFeePaid: newVal });
+    onUpdateConsultation?.(consultation.id, changes);
   };
 
   const filteredConsultations = consultations.filter(c => {
