@@ -36,9 +36,13 @@ import { MatterTemplate, Priority } from '../types';
 interface CrearAsuntoProps {
   onBack: () => void;
   onSave: (data: any) => void;
+  clients?: { id: string; name: string; type: string; email: string; phone?: string }[];
+  onCreateClient?: (data: { name: string; email: string; phone: string; type: 'Persona' | 'Empresa' }) => Promise<{ id: string; name: string; type: string; email: string; phone?: string }>;
   prefilledData?: {
     title?: string;
     client?: string;
+    clientEmail?: string;
+    clientPhone?: string;
     type?: string;
     description?: string;
     fromConsultationId?: string;
@@ -84,14 +88,8 @@ const SUGGESTIONS_BY_TYPE: Record<string, {
   }
 };
 
-const MOCK_CLIENTS = [
-  { id: '1', name: 'Juan Pérez', type: 'Persona', email: 'juan@perez.com' },
-  { id: '2', name: 'Techint S.A.', type: 'Empresa', email: 'legal@techint.com' },
-  { id: '3', name: 'María García', type: 'Persona', email: 'mgarcia@gmail.com' },
-  { id: '4', name: 'Banco Galicia', type: 'Empresa', email: 'legales@galicia.com' },
-];
 
-export const CrearAsunto = ({ onBack, onSave, prefilledData }: CrearAsuntoProps) => {
+export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCreateClient }: CrearAsuntoProps) => {
   const [step, setStep] = useState(1);
   const [isCreatingClient, setIsCreatingClient] = useState(false);
   const [clientSearch, setClientSearch] = useState('');
@@ -129,14 +127,20 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData }: CrearAsuntoProps)
       }));
 
       if (prefilledData.client) {
-        const existingClient = MOCK_CLIENTS.find(c => 
+        const existingClient = clients.find(c =>
           c.name.toLowerCase() === prefilledData.client?.toLowerCase()
         );
         if (existingClient) {
           setSelectedClient(existingClient);
         } else {
-          // If no match, we could pre-fill the "New Client" form or just search for it
-          setClientSearch(prefilledData.client);
+          // Pre-fill the new client form with consultation data
+          setIsCreatingClient(true);
+          setNewClientData({
+            name:  prefilledData.client,
+            email: prefilledData.clientEmail || '',
+            phone: prefilledData.clientPhone || '',
+            type:  'Persona',
+          });
         }
       }
     }
@@ -162,12 +166,19 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData }: CrearAsuntoProps)
     }
   };
 
-  const handleCreateClient = () => {
+  const handleCreateClient = async () => {
     if (!newClientData.name) return;
-    const newClient = {
-      id: Math.random().toString(36).substr(2, 9),
-      ...newClientData
-    };
+    let newClient: { id: string; name: string; type: string; email: string; phone?: string };
+    if (onCreateClient) {
+      try {
+        newClient = await onCreateClient(newClientData);
+      } catch {
+        // fallback: use temp id if DB save fails
+        newClient = { id: crypto.randomUUID(), ...newClientData };
+      }
+    } else {
+      newClient = { id: crypto.randomUUID(), ...newClientData };
+    }
     setSelectedClient(newClient);
     setIsCreatingClient(false);
     setNewClientData({ name: '', email: '', phone: '', type: 'Persona' });
@@ -210,7 +221,7 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData }: CrearAsuntoProps)
     }
   }, [step, formData.type, formData.subtype]);
 
-  const filteredClients = MOCK_CLIENTS.filter(c => 
+  const filteredClients = clients.filter(c =>
     c.name.toLowerCase().includes(clientSearch.toLowerCase())
   );
 

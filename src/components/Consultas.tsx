@@ -454,11 +454,13 @@ export const Consultas = ({ consultations, profiles = [], onConvertToMatter, onU
 
   const handleConvert = (consultation: Consultation) => {
     onConvertToMatter({
-      title: consultation.description || `Asunto: ${consultation.name}`,
-      client: consultation.name,
-      type: consultation.type || 'Civil',
-      description: consultation.description,
-      fromConsultationId: consultation.id
+      title:             consultation.description || `Asunto: ${consultation.name}`,
+      client:            consultation.name,
+      clientEmail:       consultation.email,
+      clientPhone:       consultation.phone,
+      type:              consultation.type || 'Civil',
+      description:       consultation.description,
+      fromConsultationId: consultation.id,
     });
   };
 
