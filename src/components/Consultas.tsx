@@ -65,6 +65,19 @@ const StatusBadge = ({ status }: { status: Consultation['status'] }) => {
   );
 };
 
+// ── Próxima acción automática por estado ─────────────────────────
+
+const NEXT_STEP_BY_STATUS: Record<Consultation['status'], string> = {
+  'Nueva':                'Agendar entrevista inicial',
+  'Contactada':           'Realizar entrevista y cobrar consulta',
+  'Esperando info':       'Esperar documentación del cliente',
+  'Evaluando viabilidad': 'Elaborar presupuesto de honorarios',
+  'Presupuestada':        'Aguardar respuesta del cliente',
+  'Aceptada':             'Convertir en asunto y comenzar',
+  'Rechazada':            'Consulta cerrada',
+  'Archivada':            'Consulta archivada',
+};
+
 // ── Pipeline stages ──────────────────────────────────────────────
 
 const PIPELINE_STAGES: { key: Consultation['status']; label: string }[] = [
@@ -375,6 +388,8 @@ export const Consultas = ({ consultations, profiles = [], onConvertToMatter, onU
       consultationFeePaid:        true,
       consultationFeeSnapshot:    feeSnapshot || undefined,
       consultationFeeFormaPago:   formaPago,
+      // Ahora que la entrevista está cobrada, el siguiente paso es avanzar a evaluación
+      nextStep: 'Pasar a Evaluación de viabilidad del caso',
     };
     await updateConsultation(consultation.id, changes);
     const updated = { ...consultation, ...changes };
@@ -387,6 +402,8 @@ export const Consultas = ({ consultations, profiles = [], onConvertToMatter, onU
       consultationFeePaid:        false,
       consultationFeeSnapshot:    undefined,
       consultationFeeFormaPago:   undefined,
+      // Al deshacer, volver al nextStep del estado actual
+      nextStep: NEXT_STEP_BY_STATUS[consultation.status],
     };
     await updateConsultation(consultation.id, changes);
     const updated = { ...consultation, ...changes };
@@ -585,10 +602,11 @@ export const Consultas = ({ consultations, profiles = [], onConvertToMatter, onU
               <ConsultationPipeline
                 consultation={selectedConsultation}
                 onStatusChange={async (s) => {
-                  await updateConsultation(selectedConsultation.id, { status: s });
-                  const updated = { ...selectedConsultation, status: s };
+                  const nextStep = NEXT_STEP_BY_STATUS[s];
+                  await updateConsultation(selectedConsultation.id, { status: s, nextStep });
+                  const updated = { ...selectedConsultation, status: s, nextStep };
                   setSelectedConsultation(updated);
-                  onUpdateConsultation?.(selectedConsultation.id, { status: s });
+                  onUpdateConsultation?.(selectedConsultation.id, { status: s, nextStep });
                 }}
                 onOpenPresupuesto={() => setShowPresupuestoForm(true)}
                 onConvertToMatter={() => handleConvert(selectedConsultation)}
