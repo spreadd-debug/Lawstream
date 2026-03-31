@@ -16,7 +16,7 @@ import { ConsultasPage }    from './pages/ConsultasPage';
 import { AsuntosPage }      from './pages/AsuntosPage';
 import { AsuntoDetallePage } from './pages/AsuntoDetallePage';
 import { CrearAsuntoPage }  from './pages/CrearAsuntoPage';
-import { VencimientosPage } from './pages/VencimientosPage';
+import { AgendaPage }       from './pages/AgendaPage';
 import { EquipoPage }       from './pages/EquipoPage';
 import { ClientesPage }     from './pages/ClientesPage';
 import { DocumentosPage }   from './pages/DocumentosPage';
@@ -39,7 +39,8 @@ export default function App() {
             <Route path="/asuntos"         element={<AsuntosPage />} />
             <Route path="/asuntos/nuevo"   element={<CrearAsuntoPage />} />
             <Route path="/asuntos/:id"     element={<AsuntoDetallePage />} />
-            <Route path="/vencimientos"    element={<VencimientosPage />} />
+            <Route path="/agenda"           element={<AgendaPage />} />
+            <Route path="/vencimientos"    element={<Navigate to="/agenda" replace />} />
             <Route path="/equipo"          element={<EquipoPage />} />
             <Route path="/clientes"        element={<ClientesPage />} />
             <Route path="/documentos"      element={<DocumentosPage />} />

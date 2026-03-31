@@ -221,7 +221,7 @@ export const NuevaConsultaForm = ({ onSave, onClose, profiles = [] }: NuevaConsu
               </div>
             </div>
             <p className="text-[10px] text-primary/70 leading-relaxed">
-              Aparecerá en el Calendario. Se genera un recordatorio el día anterior.
+              Aparecerá en la Agenda. Se genera un recordatorio el día anterior.
             </p>
           </section>
 
