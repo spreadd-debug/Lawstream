@@ -142,11 +142,12 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
   const validateStep = (currentStep: number) => {
     switch (currentStep) {
       case 1:
-        return formData.title && formData.type && formData.subtype && selectedClient;
+        // Si hay wizard, el título se auto-genera en paso 2 — no exigirlo acá
+        return (hasWizardStep || formData.title) && formData.type && formData.subtype && selectedClient;
       case 2:
         if (!hasWizardStep) return formData.responsible && formData.nextAction && formData.nextActionDate;
-        // Validate required wizard fields
-        return wizardSections.every(section =>
+        // Validate required wizard fields + que la carátula se haya generado
+        return formData.title && wizardSections.every(section =>
           section.fields.filter(f => f.required).every(f => formData.caseData[f.key]?.trim())
         );
       case 3:
@@ -384,17 +385,24 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
             <div className="space-y-6">
               <div className="space-y-2">
                 <Label>Carátula del Asunto</Label>
-                <Input
-                  placeholder="Ej: Bianucci, Santiago c/ Bonzi, Aldo s/ despido"
-                  className="bg-muted/30 border-border/50 text-lg font-bold h-14 focus:bg-card transition-all"
-                  value={formData.title}
-                  onChange={e => {
-                    setFormData({...formData, title: e.target.value});
-                    setTitleManuallyEdited(true);
-                  }}
-                />
-                {hasWizardStep && !titleManuallyEdited && (
-                  <p className="text-[11px] text-muted-foreground">Se genera automáticamente con los datos del caso</p>
+                {hasWizardStep && !formData.title && !titleManuallyEdited ? (
+                  <div className="flex items-center gap-3 h-14 px-4 rounded-xl border border-dashed border-teal-500/40 bg-teal-500/5">
+                    <Zap size={16} className="text-teal-500 shrink-0" />
+                    <span className="text-sm text-muted-foreground">Se genera automáticamente en el próximo paso con los datos del caso</span>
+                  </div>
+                ) : (
+                  <Input
+                    placeholder="Ej: Bianucci, Santiago c/ Bonzi, Aldo s/ despido"
+                    className="bg-muted/30 border-border/50 text-lg font-bold h-14 focus:bg-card transition-all"
+                    value={formData.title}
+                    onChange={e => {
+                      setFormData({...formData, title: e.target.value});
+                      setTitleManuallyEdited(true);
+                    }}
+                  />
+                )}
+                {hasWizardStep && formData.title && !titleManuallyEdited && (
+                  <p className="text-[11px] text-teal-600">Carátula generada automáticamente — editala si necesitás ajustarla</p>
                 )}
               </div>
               
