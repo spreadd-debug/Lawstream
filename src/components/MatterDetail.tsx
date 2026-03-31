@@ -39,6 +39,8 @@ import { ExpedienteDetail } from './ExpedienteDetail';
 import { ESTADO_COLORS } from '../data/juzgados';
 import { findTemplate } from '../data/templates';
 import { getFlowSnapshot } from '../lib/flowEngine';
+import { findTemplateForTask } from '../lib/taskTemplateMatch';
+import { useNavigate } from 'react-router-dom';
 
 interface MatterDetailProps {
   matter: Matter;
@@ -62,6 +64,7 @@ interface MatterDetailProps {
 import { ACTION_ICONS } from '../constants';
 
 export const MatterDetail = ({ matter, timeline, tasks, documents, milestones, profiles, onBack, onNewAction, onEditMatter, onCompleteMilestone, onCompleteTask, onReopenTask, onUpdateMatter, onUpdateDocument, onAddDocument, onAddMilestone }: MatterDetailProps) => {
+  const navigate = useNavigate();
   const [isRequestDocOpen, setIsRequestDocOpen] = useState(false);
   const [isAddMilestoneOpen, setIsAddMilestoneOpen] = useState(false);
   const [isBlockageOpen, setIsBlockageOpen] = useState(false);
@@ -205,17 +208,34 @@ export const MatterDetail = ({ matter, timeline, tasks, documents, milestones, p
                   )}>
                     {flow.nextAction || matter.nextAction || 'Sin próxima acción'}
                   </h2>
-                  {!matter.nextAction && (
-                    <Button 
-                      onClick={onNewAction}
-                      variant="primary" 
-                      size="sm" 
-                      className="bg-white text-rose-600 hover:bg-white/90 border-none text-[10px] font-black uppercase tracking-widest h-9 px-4 rounded-lg shadow-lg"
-                    >
-                      <Plus size={14} className="mr-2" />
-                      Definir Acción Ahora
-                    </Button>
-                  )}
+                  <div className="flex items-center gap-3 flex-wrap">
+                    {!matter.nextAction && (
+                      <Button
+                        onClick={onNewAction}
+                        variant="primary"
+                        size="sm"
+                        className="bg-white text-rose-600 hover:bg-white/90 border-none text-[10px] font-black uppercase tracking-widest h-9 px-4 rounded-lg shadow-lg"
+                      >
+                        <Plus size={14} className="mr-2" />
+                        Definir Acción Ahora
+                      </Button>
+                    )}
+                    {(() => {
+                      const actionText = flow.nextAction || matter.nextAction;
+                      const matched = actionText ? findTemplateForTask(actionText, matter.type as any) : null;
+                      return matched ? (
+                        <Button
+                          onClick={() => navigate(`/plantillas?template=${matched.id}&matter=${matter.id}`)}
+                          variant="primary"
+                          size="sm"
+                          className="bg-white/15 text-white hover:bg-white/25 border border-white/20 text-[10px] font-black uppercase tracking-widest h-9 px-4 rounded-lg backdrop-blur-md"
+                        >
+                          <FileText size={14} className="mr-2" />
+                          Generar con Plantilla
+                        </Button>
+                      ) : null;
+                    })()}
+                  </div>
                 </div>
               </div>
             </div>
@@ -415,9 +435,25 @@ export const MatterDetail = ({ matter, timeline, tasks, documents, milestones, p
                         <span className="flex items-center gap-1.5"><User size={12} /> {matter.responsible.split(' ').pop()}</span>
                       </div>
                     </div>
-                    <Button variant="outline" size="sm" className="text-[10px] font-black uppercase tracking-widest rounded-xl opacity-0 group-hover:opacity-100 transition-all" onClick={(e) => { e.stopPropagation(); onCompleteTask?.(task.id); }}>
-                      {task.status === 'Completada' ? 'Reabrir' : 'Resolver'}
-                    </Button>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {(() => {
+                        const matched = findTemplateForTask(task.title, matter.type as any);
+                        return matched ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-[10px] font-black uppercase tracking-widest rounded-xl opacity-0 group-hover:opacity-100 transition-all border-primary/30 text-primary hover:bg-primary/5"
+                            onClick={(e) => { e.stopPropagation(); navigate(`/plantillas?template=${matched.id}&matter=${matter.id}`); }}
+                          >
+                            <FileText size={12} className="mr-1.5" />
+                            Generar
+                          </Button>
+                        ) : null;
+                      })()}
+                      <Button variant="outline" size="sm" className="text-[10px] font-black uppercase tracking-widest rounded-xl opacity-0 group-hover:opacity-100 transition-all" onClick={(e) => { e.stopPropagation(); onCompleteTask?.(task.id); }}>
+                        {task.status === 'Completada' ? 'Reabrir' : 'Resolver'}
+                      </Button>
+                    </div>
                   </Card>
                 ))
               ) : (
@@ -693,10 +729,10 @@ export const MatterDetail = ({ matter, timeline, tasks, documents, milestones, p
               <div className="absolute top-0 right-0 p-4 opacity-10">
                 <MessageSquare size={48} />
               </div>
-              <p className="text-xs font-bold leading-relaxed opacity-90 italic relative z-10">"El cliente llamó preocupado por los tiempos. Recordar mencionar que la feria judicial retrasó los plazos."</p>
+              <p className="text-xs font-bold leading-relaxed opacity-90 italic relative z-10">"Sin notas aún."</p>
               <div className="flex items-center justify-between pt-4 border-t border-white/10 relative z-10">
-                <div className="text-[9px] font-black uppercase tracking-widest text-white/40">Dr. Darín</div>
-                <div className="text-[9px] font-black uppercase tracking-widest text-white/40">Hace 2 días</div>
+                <div className="text-[9px] font-black uppercase tracking-widest text-white/40">{matter.responsible || '—'}</div>
+                <div className="text-[9px] font-black uppercase tracking-widest text-white/40">—</div>
               </div>
             </div>
           </section>

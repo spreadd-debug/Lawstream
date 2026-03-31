@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
+import { supabase } from '../lib/supabase';
 import { format, addDays } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { findTemplate, SUBTYPES_BY_TYPE, JURISDICTIONS_BY_TYPE, getSubtypesForJurisdiction, WIZARD_FIELDS_BY_TEMPLATE, buildCaratula, type WizardSection } from '../data/templates';
@@ -58,6 +59,7 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
   const [direction, setDirection] = useState(1); // 1 = forward, -1 = backward
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCreatingClient, setIsCreatingClient] = useState(false);
+  const [abogados, setAbogados] = useState<{ full_name: string }[]>([]);
   const [clientSearch, setClientSearch] = useState('');
   const [selectedClient, setSelectedClient] = useState<any>(null);
   const [titleManuallyEdited, setTitleManuallyEdited] = useState(false);
@@ -71,7 +73,7 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
     etapaInicial: '',
     expediente: '',
     description: '',
-    responsible: 'Dr. Ricardo Darín',
+    responsible: '',
     priority: 'Media' as Priority,
     nextAction: '',
     nextActionDate: format(addDays(new Date(), 7), 'yyyy-MM-dd'),
@@ -83,6 +85,13 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
     selectedTemplateId: '',
     caseData: {} as Record<string, string>,
   });
+
+  // Fetch lawyers from profiles table
+  useEffect(() => {
+    supabase.from('profiles').select('full_name').eq('is_active', true).then(({ data }) => {
+      if (data && data.length > 0) setAbogados(data);
+    });
+  }, []);
 
   // Handle prefilled data from consultation
   useEffect(() => {
@@ -709,7 +718,7 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
               <div className="space-y-4">
                 <Label>Responsable del Asunto</Label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {['Dr. Ricardo Darín', 'Dra. Mercedes Morán', 'Dr. Guillermo Francella'].map(name => (
+                  {abogados.map(a => a.full_name).map(name => (
                     <button
                       key={name}
                       onClick={() => setFormData({...formData, responsible: name})}

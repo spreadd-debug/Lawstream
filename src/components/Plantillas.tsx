@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Card, Badge, Button, Input, Drawer } from './UI';
 import { LegalTemplate, MatterType, Matter, Client } from '../types';
 import { LEGAL_TEMPLATES } from '../data/legalTemplates';
@@ -151,6 +152,7 @@ interface PlantillasProps {
 }
 
 export const Plantillas = ({ matters = [], clients = [] }: PlantillasProps) => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<MatterType | 'Todas'>('Todas');
   const [selectedTemplate, setSelectedTemplate] = useState<LegalTemplate | null>(null);
@@ -158,6 +160,32 @@ export const Plantillas = ({ matters = [], clients = [] }: PlantillasProps) => {
   const [placeholderValues, setPlaceholderValues] = useState<Record<string, string>>({});
   const [copied, setCopied] = useState(false);
   const [autoFillMatterId, setAutoFillMatterId] = useState<string>('');
+
+  // Handle URL params: ?template=<id>&matter=<matterId>
+  useEffect(() => {
+    const templateId = searchParams.get('template');
+    const matterId = searchParams.get('matter');
+    if (templateId) {
+      const tmpl = LEGAL_TEMPLATES.find(t => t.id === templateId);
+      if (tmpl) {
+        setSelectedTemplate(tmpl);
+        setSelectedCategory(tmpl.category);
+        setMode('generate');
+        if (matterId) {
+          setAutoFillMatterId(matterId);
+          // Auto-fill from matter data
+          const matter = matters.find(m => m.id === matterId);
+          if (matter) {
+            const client = clients.find(c => c.name === matter.client);
+            const autoValues = autoFillFromMatter(tmpl, matter, client);
+            setPlaceholderValues(autoValues);
+          }
+        }
+        // Clean URL params
+        setSearchParams({}, { replace: true });
+      }
+    }
+  }, []);  // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleAutoFill = () => {
     if (!selectedTemplate || !autoFillMatterId) return;

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, Button, Input, Badge } from './UI';
 import { 
   ArrowLeft, 
@@ -28,7 +28,7 @@ import {
   Coins
 } from 'lucide-react';
 import { cn } from '../lib/utils';
-
+import { supabase } from '../lib/supabase';
 import { ACTION_TYPES } from '../constants';
 
 interface NuevaAccionProps {
@@ -40,11 +40,19 @@ interface NuevaAccionProps {
 }
 
 export const NuevaAccion = ({ matterId, matterTitle, matters = [], onBack, onSave }: NuevaAccionProps) => {
+  const [abogados, setAbogados] = useState<string[]>([]);
+
+  useEffect(() => {
+    supabase.from('profiles').select('full_name').eq('is_active', true).then(({ data }) => {
+      if (data) setAbogados(data.map(p => p.full_name));
+    });
+  }, []);
+
   const [formData, setFormData] = useState({
     matterId: matterId || '',
     title: '',
     type: 'presentar_escrito',
-    responsible: 'Dr. Ricardo Darín',
+    responsible: '',
     date: new Date().toISOString().split('T')[0],
     priority: 'Media',
     isBlocking: false,
@@ -149,9 +157,9 @@ export const NuevaAccion = ({ matterId, matterTitle, matters = [], onBack, onSav
                   value={formData.responsible}
                   onChange={e => setFormData({...formData, responsible: e.target.value})}
                 >
-                  <option value="Dr. Ricardo Darín">Dr. Ricardo Darín</option>
-                  <option value="Dra. Mercedes Morán">Dra. Mercedes Morán</option>
-                  <option value="Dr. Guillermo Francella">Dr. Guillermo Francella</option>
+                  {abogados.map(name => (
+                    <option key={name} value={name}>{name}</option>
+                  ))}
                 </select>
               </div>
             </div>

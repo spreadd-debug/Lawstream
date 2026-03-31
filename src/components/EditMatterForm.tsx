@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Label, Input, Textarea, Button } from './UI';
 import { Matter } from '../types';
+import { supabase } from '../lib/supabase';
 
 interface EditMatterFormProps {
   matter?: Matter;
@@ -9,6 +10,14 @@ interface EditMatterFormProps {
 }
 
 export const EditMatterForm = ({ matter, onSave, onCancel }: EditMatterFormProps) => {
+  const [abogados, setAbogados] = useState<string[]>([]);
+
+  useEffect(() => {
+    supabase.from('profiles').select('full_name').eq('is_active', true).then(({ data }) => {
+      if (data) setAbogados(data.map(p => p.full_name));
+    });
+  }, []);
+
   const [formData, setFormData] = useState({
     title: matter?.title || '',
     responsible: matter?.responsible || '',
@@ -35,9 +44,9 @@ export const EditMatterForm = ({ matter, onSave, onCancel }: EditMatterFormProps
             value={formData.responsible}
             onChange={e => setFormData({ ...formData, responsible: e.target.value })}
           >
-            <option value="Dr. Ricardo Darín">Dr. Ricardo Darín</option>
-            <option value="Dra. Mercedes Morán">Dra. Mercedes Morán</option>
-            <option value="Dr. Guillermo Francella">Dr. Guillermo Francella</option>
+            {abogados.map(name => (
+              <option key={name} value={name}>{name}</option>
+            ))}
           </select>
         </div>
         <div className="space-y-2">
