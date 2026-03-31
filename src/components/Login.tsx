@@ -114,16 +114,8 @@ export const Login = () => {
         <div style={{ background: C.cream, padding: '52px 52px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
 
           {/* Logo */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 40 }}>
-            <img src="/logo.png" alt="Lawstream" style={{ height: 44, width: 'auto', objectFit: 'contain' }} />
-            <div>
-              <div style={{ fontSize: 14, fontWeight: 700, letterSpacing: '0.13em', color: C.navy, textTransform: 'uppercase', lineHeight: 1 }}>
-                Lawstream
-              </div>
-              <div style={{ fontSize: 9, letterSpacing: '0.15em', color: C.teal, textTransform: 'uppercase', marginTop: 3 }}>
-                Gestión jurídica
-              </div>
-            </div>
+          <div style={{ marginBottom: 40 }}>
+            <img src="/logo.png" alt="Lawstream" style={{ height: 80, width: 'auto', objectFit: 'contain' }} />
           </div>
 
           {/* Título */}
