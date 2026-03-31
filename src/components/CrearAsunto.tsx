@@ -367,69 +367,132 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
       case 'identification':
         return (
           <div className="space-y-8">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <h2 className="text-2xl font-black tracking-tighter text-foreground">Identificación del Asunto</h2>
+            {/* Header */}
+            <div className="relative overflow-hidden rounded-2xl border border-teal-500/20 bg-gradient-to-br from-teal-500/5 via-transparent to-emerald-500/5 p-6">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-teal-500/5 rounded-full -translate-y-1/2 translate-x-1/2" />
+              <div className="relative flex items-center justify-between">
+                <div className="space-y-1">
+                  <h2 className="text-2xl font-black tracking-tighter text-foreground">Identificación del Asunto</h2>
+                  <p className="text-sm text-muted-foreground font-medium">
+                    Sentemos las bases del asunto. ¿De qué se trata y para quién es?
+                  </p>
+                </div>
                 {prefilledData && (
-                  <Badge className="bg-primary/10 text-primary border-primary/20 gap-1.5 py-1 px-3 animate-pulse">
-                    <Zap size={12} className="fill-primary" />
-                    <span className="text-[10px] font-black uppercase tracking-widest">Datos heredados de consulta</span>
+                  <Badge className="bg-teal-500/10 text-teal-600 border-teal-500/20 gap-1.5 py-1.5 px-4 animate-pulse">
+                    <Zap size={12} className="fill-teal-500" />
+                    <span className="text-[10px] font-black uppercase tracking-widest">Datos de consulta</span>
                   </Badge>
                 )}
               </div>
-              <p className="text-sm text-muted-foreground font-medium">
-                Sentemos las bases del asunto. ¿De qué se trata y para quién es?
-              </p>
             </div>
-            
-            <div className="space-y-6">
-              <div className="space-y-2">
-                <Label>Carátula del Asunto</Label>
-                {hasWizardStep && !formData.title && !titleManuallyEdited ? (
-                  <div className="flex items-center gap-3 h-14 px-4 rounded-xl border border-dashed border-teal-500/40 bg-teal-500/5">
-                    <Zap size={16} className="text-teal-500 shrink-0" />
-                    <span className="text-sm text-muted-foreground">Se genera automáticamente en el próximo paso con los datos del caso</span>
-                  </div>
-                ) : (
-                  <Input
-                    placeholder="Ej: Bianucci, Santiago c/ Bonzi, Aldo s/ despido"
-                    className="bg-muted/30 border-border/50 text-lg font-bold h-14 focus:bg-card transition-all"
-                    value={formData.title}
-                    onChange={e => {
-                      setFormData({...formData, title: e.target.value});
-                      setTitleManuallyEdited(true);
-                    }}
-                  />
-                )}
-                {hasWizardStep && formData.title && !titleManuallyEdited && (
-                  <p className="text-[11px] text-teal-600">Carátula generada automáticamente — editala si necesitás ajustarla</p>
-                )}
+
+            {/* Tipo + Subtipo — Primero, como cards seleccionables */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-lg bg-teal-500/10 flex items-center justify-center">
+                  <Briefcase size={13} className="text-teal-600" />
+                </div>
+                <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Tipo de Asunto</Label>
               </div>
-              
-              <div className="space-y-2">
-                <Label>Cliente Principal</Label>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                {[
+                  { value: 'Laboral', icon: '⚖️', color: 'teal' },
+                  { value: 'Familia', icon: '👨‍👩‍👧', color: 'violet' },
+                  { value: 'Daños', icon: '🩹', color: 'amber' },
+                  { value: 'Comercial', icon: '📑', color: 'blue' },
+                  { value: 'Sucesiones', icon: '📜', color: 'stone' },
+                ].map(t => (
+                  <button
+                    key={t.value}
+                    onClick={() => { setFormData({...formData, type: t.value, subtype: '', title: '', caseData: {}}); setTitleManuallyEdited(false); }}
+                    className={cn(
+                      "relative group flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all duration-200",
+                      formData.type === t.value
+                        ? "border-teal-500 bg-teal-500/10 shadow-md shadow-teal-500/10 scale-[1.02]"
+                        : "border-border/50 bg-card/50 hover:border-teal-500/30 hover:bg-teal-500/5"
+                    )}
+                  >
+                    <span className="text-2xl">{t.icon}</span>
+                    <span className={cn(
+                      "text-[10px] font-black uppercase tracking-widest transition-colors",
+                      formData.type === t.value ? "text-teal-700" : "text-muted-foreground"
+                    )}>{t.value}</span>
+                    {formData.type === t.value && (
+                      <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-teal-500 flex items-center justify-center">
+                        <Check size={11} className="text-white" />
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Subtipo */}
+            {formData.type && SUBTYPES_BY_TYPE[formData.type]?.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.2 }}
+                className="space-y-3"
+              >
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-lg bg-teal-500/10 flex items-center justify-center">
+                    <Target size={13} className="text-teal-600" />
+                  </div>
+                  <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Materia</Label>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {SUBTYPES_BY_TYPE[formData.type].map(s => (
+                    <button
+                      key={s.value}
+                      onClick={() => { setFormData({...formData, subtype: s.value, title: '', caseData: {}}); setTitleManuallyEdited(false); }}
+                      className={cn(
+                        "px-4 py-2.5 rounded-xl border-2 text-sm font-bold transition-all duration-200",
+                        formData.subtype === s.value
+                          ? "border-teal-500 bg-teal-500/10 text-teal-700 shadow-sm"
+                          : "border-border/50 bg-card/50 text-muted-foreground hover:border-teal-500/30 hover:text-foreground"
+                      )}
+                    >
+                      {s.label}
+                      {formData.subtype === s.value && <Check size={14} className="inline ml-2 text-teal-500" />}
+                    </button>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+
+            {/* Cliente + Carátula — Agrupados en card */}
+            <Card className="p-6 border-border/50 bg-card/80 space-y-6">
+              {/* Cliente */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-lg bg-teal-500/10 flex items-center justify-center">
+                    <User size={13} className="text-teal-600" />
+                  </div>
+                  <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Cliente Principal</Label>
+                </div>
                 {isCreatingClient ? (
-                  <Card className="p-6 border-primary/30 bg-primary/5 space-y-4 animate-in zoom-in-95 duration-200">
-                    <div className="flex items-center justify-between mb-2">
+                  <Card className="p-5 border-teal-500/30 bg-teal-500/5 space-y-4 animate-in zoom-in-95 duration-200">
+                    <div className="flex items-center justify-between mb-1">
                       <div className="flex items-center gap-2">
-                        <UserPlus size={18} className="text-primary" />
-                        <span className="text-sm font-black uppercase tracking-widest">Nuevo Cliente</span>
+                        <UserPlus size={16} className="text-teal-600" />
+                        <span className="text-xs font-black uppercase tracking-widest text-teal-700">Nuevo Cliente</span>
                       </div>
                       <Button variant="ghost" size="sm" onClick={() => setIsCreatingClient(false)}>
                         <X size={16} />
                       </Button>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-2">
+                      <div className="space-y-1.5">
                         <Label className="text-[9px]">Nombre Completo / Razón Social</Label>
-                        <Input 
+                        <Input
                           value={newClientData.name}
                           onChange={e => setNewClientData({...newClientData, name: e.target.value})}
                           placeholder="Nombre del cliente..."
-                          className="bg-background h-10"
+                          className="bg-background h-10 border-teal-500/20 focus:border-teal-500/50"
                         />
                       </div>
-                      <div className="space-y-2">
+                      <div className="space-y-1.5">
                         <Label className="text-[9px]">Tipo de Cliente</Label>
                         <div className="flex gap-2">
                           {['Persona', 'Empresa'].map(t => (
@@ -437,8 +500,8 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
                               key={t}
                               onClick={() => setNewClientData({...newClientData, type: t as any})}
                               className={cn(
-                                "flex-1 h-10 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all",
-                                newClientData.type === t ? "bg-primary border-primary text-white" : "bg-background border-border text-muted-foreground hover:border-primary/30"
+                                "flex-1 h-10 rounded-xl border-2 text-[10px] font-black uppercase tracking-widest transition-all",
+                                newClientData.type === t ? "bg-teal-500 border-teal-500 text-white" : "bg-background border-border text-muted-foreground hover:border-teal-500/30"
                               )}
                             >
                               {t}
@@ -446,18 +509,18 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
                           ))}
                         </div>
                       </div>
-                      <div className="space-y-2">
+                      <div className="space-y-1.5">
                         <Label className="text-[9px]">Email</Label>
-                        <Input 
+                        <Input
                           value={newClientData.email}
                           onChange={e => setNewClientData({...newClientData, email: e.target.value})}
                           placeholder="email@ejemplo.com"
                           className="bg-background h-10"
                         />
                       </div>
-                      <div className="space-y-2">
+                      <div className="space-y-1.5">
                         <Label className="text-[9px]">Teléfono</Label>
-                        <Input 
+                        <Input
                           value={newClientData.phone}
                           onChange={e => setNewClientData({...newClientData, phone: e.target.value})}
                           placeholder="+54 9 11..."
@@ -465,27 +528,27 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
                         />
                       </div>
                     </div>
-                    <div className="flex justify-end pt-2">
-                      <Button size="sm" onClick={handleCreateClient} disabled={!newClientData.name} className="gap-2">
+                    <div className="flex justify-end pt-1">
+                      <Button size="sm" onClick={handleCreateClient} disabled={!newClientData.name} className="gap-2 bg-teal-600 hover:bg-teal-700">
                         <Check size={14} />
                         Crear y Seleccionar
                       </Button>
                     </div>
                   </Card>
                 ) : selectedClient ? (
-                  <div className="p-4 rounded-xl border border-primary bg-primary/5 flex items-center justify-between animate-in zoom-in-95 duration-200">
+                  <div className="p-4 rounded-xl border-2 border-teal-500 bg-teal-500/5 flex items-center justify-between animate-in zoom-in-95 duration-200">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white font-black">
+                      <div className="w-11 h-11 rounded-full bg-gradient-to-br from-teal-500 to-emerald-600 flex items-center justify-center text-white font-black text-lg shadow-lg shadow-teal-500/20">
                         {selectedClient.name[0]}
                       </div>
                       <div>
                         <div className="font-bold text-foreground">{selectedClient.name}</div>
                         <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                          {selectedClient.type} {selectedClient.email && `• ${selectedClient.email}`}
+                          {selectedClient.type} {selectedClient.email && `· ${selectedClient.email}`}
                         </div>
                       </div>
                     </div>
-                    <Button variant="ghost" size="sm" onClick={() => setSelectedClient(null)}>
+                    <Button variant="ghost" size="sm" onClick={() => setSelectedClient(null)} className="text-muted-foreground hover:text-foreground">
                       <X size={16} />
                     </Button>
                   </div>
@@ -493,9 +556,9 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
                   <div className="space-y-3">
                     <div className="relative">
                       <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
-                      <Input 
-                        placeholder="Buscar cliente por nombre o DNI..." 
-                        className="pl-12 bg-muted/30 border-border/50 h-14"
+                      <Input
+                        placeholder="Buscar cliente por nombre o DNI..."
+                        className="pl-12 bg-muted/20 border-border/50 h-12 focus:border-teal-500/40"
                         value={clientSearch}
                         onChange={e => setClientSearch(e.target.value)}
                       />
@@ -506,7 +569,7 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
                           <button
                             key={client.id}
                             onClick={() => setSelectedClient(client)}
-                            className="w-full p-3 flex items-center gap-3 hover:bg-muted rounded-lg transition-colors text-left"
+                            className="w-full p-3 flex items-center gap-3 hover:bg-teal-500/5 rounded-lg transition-colors text-left"
                           >
                             <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-[10px] font-black">
                               {client.name[0]}
@@ -517,8 +580,8 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
                             </div>
                           </button>
                         ))}
-                        <button 
-                          className="w-full p-3 flex items-center gap-3 text-primary hover:bg-primary/5 rounded-lg transition-colors text-left border-t border-border/50 mt-1"
+                        <button
+                          className="w-full p-3 flex items-center gap-3 text-teal-600 hover:bg-teal-500/5 rounded-lg transition-colors text-left border-t border-border/50 mt-1"
                           onClick={() => setIsCreatingClient(true)}
                         >
                           <UserPlus size={16} />
@@ -530,66 +593,77 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
                 )}
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <Label>Tipo de Asunto</Label>
-                  <select 
-                    className="w-full h-14 bg-muted/30 border border-border/50 rounded-xl px-4 text-sm font-bold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all appearance-none"
-                    value={formData.type}
-                    onChange={e => { setFormData({...formData, type: e.target.value, subtype: '', title: '', caseData: {}}); setTitleManuallyEdited(false); }}
-                  >
-                    <option value="">Seleccionar tipo...</option>
-                    <option value="Laboral">Laboral</option>
-                    <option value="Familia">Familia</option>
-                    <option value="Daños">Daños y Perjuicios</option>
-                    <option value="Comercial">Comercial</option>
-                    <option value="Sucesiones">Sucesiones</option>
-                  </select>
+              {/* Carátula */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-lg bg-teal-500/10 flex items-center justify-center">
+                    <FileText size={13} className="text-teal-600" />
+                  </div>
+                  <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Carátula</Label>
                 </div>
-                <div className="space-y-2">
-                  <Label>Subtipo / Materia</Label>
-                  {formData.type && SUBTYPES_BY_TYPE[formData.type]?.length ? (
-                    <select
-                      className="w-full h-14 bg-muted/30 border border-border/50 rounded-xl px-4 text-sm font-bold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all appearance-none"
-                      value={formData.subtype}
-                      onChange={e => { setFormData({...formData, subtype: e.target.value, title: '', caseData: {}}); setTitleManuallyEdited(false); }}
-                    >
-                      <option value="">Seleccionar materia...</option>
-                      {SUBTYPES_BY_TYPE[formData.type].map(s => (
-                        <option key={s.value} value={s.value}>{s.label}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <Input
-                      placeholder={formData.type ? 'No hay materias definidas para este tipo' : 'Seleccioná primero el tipo de asunto'}
-                      className="bg-muted/30 border-border/50 font-bold h-14"
-                      value={formData.subtype}
-                      onChange={e => setFormData({...formData, subtype: e.target.value})}
-                      disabled={!formData.type}
-                    />
-                  )}
-                </div>
+                {(hasWizardStep || (formData.type && formData.subtype)) && !formData.title && !titleManuallyEdited ? (
+                  <div className="flex items-center gap-3 h-12 px-4 rounded-xl border border-dashed border-teal-500/30 bg-teal-500/5">
+                    <Zap size={14} className="text-teal-500 shrink-0" />
+                    <span className="text-xs text-muted-foreground">
+                      {hasWizardStep
+                        ? 'Se genera automáticamente en el próximo paso con los datos del caso'
+                        : 'Completá los datos para auto-generar la carátula'}
+                    </span>
+                  </div>
+                ) : (
+                  <Input
+                    placeholder="Ej: Bianucci, Santiago c/ Bonzi, Aldo s/ despido"
+                    className={cn(
+                      "border-border/50 font-bold h-12 transition-all",
+                      formData.title && !titleManuallyEdited
+                        ? "bg-teal-500/5 border-teal-500/30 text-teal-900"
+                        : "bg-muted/20 focus:border-teal-500/40"
+                    )}
+                    value={formData.title}
+                    onChange={e => {
+                      setFormData({...formData, title: e.target.value});
+                      setTitleManuallyEdited(true);
+                    }}
+                  />
+                )}
+                {formData.title && !titleManuallyEdited && (
+                  <p className="text-[11px] text-teal-600 flex items-center gap-1.5">
+                    <Zap size={10} className="fill-teal-500" />
+                    Generada automáticamente — editala si necesitás ajustarla
+                  </p>
+                )}
               </div>
+            </Card>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="md:col-span-1 space-y-2">
-                  <Label>Expediente</Label>
-                  <Input 
-                    placeholder="Ej: CNT 123/2024" 
-                    className="bg-muted/30 border-border/50 font-mono text-sm h-14"
-                    value={formData.expediente}
-                    onChange={e => setFormData({...formData, expediente: e.target.value})}
-                  />
+            {/* Expediente + Descripción */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="md:col-span-1 space-y-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-5 h-5 rounded bg-muted/50 flex items-center justify-center">
+                    <FileText size={11} className="text-muted-foreground" />
+                  </div>
+                  <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Expediente</Label>
                 </div>
-                <div className="md:col-span-2 space-y-2">
-                  <Label>Descripción Breve</Label>
-                  <Input 
-                    placeholder="Resumen rápido del conflicto..." 
-                    className="bg-muted/30 border-border/50 font-medium h-14"
-                    value={formData.description}
-                    onChange={e => setFormData({...formData, description: e.target.value})}
-                  />
+                <Input
+                  placeholder="Ej: CNT 123/2024"
+                  className="bg-muted/20 border-border/50 font-mono text-sm h-11"
+                  value={formData.expediente}
+                  onChange={e => setFormData({...formData, expediente: e.target.value})}
+                />
+              </div>
+              <div className="md:col-span-2 space-y-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-5 h-5 rounded bg-muted/50 flex items-center justify-center">
+                    <Info size={11} className="text-muted-foreground" />
+                  </div>
+                  <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Descripción Breve</Label>
                 </div>
+                <Input
+                  placeholder="Resumen rápido del conflicto..."
+                  className="bg-muted/20 border-border/50 font-medium h-11"
+                  value={formData.description}
+                  onChange={e => setFormData({...formData, description: e.target.value})}
+                />
               </div>
             </div>
           </div>
