@@ -106,6 +106,112 @@ export const Input: React.FC<InputProps> = ({ className, ...props }) => {
   );
 };
 
+// ── MoneyInput ───────────────────────────────────────────────────
+
+interface MoneyInputProps {
+  value: string | number;
+  onChange: (raw: string) => void;
+  currency?: 'ARS' | 'USD';
+  onCurrencyChange?: (c: 'ARS' | 'USD') => void;
+  showCurrencySelector?: boolean;
+  placeholder?: string;
+  className?: string;
+  disabled?: boolean;
+}
+
+function formatMoneyDisplay(raw: string | number): string {
+  const num = typeof raw === 'number' ? raw : parseFloat(raw.replace(/\./g, '').replace(',', '.'));
+  if (isNaN(num) || num === 0) return '';
+  const [intPart, decPart] = num.toFixed(2).split('.');
+  const formatted = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  return decPart === '00' ? formatted : `${formatted},${decPart}`;
+}
+
+function parseMoneyInput(display: string): string {
+  return display.replace(/\./g, '').replace(',', '.');
+}
+
+export const MoneyInput: React.FC<MoneyInputProps> = ({
+  value,
+  onChange,
+  currency = 'ARS',
+  onCurrencyChange,
+  showCurrencySelector = false,
+  placeholder,
+  className,
+  disabled,
+}) => {
+  const [isFocused, setIsFocused] = React.useState(false);
+  const [displayValue, setDisplayValue] = React.useState('');
+
+  React.useEffect(() => {
+    if (!isFocused) {
+      setDisplayValue(formatMoneyDisplay(value));
+    }
+  }, [value, isFocused]);
+
+  const handleFocus = () => {
+    setIsFocused(true);
+    const raw = typeof value === 'number' ? (value === 0 ? '' : value.toString()) : value;
+    setDisplayValue(raw);
+  };
+
+  const handleBlur = () => {
+    setIsFocused(false);
+    const parsed = parseMoneyInput(displayValue);
+    onChange(parsed);
+    setDisplayValue(formatMoneyDisplay(parsed));
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = e.target.value;
+    if (isFocused) {
+      // While focused, allow raw number typing
+      if (/^[\d]*[,.]?[\d]{0,2}$/.test(v) || v === '') {
+        setDisplayValue(v);
+        onChange(v.replace(',', '.'));
+      }
+    }
+  };
+
+  const symbol = currency === 'USD' ? 'US$' : '$';
+
+  return (
+    <div className={cn('flex items-center gap-0', className)}>
+      {showCurrencySelector && onCurrencyChange && (
+        <select
+          value={currency}
+          onChange={e => onCurrencyChange(e.target.value as 'ARS' | 'USD')}
+          disabled={disabled}
+          className="h-11 px-2 bg-muted border border-r-0 border-border/50 rounded-l-xl text-xs font-black text-muted-foreground focus:outline-none appearance-none cursor-pointer"
+        >
+          <option value="ARS">ARS</option>
+          <option value="USD">USD</option>
+        </select>
+      )}
+      <div className={cn('relative flex-1', showCurrencySelector ? '' : '')}>
+        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground pointer-events-none">
+          {symbol}
+        </span>
+        <input
+          type="text"
+          inputMode="decimal"
+          value={displayValue}
+          onChange={handleChange}
+          onFocus={handleFocus}
+          onBlur={handleBlur}
+          disabled={disabled}
+          placeholder={placeholder || '0'}
+          className={cn(
+            'w-full pl-8 pr-4 py-2 h-11 bg-muted/50 border border-border/50 text-sm font-bold text-right focus:bg-card focus:ring-2 focus:ring-primary/20 focus:border-primary/30 transition-all outline-none tabular-nums',
+            showCurrencySelector ? 'rounded-r-xl' : 'rounded-xl',
+          )}
+        />
+      </div>
+    </div>
+  );
+};
+
 interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
   className?: string;
 }

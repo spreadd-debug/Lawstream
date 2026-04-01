@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Card, Button, Input, Badge, Label, Textarea } from './UI';
+import { Card, Button, Input, Badge, Label, Textarea, MoneyInput } from './UI';
 import { 
   ArrowLeft, 
   ArrowRight, 
@@ -207,7 +207,7 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
   useEffect(() => {
     const estructuraStep = hasWizardStep ? 4 : 3;
     if (step === estructuraStep && formData.checklist.length === 0) {
-      const template = findTemplate(formData.type, formData.subtype);
+      const template = findTemplate(formData.type, formData.subtype, formData.jurisdiction);
 
       if (template) {
         setFormData(prev => ({
@@ -224,7 +224,7 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
         }));
       }
     }
-  }, [step, formData.type, formData.subtype]);
+  }, [step, formData.type, formData.subtype, formData.jurisdiction]);
 
   const filteredClients = clients.filter(c =>
     c.name.toLowerCase().includes(clientSearch.toLowerCase())
@@ -373,6 +373,16 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
                           caseData: { ...prev.caseData, [field.key]: e.target.value }
                         }))}
                       />
+                    ) : field.type === 'money' ? (
+                      <MoneyInput
+                        value={formData.caseData[field.key] || ''}
+                        onChange={v => setFormData(prev => ({
+                          ...prev,
+                          caseData: { ...prev.caseData, [field.key]: v }
+                        }))}
+                        showCurrencySelector
+                        className="bg-muted/30"
+                      />
                     ) : (
                       <Input
                         type={field.type}
@@ -438,7 +448,7 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
                 ].map(t => (
                   <button
                     key={t.value}
-                    onClick={() => { setFormData({...formData, type: t.value, subtype: '', jurisdiction: '', title: '', caseData: {}}); setTitleManuallyEdited(false); }}
+                    onClick={() => { setFormData({...formData, type: t.value, subtype: '', jurisdiction: '', title: '', caseData: {}, checklist: [], docs: [], milestones: [], blockers: [], selectedTemplateId: ''}); setTitleManuallyEdited(false); }}
                     className={cn(
                       "relative group flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all duration-200",
                       formData.type === t.value
@@ -481,7 +491,7 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
                     return (
                       <button
                         key={j}
-                        onClick={() => { setFormData({...formData, jurisdiction: j, subtype: '', title: '', caseData: {}}); setTitleManuallyEdited(false); }}
+                        onClick={() => { setFormData({...formData, jurisdiction: j, subtype: '', title: '', caseData: {}, checklist: [], docs: [], milestones: [], blockers: [], selectedTemplateId: ''}); setTitleManuallyEdited(false); }}
                         className={cn(
                           "px-4 py-2.5 rounded-xl border-2 text-sm font-bold transition-all duration-200",
                           formData.jurisdiction === j
@@ -517,7 +527,7 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
                   {availableSubtypes.map(s => (
                     <button
                       key={s.value}
-                      onClick={() => { setFormData({...formData, subtype: s.value, title: '', caseData: {}}); setTitleManuallyEdited(false); }}
+                      onClick={() => { setFormData({...formData, subtype: s.value, title: '', caseData: {}, checklist: [], docs: [], milestones: [], blockers: [], selectedTemplateId: ''}); setTitleManuallyEdited(false); }}
                       className={cn(
                         "px-4 py-2.5 rounded-xl border-2 text-sm font-bold transition-all duration-200",
                         formData.subtype === s.value

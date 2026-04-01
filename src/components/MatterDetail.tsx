@@ -37,7 +37,7 @@ import { fetchExpediente } from '../lib/db';
 import { ExpedienteForm } from './ExpedienteForm';
 import { ExpedienteDetail } from './ExpedienteDetail';
 import { ESTADO_COLORS } from '../data/juzgados';
-import { findTemplate } from '../data/templates';
+import { findTemplate, MATTER_TEMPLATES } from '../data/templates';
 import { getFlowSnapshot } from '../lib/flowEngine';
 import { findTemplateForTask } from '../lib/taskTemplateMatch';
 import { useNavigate } from 'react-router-dom';
@@ -88,8 +88,8 @@ export const MatterDetail = ({ matter, timeline, tasks, documents, milestones, p
     fetchExpediente(matter.id).then(setExpediente);
   }, [matter.id]);
 
-  // Flow engine snapshot
-  const template = findTemplate(matter.type, matter.subtype);
+  // Flow engine snapshot — prefer exact template by ID, fallback to type+subtype match
+  const template = (matter.flowTemplateId && MATTER_TEMPLATES.find(t => t.id === matter.flowTemplateId)) || findTemplate(matter.type, matter.subtype);
   const flow: FlowSnapshot = getFlowSnapshot(matter, template, tasks, documents);
 
   const missingDocs = documents.filter(d => d.status === 'Faltante');

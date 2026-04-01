@@ -267,8 +267,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const handleCreateMatter = async (data: any): Promise<Matter> => {
-    // Find matching flow template
-    const template = findTemplate(data.type, data.subtype);
+    // Find matching flow template (include jurisdiction for PBA vs CABA distinction)
+    const template = findTemplate(data.type, data.subtype, data.jurisdiction);
 
     const newMatter: Omit<Matter, 'id'> = {
       title:          data.title,

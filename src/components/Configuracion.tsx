@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Button, Input } from './UI';
+import { Card, Button, Input, MoneyInput } from './UI';
 import { User, Shield, Briefcase, FileText, Bell, CreditCard, ChevronRight, LogOut, Calculator, Check, ArrowLeft, Upload, Building2 } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { UsuariosConfig } from './UsuariosConfig';
@@ -231,11 +231,10 @@ const IUSConfig = ({ onBack }: { onBack: () => void }) => {
             Nuevo valor (en pesos)
           </label>
           <div className="flex gap-3">
-            <Input
-              type="number"
-              placeholder="Ej: 3500"
+            <MoneyInput
               value={inputValue}
-              onChange={e => setInputValue(e.target.value)}
+              onChange={v => setInputValue(v)}
+              placeholder="3500"
               className="flex-1"
             />
             <Button onClick={handleSave} disabled={saving} className="gap-2 shrink-0">
@@ -323,11 +322,10 @@ const ConsultaValorConfig = ({ onBack }: { onBack: () => void }) => {
             Nuevo valor (en pesos)
           </label>
           <div className="flex gap-3">
-            <Input
-              type="number"
-              placeholder="Ej: 15000"
+            <MoneyInput
               value={inputValue}
-              onChange={e => setInputValue(e.target.value)}
+              onChange={v => setInputValue(v)}
+              placeholder="15000"
               className="flex-1"
             />
             <Button onClick={handleSave} disabled={saving} className="gap-2 shrink-0">

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Button, Input, Badge } from './UI';
+import { Card, Button, Input, Badge, MoneyInput } from './UI';
 import { Presupuesto, PresupuestoItem, PresupuestoStatus, PaymentStatus } from '../types';
 import {
   fetchStudioConfig,
@@ -241,16 +241,14 @@ export const PresupuestoForm: React.FC<PresupuestoFormProps> = ({
                   />
                 </div>
                 <div className="col-span-3">
-                  <Input
-                    placeholder="$ Pesos"
-                    type="number"
+                  <MoneyInput
                     value={item.montoPesos}
-                    onChange={e => {
+                    onChange={v => {
                       const updated = [...items];
-                      updated[index].montoPesos = e.target.value;
+                      updated[index].montoPesos = v;
                       setItems(updated);
                     }}
-                    className="text-sm"
+                    placeholder="0"
                   />
                 </div>
                 <div className="col-span-1 flex justify-center">

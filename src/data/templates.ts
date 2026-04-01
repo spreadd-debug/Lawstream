@@ -2168,7 +2168,7 @@ export function getSubtypesForJurisdiction(rama: string, jurisdiccion: string): 
 export interface WizardFieldDef {
   key: string;
   label: string;
-  type: 'text' | 'date' | 'select' | 'number' | 'textarea';
+  type: 'text' | 'date' | 'select' | 'number' | 'money' | 'textarea';
   placeholder?: string;
   options?: string[];      // for select type
   required?: boolean;
@@ -2234,7 +2234,7 @@ export const WIZARD_FIELDS_BY_TEMPLATE: Record<string, WizardSection[]> = {
         { key: 'alimentante_dni', label: 'DNI', type: 'text', placeholder: '12.345.678' },
         { key: 'alimentante_domicilio', label: 'Domicilio conocido', type: 'text', placeholder: 'Dirección...' },
         { key: 'alimentante_empleador', label: 'Empleador / Actividad', type: 'text', placeholder: 'Empresa o actividad independiente' },
-        { key: 'alimentante_ingreso_estimado', label: 'Ingreso mensual estimado', type: 'text', placeholder: '$...' },
+        { key: 'alimentante_ingreso_estimado', label: 'Ingreso mensual estimado', type: 'money' },
       ],
     },
     {
@@ -2243,8 +2243,8 @@ export const WIZARD_FIELDS_BY_TEMPLATE: Record<string, WizardSection[]> = {
       fields: [
         { key: 'tipo_alimentos', label: 'Tipo de alimentos', type: 'select', options: ['Para hijos menores', 'Para hijos mayores (hasta 25)', 'Para cónyuge', 'Para parientes'], required: true },
         { key: 'paga_actualmente', label: '¿Paga algo actualmente?', type: 'select', options: ['Sí, cuota regular', 'Sí, montos irregulares', 'No paga nada'] },
-        { key: 'monto_actual', label: 'Monto actual (si paga)', type: 'text', placeholder: '$...' },
-        { key: 'gastos_mensuales', label: 'Total de gastos mensuales del menor', type: 'text', placeholder: '$...' },
+        { key: 'monto_actual', label: 'Monto actual (si paga)', type: 'money' },
+        { key: 'gastos_mensuales', label: 'Total de gastos mensuales del menor', type: 'money' },
       ],
     },
   ],
@@ -2444,8 +2444,8 @@ export const WIZARD_FIELDS_BY_TEMPLATE: Record<string, WizardSection[]> = {
         { key: 'fecha_ingreso_registrada', label: 'Fecha registrada en ARCA (si difiere)', type: 'date' },
         { key: 'fecha_egreso', label: 'Fecha de egreso', type: 'date', required: true },
         { key: 'tipo_despido', label: 'Tipo de extinción', type: 'select', options: ['Despido sin causa', 'Despido con causa controvertida', 'Despido indirecto', 'Mutuo acuerdo (art. 241)', 'Renuncia forzada'], required: true },
-        { key: 'remuneracion', label: 'Mejor remuneración mensual, normal y habitual', type: 'text', placeholder: '$...' },
-        { key: 'remuneracion_registrada', label: 'Remuneración registrada en recibo (si difiere)', type: 'text', placeholder: '$...' },
+        { key: 'remuneracion', label: 'Mejor remuneración mensual, normal y habitual', type: 'money' },
+        { key: 'remuneracion_registrada', label: 'Remuneración registrada en recibo (si difiere)', type: 'money' },
         { key: 'registrado', label: '¿Estaba correctamente registrado?', type: 'select', options: ['Sí, correctamente', 'Parcialmente (fecha o sueldo adulterado)', 'No registrado (en negro)'], required: true },
         { key: 'cct', label: 'Convenio colectivo aplicable', type: 'text', placeholder: 'CCT Nº...' },
       ],
@@ -2491,8 +2491,8 @@ export const WIZARD_FIELDS_BY_TEMPLATE: Record<string, WizardSection[]> = {
         { key: 'fecha_ingreso_registrada', label: 'Fecha registrada en ARCA (si difiere)', type: 'date' },
         { key: 'fecha_egreso', label: 'Fecha de egreso', type: 'date', required: true },
         { key: 'tipo_despido', label: 'Tipo de extinción', type: 'select', options: ['Despido sin causa', 'Despido con causa controvertida', 'Despido indirecto', 'Mutuo acuerdo (art. 241)', 'Renuncia forzada'], required: true },
-        { key: 'remuneracion', label: 'Mejor remuneración mensual, normal y habitual', type: 'text', placeholder: '$...' },
-        { key: 'remuneracion_registrada', label: 'Remuneración registrada en recibo (si difiere)', type: 'text', placeholder: '$...' },
+        { key: 'remuneracion', label: 'Mejor remuneración mensual, normal y habitual', type: 'money' },
+        { key: 'remuneracion_registrada', label: 'Remuneración registrada en recibo (si difiere)', type: 'money' },
         { key: 'registrado', label: '¿Estaba correctamente registrado?', type: 'select', options: ['Sí, correctamente', 'Parcialmente (fecha o sueldo adulterado)', 'No registrado (en negro)'], required: true },
         { key: 'cct', label: 'Convenio colectivo aplicable', type: 'text', placeholder: 'CCT Nº...' },
       ],
@@ -2532,8 +2532,8 @@ export const WIZARD_FIELDS_BY_TEMPLATE: Record<string, WizardSection[]> = {
       fields: [
         { key: 'fecha_ingreso', label: 'Fecha de ingreso', type: 'date', required: true },
         { key: 'relacion_vigente', label: '¿La relación está vigente?', type: 'select', options: ['Sí, aún trabaja', 'No, ya fue despedido/renunció'], required: true },
-        { key: 'remuneracion_actual', label: 'Remuneración actual/última', type: 'text', placeholder: '$...' },
-        { key: 'remuneracion_segun_cct', label: 'Remuneración según CCT', type: 'text', placeholder: '$...' },
+        { key: 'remuneracion_actual', label: 'Remuneración actual/última', type: 'money' },
+        { key: 'remuneracion_segun_cct', label: 'Remuneración según CCT', type: 'money' },
         { key: 'tipo_diferencia', label: 'Tipo de diferencia', type: 'select', options: ['Salario básico inferior al CCT', 'Horas extra no pagadas', 'Ítems no remunerativos fraudulentos', 'Ius variandi (cambio de funciones/horario)', 'Múltiples'], required: true },
         { key: 'periodo_reclamo', label: 'Período reclamado', type: 'text', placeholder: 'Ej: Enero 2024 a Diciembre 2025' },
         { key: 'cct', label: 'CCT aplicable', type: 'text', placeholder: 'CCT Nº...' },
@@ -2574,8 +2574,8 @@ export const WIZARD_FIELDS_BY_TEMPLATE: Record<string, WizardSection[]> = {
       fields: [
         { key: 'fecha_ingreso', label: 'Fecha de ingreso', type: 'date', required: true },
         { key: 'relacion_vigente', label: '¿La relación está vigente?', type: 'select', options: ['Sí, aún trabaja', 'No, ya fue despedido/renunció'], required: true },
-        { key: 'remuneracion_actual', label: 'Remuneración actual/última', type: 'text', placeholder: '$...' },
-        { key: 'remuneracion_segun_cct', label: 'Remuneración según CCT', type: 'text', placeholder: '$...' },
+        { key: 'remuneracion_actual', label: 'Remuneración actual/última', type: 'money' },
+        { key: 'remuneracion_segun_cct', label: 'Remuneración según CCT', type: 'money' },
         { key: 'tipo_diferencia', label: 'Tipo de diferencia', type: 'select', options: ['Salario básico inferior al CCT', 'Horas extra no pagadas', 'Ítems no remunerativos fraudulentos', 'Ius variandi', 'Múltiples'], required: true },
         { key: 'periodo_reclamo', label: 'Período reclamado', type: 'text', placeholder: 'Ej: Enero 2024 a Diciembre 2025' },
         { key: 'cct', label: 'CCT aplicable', type: 'text', placeholder: 'CCT Nº...' },
@@ -2618,8 +2618,8 @@ export const WIZARD_FIELDS_BY_TEMPLATE: Record<string, WizardSection[]> = {
         { key: 'tipo_no_registro', label: 'Tipo de defecto', type: 'select', options: ['Totalmente no registrado (en negro)', 'Fecha de ingreso adulterada', 'Salario registrado inferior al real', 'Categoría inferior a la real', 'Múltiples defectos'], required: true },
         { key: 'fecha_ingreso_real', label: 'Fecha real de ingreso', type: 'date', required: true },
         { key: 'fecha_ingreso_registrada', label: 'Fecha registrada (si existe)', type: 'date' },
-        { key: 'salario_real', label: 'Salario real percibido', type: 'text', placeholder: '$...', required: true },
-        { key: 'salario_registrado', label: 'Salario registrado (si existe)', type: 'text', placeholder: '$...' },
+        { key: 'salario_real', label: 'Salario real percibido', type: 'money', required: true },
+        { key: 'salario_registrado', label: 'Salario registrado (si existe)', type: 'money' },
         { key: 'tiene_recibos', label: '¿Tiene recibos de sueldo?', type: 'select', options: ['Sí, todos', 'Algunos', 'Ninguno'] },
         { key: 'prueba_disponible', label: 'Prueba de la relación disponible', type: 'textarea', placeholder: 'Ej: chats de WhatsApp, emails, testigos, fotos, transferencias bancarias...' },
       ],
@@ -2661,8 +2661,8 @@ export const WIZARD_FIELDS_BY_TEMPLATE: Record<string, WizardSection[]> = {
         { key: 'tipo_no_registro', label: 'Tipo de defecto', type: 'select', options: ['Totalmente no registrado (en negro)', 'Fecha de ingreso adulterada', 'Salario registrado inferior al real', 'Categoría inferior a la real', 'Múltiples defectos'], required: true },
         { key: 'fecha_ingreso_real', label: 'Fecha real de ingreso', type: 'date', required: true },
         { key: 'fecha_ingreso_registrada', label: 'Fecha registrada (si existe)', type: 'date' },
-        { key: 'salario_real', label: 'Salario real percibido', type: 'text', placeholder: '$...', required: true },
-        { key: 'salario_registrado', label: 'Salario registrado (si existe)', type: 'text', placeholder: '$...' },
+        { key: 'salario_real', label: 'Salario real percibido', type: 'money', required: true },
+        { key: 'salario_registrado', label: 'Salario registrado (si existe)', type: 'money' },
         { key: 'tiene_recibos', label: '¿Tiene recibos de sueldo?', type: 'select', options: ['Sí, todos', 'Algunos', 'Ninguno'] },
         { key: 'prueba_disponible', label: 'Prueba de la relación disponible', type: 'textarea', placeholder: 'Ej: chats, emails, testigos, fotos, transferencias...' },
       ],
@@ -2861,7 +2861,7 @@ export const WIZARD_FIELDS_BY_TEMPLATE: Record<string, WizardSection[]> = {
         { key: 'tipo_contrato', label: 'Tipo de contrato', type: 'text', placeholder: 'Ej: Compraventa, Locación, Servicios...', required: true },
         { key: 'fecha_contrato', label: 'Fecha del contrato', type: 'date' },
         { key: 'objeto_contrato', label: 'Objeto del contrato', type: 'textarea', placeholder: 'Breve descripción de lo pactado...' },
-        { key: 'monto_reclamado', label: 'Monto reclamado estimado', type: 'text', placeholder: '$...' },
+        { key: 'monto_reclamado', label: 'Monto reclamado estimado', type: 'money' },
       ],
     },
   ],
@@ -2881,7 +2881,7 @@ export const WIZARD_FIELDS_BY_TEMPLATE: Record<string, WizardSection[]> = {
       icon: 'FileText',
       fields: [
         { key: 'tipo_titulo', label: 'Tipo de título', type: 'select', options: ['Pagaré', 'Cheque', 'Factura conformada', 'Contrato con cláusula ejecutiva', 'Otro'], required: true },
-        { key: 'monto_capital', label: 'Monto de capital', type: 'text', placeholder: '$...', required: true },
+        { key: 'monto_capital', label: 'Monto de capital', type: 'money', required: true },
         { key: 'fecha_vencimiento', label: 'Fecha de vencimiento', type: 'date' },
         { key: 'moneda', label: 'Moneda', type: 'select', options: ['Pesos (ARS)', 'Dólares (USD)'] },
       ],
@@ -2904,7 +2904,7 @@ export const WIZARD_FIELDS_BY_TEMPLATE: Record<string, WizardSection[]> = {
       fields: [
         { key: 'nro_cheque', label: 'Número de cheque', type: 'text', required: true },
         { key: 'banco_girado', label: 'Banco girado', type: 'text', required: true },
-        { key: 'monto_cheque', label: 'Monto', type: 'text', placeholder: '$...', required: true },
+        { key: 'monto_cheque', label: 'Monto', type: 'money', required: true },
         { key: 'fecha_cheque', label: 'Fecha del cheque', type: 'date' },
         { key: 'motivo_rechazo', label: 'Motivo de rechazo', type: 'select', options: ['Sin fondos', 'Cuenta cerrada', 'Firma diferente', 'Denuncia de extravío', 'Otro'] },
       ],

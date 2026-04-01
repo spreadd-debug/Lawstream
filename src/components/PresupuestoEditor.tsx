@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Card, Button, Input } from './UI';
+import { Card, Button, Input, MoneyInput } from './UI';
 import { Presupuesto, PresupuestoItem, EstudioPerfil, CuotaOpcion } from '../types';
 import {
   fetchStudioConfig,
@@ -339,13 +339,10 @@ export const PresupuestoEditor: React.FC<PresupuestoEditorProps> = ({
                   {/* Monto $ */}
                   <div className="flex flex-col gap-1">
                     <label className="lg:hidden text-[9px] font-black uppercase tracking-widest text-muted-foreground">Monto $</label>
-                    <Input
-                      type="number"
+                    <MoneyInput
                       value={item.montoPesos || ''}
-                      onChange={e => setItem(item._key, 'montoPesos', parseFloat(e.target.value) || 0)}
-                      placeholder="0.00"
-                      className="text-sm h-8 text-right"
-                      min={0}
+                      onChange={v => setItem(item._key, 'montoPesos', parseFloat(v) || 0)}
+                      placeholder="0"
                     />
                   </div>
 

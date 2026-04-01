@@ -149,7 +149,7 @@ export interface LegalTemplate {
   placeholders: {
     key: string;
     label: string;
-    type: 'text' | 'date' | 'number' | 'textarea';
+    type: 'text' | 'date' | 'number' | 'money' | 'textarea';
     defaultValue?: string;
   }[];
   legalBasis: string;

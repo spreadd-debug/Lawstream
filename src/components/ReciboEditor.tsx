@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Button, Input } from './UI';
+import { Button, Input, MoneyInput } from './UI';
 import { Presupuesto, Recibo, FormaPago, EstudioPerfil } from '../types';
 import { createRecibo, fetchEstudioPerfil } from '../lib/db';
 import { X, Download, Printer, Receipt } from 'lucide-react';
@@ -145,15 +145,12 @@ export const ReciboEditor: React.FC<ReciboEditorProps> = ({ presupuesto, onClose
           {/* Monto */}
           <div className="space-y-1.5">
             <label className="text-xs font-black uppercase tracking-widest text-muted-foreground">
-              Monto recibido ($)
+              Monto recibido
             </label>
-            <Input
-              type="number"
+            <MoneyInput
               value={monto}
-              onChange={e => setMonto(e.target.value)}
-              placeholder="0.00"
-              className="text-xl font-black"
-              min={0}
+              onChange={v => setMonto(v)}
+              placeholder="0"
             />
           </div>
 

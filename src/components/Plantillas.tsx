@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Card, Badge, Button, Input, Drawer } from './UI';
+import { Card, Badge, Button, Input, Drawer, MoneyInput } from './UI';
 import { LegalTemplate, MatterType, Matter, Client } from '../types';
 import { LEGAL_TEMPLATES } from '../data/legalTemplates';
 import { cn } from '../lib/utils';
@@ -572,6 +572,12 @@ export const Plantillas = ({ matters = [], clients = [] }: PlantillasProps) => {
                               value={placeholderValues[p.key] || ''}
                               onChange={e => setPlaceholderValues(prev => ({ ...prev, [p.key]: e.target.value }))}
                               placeholder={p.label}
+                            />
+                          ) : p.type === 'money' ? (
+                            <MoneyInput
+                              value={placeholderValues[p.key] || ''}
+                              onChange={v => setPlaceholderValues(prev => ({ ...prev, [p.key]: v }))}
+                              showCurrencySelector
                             />
                           ) : (
                             <input
