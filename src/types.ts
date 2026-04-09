@@ -57,6 +57,7 @@ export interface Consultation {
   diagnostico?: string;
   solucionPropuesta?: string;
   atendidoPor?: string;
+  checklistData?: Record<string, string>;
 }
 
 export interface Client {

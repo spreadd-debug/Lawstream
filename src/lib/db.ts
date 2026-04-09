@@ -160,6 +160,7 @@ const toConsultation = (r: any): Consultation => ({
   diagnostico:                r.diagnostico              ?? undefined,
   solucionPropuesta:          r.solucion_propuesta       ?? undefined,
   atendidoPor:                r.atendido_por             ?? undefined,
+  checklistData:              r.checklist_data           ?? undefined,
 });
 
 const toDocument = (r: any): LegalDocument => ({
@@ -287,6 +288,7 @@ export const updateConsultation = async (id: string, changes: Partial<Consultati
   if (changes.diagnostico            !== undefined) row.diagnostico              = changes.diagnostico ?? null;
   if (changes.solucionPropuesta      !== undefined) row.solucion_propuesta       = changes.solucionPropuesta ?? null;
   if (changes.atendidoPor            !== undefined) row.atendido_por             = changes.atendidoPor ?? null;
+  if (changes.checklistData          !== undefined) row.checklist_data            = changes.checklistData ?? null;
   const { error } = await supabase.from('consultations').update(row).eq('id', id);
   if (error) throw error;
 };
@@ -310,6 +312,7 @@ export const createConsultation = async (c: Omit<Consultation, 'id'>): Promise<C
       consulta_fee_snapshot:    c.consultationFeeSnapshot ?? null,
       consulta_fee_forma_pago:  c.consultationFeeFormaPago ?? null,
       scheduled_at:             c.scheduledAt              ?? null,
+      checklist_data:           c.checklistData            ?? null,
     })
     .select()
     .single();

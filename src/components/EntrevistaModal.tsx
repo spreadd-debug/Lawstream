@@ -23,15 +23,22 @@ import { updateConsultation } from '../lib/db';
 
 // ── Checklist de relevamiento ──────────────────────────────────
 
-const CHECKLIST_ITEMS = [
-  'DNI / CUIT del cliente',
-  'Domicilio actual',
-  'Estado civil',
-  'Hijos menores (cantidad, edades)',
-  'Documentación que trae',
-  'Datos de la contraparte',
-  '¿Tiene abogado previo?',
-  '¿Hay urgencia o medida cautelar?',
+interface ChecklistField {
+  key: string;
+  label: string;
+  placeholder: string;
+  multiline?: boolean;
+}
+
+const CHECKLIST_FIELDS: ChecklistField[] = [
+  { key: 'dni_cuit',          label: 'DNI / CUIT del cliente',           placeholder: 'Ej: 20-12345678-9' },
+  { key: 'domicilio',         label: 'Domicilio actual',                 placeholder: 'Calle, número, localidad, provincia' },
+  { key: 'estado_civil',      label: 'Estado civil',                     placeholder: 'Ej: Casado/a, Soltero/a, Divorciado/a...' },
+  { key: 'hijos_menores',     label: 'Hijos menores',                    placeholder: 'Cantidad y edades. Ej: 2 hijos (5 y 8)' },
+  { key: 'documentacion',     label: 'Documentación que trae',           placeholder: 'Detallar documentos que presentó...', multiline: true },
+  { key: 'datos_contraparte', label: 'Datos de la contraparte',          placeholder: 'Nombre, DNI/CUIT, domicilio conocido...', multiline: true },
+  { key: 'abogado_previo',    label: '¿Tiene abogado previo?',           placeholder: 'Sí/No. Nombre, qué pasó...' },
+  { key: 'urgencia_cautelar', label: '¿Hay urgencia o medida cautelar?', placeholder: 'Sí/No. Detallar...' },
 ];
 
 // ── Props ───────────────────────────────────────────────────────
@@ -56,9 +63,10 @@ export const EntrevistaModal: React.FC<EntrevistaModalProps> = ({
   // ── State ──
   const [noteInput, setNoteInput] = useState('');
   const [notes, setNotes] = useState<string[]>(consultation.notes ?? []);
-  const [checklist, setChecklist] = useState<boolean[]>(() =>
-    CHECKLIST_ITEMS.map(() => false)
+  const [checklistData, setChecklistData] = useState<Record<string, string>>(
+    consultation.checklistData ?? {}
   );
+  const [expandedField, setExpandedField] = useState<string | null>(null);
   const [diagnostico, setDiagnostico] = useState(consultation.diagnostico || '');
   const [solucionPropuesta, setSolucionPropuesta] = useState(consultation.solucionPropuesta || '');
   const [atendidoPor, setAtendidoPor] = useState(consultation.atendidoPor || '');
@@ -127,6 +135,11 @@ export const EntrevistaModal: React.FC<EntrevistaModalProps> = ({
     onUpdate(consultation.id, { atendidoPor: val });
   };
 
+  const handleSaveChecklist = async (updated: Record<string, string>) => {
+    await updateConsultation(consultation.id, { checklistData: updated });
+    onUpdate(consultation.id, { checklistData: updated });
+  };
+
   const handleFinish = (formaPago: 'Efectivo' | 'Transferencia' | 'Bonificada' | 'No aplica') => {
     // Save any pending data
     if (diagnostico !== consultation.diagnostico) {
@@ -136,6 +149,10 @@ export const EntrevistaModal: React.FC<EntrevistaModalProps> = ({
     if (solucionPropuesta !== consultation.solucionPropuesta) {
       updateConsultation(consultation.id, { solucionPropuesta });
       onUpdate(consultation.id, { solucionPropuesta });
+    }
+    if (JSON.stringify(checklistData) !== JSON.stringify(consultation.checklistData ?? {})) {
+      updateConsultation(consultation.id, { checklistData });
+      onUpdate(consultation.id, { checklistData });
     }
     onFinish(formaPago);
   };
@@ -257,36 +274,73 @@ export const EntrevistaModal: React.FC<EntrevistaModalProps> = ({
                 Checklist de relevamiento
               </label>
               <span className="text-[9px] font-bold text-muted-foreground ml-auto">
-                {checklist.filter(Boolean).length}/{CHECKLIST_ITEMS.length}
+                {CHECKLIST_FIELDS.filter(f => checklistData[f.key]?.trim()).length}/{CHECKLIST_FIELDS.length}
               </span>
             </div>
             <div className="grid grid-cols-2 gap-2">
-              {CHECKLIST_ITEMS.map((item, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => {
-                    const updated = [...checklist];
-                    updated[idx] = !updated[idx];
-                    setChecklist(updated);
-                  }}
-                  className={cn(
-                    'flex items-center gap-2 p-2.5 rounded-xl border text-left text-xs font-bold transition-all',
-                    checklist[idx]
-                      ? 'bg-amber-500/10 border-amber-500/20 text-amber-700 dark:text-amber-400'
-                      : 'bg-background border-border text-muted-foreground hover:border-amber-400/50'
-                  )}
-                >
-                  <div className={cn(
-                    'w-4 h-4 rounded-md border-2 flex items-center justify-center shrink-0 transition-all',
-                    checklist[idx]
-                      ? 'bg-amber-500 border-amber-500'
-                      : 'border-border'
-                  )}>
-                    {checklist[idx] && <CheckCircle2 size={10} className="text-white" />}
+              {CHECKLIST_FIELDS.map((field) => {
+                const isExpanded = expandedField === field.key;
+                const hasValue = !!checklistData[field.key]?.trim();
+
+                return (
+                  <div key={field.key} className={cn(isExpanded && 'col-span-2')}>
+                    <button
+                      onClick={() => setExpandedField(isExpanded ? null : field.key)}
+                      className={cn(
+                        'w-full flex items-center gap-2 p-2.5 rounded-xl border text-left text-xs font-bold transition-all',
+                        hasValue
+                          ? 'bg-amber-500/10 border-amber-500/20 text-amber-700 dark:text-amber-400'
+                          : 'bg-background border-border text-muted-foreground hover:border-amber-400/50',
+                        isExpanded && 'rounded-b-none border-b-0'
+                      )}
+                    >
+                      <div className={cn(
+                        'w-4 h-4 rounded-md border-2 flex items-center justify-center shrink-0 transition-all',
+                        hasValue
+                          ? 'bg-amber-500 border-amber-500'
+                          : 'border-border'
+                      )}>
+                        {hasValue && <CheckCircle2 size={10} className="text-white" />}
+                      </div>
+                      <span className="flex-1">{field.label}</span>
+                      {hasValue && !isExpanded && (
+                        <span className="text-[10px] font-medium text-amber-600/70 truncate max-w-[120px]">
+                          {checklistData[field.key]}
+                        </span>
+                      )}
+                      <ChevronDown size={12} className={cn(
+                        'shrink-0 text-muted-foreground transition-transform',
+                        isExpanded && 'rotate-180'
+                      )} />
+                    </button>
+
+                    {isExpanded && (
+                      <div className="px-3 pb-3 pt-2 border border-t-0 border-amber-500/20 rounded-b-xl bg-amber-500/5 animate-in slide-in-from-top-1 duration-150">
+                        {field.multiline ? (
+                          <textarea
+                            autoFocus
+                            value={checklistData[field.key] || ''}
+                            onChange={(e) => setChecklistData(prev => ({ ...prev, [field.key]: e.target.value }))}
+                            onBlur={() => handleSaveChecklist(checklistData)}
+                            placeholder={field.placeholder}
+                            className="w-full px-3 py-2 text-sm rounded-lg border border-border bg-background resize-none h-20 focus:outline-none focus:ring-2 focus:ring-amber-500/20 placeholder:text-muted-foreground/50"
+                          />
+                        ) : (
+                          <input
+                            autoFocus
+                            type="text"
+                            value={checklistData[field.key] || ''}
+                            onChange={(e) => setChecklistData(prev => ({ ...prev, [field.key]: e.target.value }))}
+                            onBlur={() => handleSaveChecklist(checklistData)}
+                            placeholder={field.placeholder}
+                            className="w-full px-3 py-2 text-sm rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-amber-500/20 placeholder:text-muted-foreground/50"
+                          />
+                        )}
+                      </div>
+                    )}
                   </div>
-                  {item}
-                </button>
-              ))}
+                );
+              })}
             </div>
           </section>
 
