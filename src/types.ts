@@ -7,6 +7,7 @@ export interface UserProfile {
   role: UserRole;
   initials: string;
   isActive: boolean;
+  mustChangePassword?: boolean;
 }
 
 export type Priority = 'Alta' | 'Media' | 'Baja';
@@ -35,6 +36,18 @@ export interface Matter {
   flowTemplateId?: string;
   currentStage?: string;
   caseData?: Record<string, string>;
+  assignedAttorneys?: string[]; // profile IDs from matter_assignments
+}
+
+export type AssignmentRole = 'lead' | 'assigned';
+
+export interface MatterAssignment {
+  id: string;
+  matterId: string;
+  profileId: string;
+  role: AssignmentRole;
+  assignedAt: string;
+  assignedBy?: string;
 }
 
 export interface Consultation {
@@ -461,12 +474,55 @@ export interface OnboardingItem {
   orden: number;
 }
 
-// ── CHAT GLOBAL ────────────────────────────────────────────
+// ── MENSAJERÍA (Conversations) ─────────────────────────────
 
-export interface ChatMessage {
+export type ConversationType = 'direct' | 'group';
+
+export interface Conversation {
   id: string;
+  type: ConversationType;
+  name?: string;
+  createdBy: string;
+  createdAt: string;
+  memberIds: string[];
+  lastMessage?: ConversationMessage;
+  unreadCount?: number;
+}
+
+export interface ConversationMessage {
+  id: string;
+  conversationId: string;
   senderId: string;
   content: string;
+  createdAt: string;
+}
+
+// ── BITÁCORA / AUDIT LOG ───────────────────────────────────
+
+export type AuditAction =
+  | 'crear_asunto' | 'editar_asunto' | 'cerrar_asunto'
+  | 'crear_cliente' | 'editar_cliente'
+  | 'crear_consulta' | 'cambiar_estado_consulta'
+  | 'crear_tarea' | 'editar_tarea' | 'completar_tarea'
+  | 'crear_documento' | 'editar_documento'
+  | 'asignar_abogados'
+  | 'invitar_usuario' | 'editar_usuario' | 'desactivar_usuario'
+  | 'crear_hito' | 'editar_hito'
+  | 'login' | 'logout';
+
+export type AuditEntityType =
+  | 'matter' | 'client' | 'consultation' | 'task'
+  | 'document' | 'profile' | 'assignment' | 'milestone' | 'session';
+
+export interface AuditLogEntry {
+  id: string;
+  actorId: string;
+  actorName: string;
+  action: AuditAction;
+  entityType: AuditEntityType;
+  entityId?: string;
+  entityLabel?: string;
+  details?: Record<string, unknown>;
   createdAt: string;
 }
 

@@ -2,19 +2,23 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 import { UserProfile } from '../types';
+import { logAudit } from './db';
 
 interface AuthState {
   session: Session | null;
   user: User | null;
   profile: UserProfile | null;
   isLoading: boolean;
+  mustChangePassword: boolean;
 }
 
 interface AuthContextType extends AuthState {
   signIn: (email: string, password: string, rememberMe?: boolean) => Promise<{ error: string | null }>;
-  signUp: (email: string, password: string, fullName: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  resetPassword: (email: string) => Promise<{ error: string | null }>;
+  updatePassword: (newPassword: string) => Promise<{ error: string | null }>;
+  clearMustChangePassword: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -26,7 +30,16 @@ const toProfile = (row: any): UserProfile => ({
   role: row.role,
   initials: row.initials,
   isActive: row.is_active,
+  mustChangePassword: row.must_change_password ?? false,
 });
+
+const emptyState: AuthState = {
+  session: null,
+  user: null,
+  profile: null,
+  isLoading: false,
+  mustChangePassword: false,
+};
 
 async function fetchProfile(userId: string): Promise<UserProfile | null> {
   try {
@@ -60,9 +73,7 @@ async function fetchProfile(userId: string): Promise<UserProfile | null> {
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, setState] = useState<AuthState>({
-    session: null,
-    user: null,
-    profile: null,
+    ...emptyState,
     isLoading: true,
   });
 
@@ -80,6 +91,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // perfil ya cargado para evitar el flash. Solo vaciamos si cambia el usuario.
         if (mounted) {
           setState((prev: AuthState) => ({
+            ...prev,
             session,
             user: session?.user ?? null,
             profile: session?.user?.id === prev.user?.id ? prev.profile : null,
@@ -93,11 +105,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
           if (!mounted) return;
 
+          // Si el usuario está desactivado → cerrar sesión
+          if (profile && !profile.isActive) {
+            await supabase.auth.signOut();
+            safeSetState(emptyState);
+            return;
+          }
+
           setState(prev => ({
             ...prev,
             session,
             user: session.user,
             profile,
+            mustChangePassword: profile?.mustChangePassword ?? false,
             isLoading: false,
           }));
         }
@@ -106,6 +126,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         if (mounted) {
           setState((prev: AuthState) => ({
+            ...prev,
             session,
             user: session?.user ?? null,
             profile: session?.user?.id === prev.user?.id ? prev.profile : null,
@@ -121,12 +142,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         if (error) {
           console.error('getSession error:', error);
-          safeSetState({
-            session: null,
-            user: null,
-            profile: null,
-            isLoading: false,
-          });
+          safeSetState(emptyState);
           return;
         }
 
@@ -135,7 +151,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const alive    = sessionStorage.getItem('lawstream_alive');
         if (data.session && remember === '0' && !alive) {
           await supabase.auth.signOut();
-          safeSetState({ session: null, user: null, profile: null, isLoading: false });
+          safeSetState(emptyState);
           return;
         }
 
@@ -145,13 +161,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await applySession(data.session ?? null);
       } catch (err) {
         console.error('Error initializing auth:', err);
-
-        safeSetState({
-          session: null,
-          user: null,
-          profile: null,
-          isLoading: false,
-        });
+        safeSetState(emptyState);
       }
     };
 
@@ -176,13 +186,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signIn = async (email: string, password: string, rememberMe = true) => {
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (!error) {
-        // Marcar sesión activa en sessionStorage (se borra al cerrar el navegador)
-        sessionStorage.setItem('lawstream_alive', '1');
-        localStorage.setItem('lawstream_remember', rememberMe ? '1' : '0');
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) return { error: error.message };
+
+      // Verificar is_active antes de permitir el acceso
+      if (data.user) {
+        const profile = await fetchProfile(data.user.id);
+        if (profile && !profile.isActive) {
+          await supabase.auth.signOut();
+          return { error: 'Tu cuenta fue desactivada. Contactá al administrador del estudio.' };
+        }
       }
-      return { error: error?.message ?? null };
+
+      sessionStorage.setItem('lawstream_alive', '1');
+      localStorage.setItem('lawstream_remember', rememberMe ? '1' : '0');
+
+      // Audit: login
+      if (data.user) {
+        const p = await fetchProfile(data.user.id);
+        logAudit({ actorId: data.user.id, actorName: p?.fullName || email, action: 'login', entityType: 'session' });
+      }
+
+      return { error: null };
     } catch (err) {
       console.error('signIn error:', err);
       return {
@@ -191,33 +216,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const signUp = async (email: string, password: string, fullName: string) => {
-    try {
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: { data: { full_name: fullName } },
-      });
-
-      return { error: error?.message ?? null };
-    } catch (err) {
-      console.error('signUp error:', err);
-      return {
-        error: err instanceof Error ? err.message : 'No se pudo crear la cuenta.',
-      };
-    }
-  };
-
   const signOut = async () => {
     try {
+      // Audit: logout
+      if (state.user && state.profile) {
+        logAudit({ actorId: state.user.id, actorName: state.profile.fullName, action: 'logout', entityType: 'session' });
+      }
       await supabase.auth.signOut();
-
-      setState({
-        session: null,
-        user: null,
-        profile: null,
-        isLoading: false,
-      });
+      setState(emptyState);
     } catch (err) {
       console.error('signOut error:', err);
     }
@@ -232,10 +238,53 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setState(prev => ({
         ...prev,
         profile,
+        mustChangePassword: profile?.mustChangePassword ?? false,
       }));
     } catch (err) {
       console.error('refreshProfile error:', err);
     }
+  };
+
+  const resetPassword = async (email: string) => {
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      return { error: error?.message ?? null };
+    } catch (err) {
+      console.error('resetPassword error:', err);
+      return { error: err instanceof Error ? err.message : 'No se pudo enviar el email.' };
+    }
+  };
+
+  const updatePassword = async (newPassword: string) => {
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) return { error: error.message };
+
+      // Limpiar flag must_change_password
+      if (state.user) {
+        await supabase
+          .from('profiles')
+          .update({ must_change_password: false, updated_at: new Date().toISOString() })
+          .eq('id', state.user.id);
+
+        setState((prev: AuthState) => ({
+          ...prev,
+          mustChangePassword: false,
+          profile: prev.profile ? { ...prev.profile, mustChangePassword: false } : null,
+        }));
+      }
+
+      return { error: null };
+    } catch (err) {
+      console.error('updatePassword error:', err);
+      return { error: err instanceof Error ? err.message : 'No se pudo cambiar la contraseña.' };
+    }
+  };
+
+  const clearMustChangePassword = () => {
+    setState((prev: AuthState) => ({ ...prev, mustChangePassword: false }));
   };
 
   return (
@@ -243,9 +292,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       value={{
         ...state,
         signIn,
-        signUp,
         signOut,
         refreshProfile,
+        resetPassword,
+        updatePassword,
+        clearMustChangePassword,
       }}
     >
       {children}

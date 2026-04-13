@@ -13,6 +13,7 @@ import {
 import { UserProfile, UserRole } from '../types';
 import { useAuth } from '../lib/auth';
 import * as db from '../lib/db';
+import { logAudit } from '../lib/db';
 
 const ROLE_CONFIG: Record<
   UserRole,
@@ -189,6 +190,8 @@ export const UsuariosConfig: React.FC<Props> = ({ onBack }) => {
 
     try {
       await db.updateProfile(userId, { role: newRole });
+      const target = users.find((u: UserProfile) => u.id === userId);
+      if (currentUser) logAudit({ actorId: currentUser.id, actorName: currentUser.fullName, action: 'editar_usuario', entityType: 'profile', entityId: userId, entityLabel: target?.fullName, details: { newRole } });
     } catch (err) {
       console.error('Error actualizando rol:', err);
       setUsers(previousUsers);
@@ -208,6 +211,8 @@ export const UsuariosConfig: React.FC<Props> = ({ onBack }) => {
 
     try {
       await db.updateProfile(userId, { isActive });
+      const target = users.find((u: UserProfile) => u.id === userId);
+      if (currentUser) logAudit({ actorId: currentUser.id, actorName: currentUser.fullName, action: isActive ? 'editar_usuario' : 'desactivar_usuario', entityType: 'profile', entityId: userId, entityLabel: target?.fullName });
     } catch (err) {
       console.error('Error actualizando estado:', err);
       setUsers(previousUsers);
@@ -229,6 +234,8 @@ export const UsuariosConfig: React.FC<Props> = ({ onBack }) => {
         setInviteError(error);
         return;
       }
+
+      if (currentUser) logAudit({ actorId: currentUser.id, actorName: currentUser.fullName, action: 'invitar_usuario', entityType: 'profile', entityLabel: inviteName, details: { email: inviteEmail, role: inviteRole } });
 
       setShowInvite(false);
       setInviteEmail('');

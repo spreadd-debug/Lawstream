@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../lib/auth';
-import { Eye, EyeOff, AlertCircle, LogIn, UserPlus } from 'lucide-react';
+import { Eye, EyeOff, AlertCircle, LogIn, Mail } from 'lucide-react';
 
 /* ─── Paleta ──────────────────────────────────────────────────── */
 const C = {
@@ -47,32 +47,37 @@ const JusticeFigure = () => (
 
 /* ─── Componente principal ────────────────────────────────────── */
 export const Login = () => {
-  const { signIn, signUp } = useAuth();
-  const [mode, setMode]               = useState<'login' | 'register'>('login');
+  const { signIn, resetPassword } = useAuth();
+  const [mode, setMode]               = useState<'login' | 'forgot'>('login');
   const [email, setEmail]             = useState('');
   const [password, setPassword]       = useState('');
-  const [fullName, setFullName]       = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe]   = useState(() => localStorage.getItem('lawstream_remember') !== '0');
   const [error, setError]             = useState<string | null>(null);
   const [loading, setLoading]         = useState(false);
   const [success, setSuccess]         = useState<string | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setSuccess(null);
     setLoading(true);
 
-    if (mode === 'login') {
-      const { error } = await signIn(email, password, rememberMe);
-      if (error) setError(error);
-    } else {
-      if (!fullName.trim()) { setError('Ingresá tu nombre completo'); setLoading(false); return; }
-      const { error } = await signUp(email, password, fullName);
-      if (error) { setError(error); }
-      else { setSuccess('Cuenta creada. Revisá tu email para confirmar el registro.'); setMode('login'); }
-    }
+    const { error } = await signIn(email, password, rememberMe);
+    if (error) setError(error);
+    setLoading(false);
+  };
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSuccess(null);
+    if (!email.trim()) { setError('Ingresa tu email'); return; }
+    setLoading(true);
+
+    const { error } = await resetPassword(email);
+    if (error) { setError(error); }
+    else { setSuccess('Te enviamos un email con instrucciones para restablecer tu contrasena. Revisa tu bandeja de entrada.'); }
     setLoading(false);
   };
 
@@ -89,7 +94,7 @@ export const Login = () => {
             {/* Top */}
             <div>
               <div style={{ fontSize: 10, letterSpacing: '0.22em', color: C.teal, textTransform: 'uppercase', marginBottom: 20 }}>
-                Software jurídico
+                Software juridico
               </div>
               <div style={{ fontFamily: 'Georgia, serif', fontSize: 26, color: '#fff', lineHeight: 1.5, fontStyle: 'italic', fontWeight: 'normal' }}>
                 El flujo de tu estudio,<br />
@@ -105,7 +110,7 @@ export const Login = () => {
                 "La justicia es la reina de las virtudes republicanas y con ella se sostiene la igualdad y la libertad."
               </div>
               <div style={{ fontSize: 10.5, color: 'rgba(255,255,255,0.2)', marginTop: 8, letterSpacing: '0.06em' }}>
-                — Simón Bolívar
+                — Simon Bolivar
               </div>
             </div>
           </div>
@@ -119,33 +124,15 @@ export const Login = () => {
             <img src="/logo.png" alt="Lawstream" style={{ height: 80, width: 'auto', objectFit: 'contain' }} />
           </div>
 
-          {/* Título */}
+          {/* Titulo */}
           <div style={{ fontFamily: 'Georgia, serif', fontSize: 24, color: C.navy, fontWeight: 'normal', marginBottom: 4 }}>
-            {mode === 'login' ? 'Iniciar sesión' : 'Crear cuenta'}
+            {mode === 'login' ? 'Iniciar sesion' : 'Restablecer contrasena'}
           </div>
           <div style={{ fontSize: 10.5, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 28 }}>
-            {mode === 'login' ? 'Accedé a tu estudio' : 'Registrá tu cuenta'}
+            {mode === 'login' ? 'Accede a tu estudio' : 'Ingresa tu email para recibir instrucciones'}
           </div>
 
-          <form onSubmit={handleSubmit}>
-            {/* Nombre completo (solo registro) */}
-            {mode === 'register' && (
-              <div style={{ marginBottom: 18 }}>
-                <label style={{ display: 'block', fontSize: 10, letterSpacing: '0.13em', textTransform: 'uppercase', color: C.label, marginBottom: 7 }}>
-                  Nombre completo
-                </label>
-                <input
-                  type="text"
-                  value={fullName}
-                  onChange={e => setFullName(e.target.value)}
-                  placeholder="Dr. Juan Pérez"
-                  style={inputStyle}
-                  onFocus={e => e.target.style.borderColor = C.teal}
-                  onBlur={e => e.target.style.borderColor = C.border}
-                />
-              </div>
-            )}
-
+          <form onSubmit={mode === 'login' ? handleLogin : handleForgotPassword}>
             {/* Email */}
             <div style={{ marginBottom: 18 }}>
               <label style={{ display: 'block', fontSize: 10, letterSpacing: '0.13em', textTransform: 'uppercase', color: C.label, marginBottom: 7 }}>
@@ -163,50 +150,61 @@ export const Login = () => {
               />
             </div>
 
-            {/* Contraseña */}
-            <div style={{ marginBottom: 6 }}>
-              <label style={{ display: 'block', fontSize: 10, letterSpacing: '0.13em', textTransform: 'uppercase', color: C.label, marginBottom: 7 }}>
-                Contraseña
-              </label>
-              <div style={{ position: 'relative' }}>
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  required
-                  minLength={6}
-                  style={{ ...inputStyle, paddingRight: 44 }}
-                  onFocus={e => e.target.style.borderColor = C.teal}
-                  onBlur={e => e.target.style.borderColor = C.border}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: C.muted, display: 'flex', alignItems: 'center' }}
-                >
-                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-              </div>
-            </div>
-
-            {/* Recordarme (solo en login) */}
+            {/* Contrasena (solo en login) */}
             {mode === 'login' && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>
-                <input
-                  id="rememberMe"
-                  type="checkbox"
-                  checked={rememberMe}
-                  onChange={e => setRememberMe(e.target.checked)}
-                  style={{ width: 15, height: 15, accentColor: C.teal, cursor: 'pointer' }}
-                />
-                <label
-                  htmlFor="rememberMe"
-                  style={{ fontSize: 12, color: C.label, cursor: 'pointer', userSelect: 'none' }}
-                >
-                  Mantener sesión iniciada
-                </label>
-              </div>
+              <>
+                <div style={{ marginBottom: 6 }}>
+                  <label style={{ display: 'block', fontSize: 10, letterSpacing: '0.13em', textTransform: 'uppercase', color: C.label, marginBottom: 7 }}>
+                    Contrasena
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={password}
+                      onChange={e => setPassword(e.target.value)}
+                      placeholder="••••••••"
+                      required
+                      minLength={6}
+                      style={{ ...inputStyle, paddingRight: 44 }}
+                      onFocus={e => e.target.style.borderColor = C.teal}
+                      onBlur={e => e.target.style.borderColor = C.border}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: C.muted, display: 'flex', alignItems: 'center' }}
+                    >
+                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Recordarme + Olvide mi contrasena */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <input
+                      id="rememberMe"
+                      type="checkbox"
+                      checked={rememberMe}
+                      onChange={e => setRememberMe(e.target.checked)}
+                      style={{ width: 15, height: 15, accentColor: C.teal, cursor: 'pointer' }}
+                    />
+                    <label
+                      htmlFor="rememberMe"
+                      style={{ fontSize: 12, color: C.label, cursor: 'pointer', userSelect: 'none' }}
+                    >
+                      Mantener sesion iniciada
+                    </label>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { setMode('forgot'); setError(null); setSuccess(null); }}
+                    style={{ background: 'none', border: 'none', color: C.teal, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
+                  >
+                    Olvide mi contrasena
+                  </button>
+                </div>
+              </>
             )}
 
             {/* Error */}
@@ -217,14 +215,14 @@ export const Login = () => {
               </div>
             )}
 
-            {/* Éxito */}
+            {/* Exito */}
             {success && (
               <div style={{ padding: '10px 14px', background: 'rgba(29,158,117,0.08)', border: '1px solid rgba(29,158,117,0.2)', borderRadius: 8, color: C.teal, fontSize: 13, marginTop: 12 }}>
                 {success}
               </div>
             )}
 
-            {/* Botón */}
+            {/* Boton */}
             <button
               type="submit"
               disabled={loading}
@@ -245,27 +243,22 @@ export const Login = () => {
               ) : mode === 'login' ? (
                 <><LogIn size={15} /> Ingresar</>
               ) : (
-                <><UserPlus size={15} /> Crear Cuenta</>
+                <><Mail size={15} /> Enviar instrucciones</>
               )}
             </button>
           </form>
 
           {/* Toggle modo */}
-          <div style={{ textAlign: 'center', fontSize: 12, color: C.muted, marginTop: 20 }}>
-            {mode === 'login' ? (
-              <>¿No tenés cuenta?{' '}
-                <button onClick={() => { setMode('register'); setError(null); setSuccess(null); }} style={{ background: 'none', border: 'none', color: C.teal, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
-                  Registrate
-                </button>
-              </>
-            ) : (
-              <>¿Ya tenés cuenta?{' '}
-                <button onClick={() => { setMode('login'); setError(null); setSuccess(null); }} style={{ background: 'none', border: 'none', color: C.teal, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
-                  Iniciá sesión
-                </button>
-              </>
-            )}
-          </div>
+          {mode === 'forgot' && (
+            <div style={{ textAlign: 'center', fontSize: 12, color: C.muted, marginTop: 20 }}>
+              <button
+                onClick={() => { setMode('login'); setError(null); setSuccess(null); }}
+                style={{ background: 'none', border: 'none', color: C.teal, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
+              >
+                Volver a iniciar sesion
+              </button>
+            </div>
+          )}
 
           <div style={{ textAlign: 'center', fontSize: 9.5, letterSpacing: '0.1em', color: '#C4C2B8', marginTop: 24, textTransform: 'uppercase' }}>
             Lawstream v2.0.4
@@ -273,7 +266,7 @@ export const Login = () => {
         </div>
       </div>
 
-      {/* Animación spin para el loading */}
+      {/* Animacion spin para el loading */}
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );

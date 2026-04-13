@@ -19,6 +19,7 @@ import {
   Moon,
   LogOut,
   BarChart3,
+  ScrollText,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useAuth } from '../lib/auth';
@@ -29,7 +30,7 @@ import { EditMatterForm } from './EditMatterForm';
 import { FiltersContent, defaultFilters } from './FiltersContent';
 import { OverdueInterviewBanner } from './OverdueInterviewBanner';
 import { EntrevistaModal } from './EntrevistaModal';
-import { GlobalChat } from './GlobalChat';
+import { ChatPanel } from './ChatPanel';
 
 // ── Sidebar link using NavLink ────────────────────────────────────
 
@@ -122,6 +123,7 @@ export const AppLayout: React.FC = () => {
     { to: '/documentos',   label: 'Documentos',    icon: FileText },
     { to: '/plantillas',   label: 'Plantillas',    icon: LayoutDashboard },
     ...(isSocioOrSecretario ? [{ to: '/reportes', label: 'Reportes', icon: BarChart3 }] : []),
+    ...(profile?.role === 'Socio' ? [{ to: '/bitacora', label: 'Bitácora', icon: ScrollText }] : []),
   ];
 
   const splitAt = isSocioOrSecretario ? 5 : 4;
@@ -382,8 +384,8 @@ export const AppLayout: React.FC = () => {
         />
       </Drawer>
 
-      {/* ── Chat Global ── */}
-      <GlobalChat />
+      {/* ── Chat ── */}
+      <ChatPanel />
     </div>
   );
 };

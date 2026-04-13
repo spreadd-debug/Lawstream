@@ -77,7 +77,9 @@ export const PanelManager = ({ matters, documents, consultations, profiles, onSe
   const attorneyStats = useMemo(() => {
     const activeProfiles = profiles.filter(p => p.isActive);
     const stats: AttorneyStats[] = activeProfiles.map(profile => {
-      const myMatters = activeMatters.filter(m => m.responsible === profile.fullName);
+      const myMatters = activeMatters.filter(m =>
+        m.assignedAttorneys?.includes(profile.id) || m.responsible === profile.fullName
+      );
       const myDocs = documents.filter(d => d.responsible === profile.fullName);
       return {
         profile,

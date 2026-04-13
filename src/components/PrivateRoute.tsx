@@ -1,9 +1,10 @@
 import React from 'react';
-import { Navigate, Outlet } from 'react-router-dom';
+import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 
 export const PrivateRoute: React.FC = () => {
-  const { session, isLoading } = useAuth();
+  const { session, isLoading, mustChangePassword } = useAuth();
+  const location = useLocation();
 
   if (isLoading) {
     return (
@@ -18,6 +19,11 @@ export const PrivateRoute: React.FC = () => {
 
   if (!session) {
     return <Navigate to="/login" replace />;
+  }
+
+  // Force password change on first login
+  if (mustChangePassword && location.pathname !== '/cambiar-password') {
+    return <Navigate to="/cambiar-password" replace />;
   }
 
   return <Outlet />;

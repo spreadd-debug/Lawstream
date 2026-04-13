@@ -3,6 +3,7 @@ import { Matter, Client, Consultation, LegalDocument, Task, TimelineEvent, UserP
 import { GlobalFilters, defaultFilters } from '../components/FiltersContent';
 import { useAuth } from './auth';
 import * as db from './db';
+import { logAudit } from './db';
 import { generateConsultationTasks, generateExpedienteTasks } from './taskEngine';
 import { findTemplate } from '../data/templates';
 import { instantiateFlow } from './flowEngine';
@@ -60,12 +61,20 @@ interface AppContextType {
   milestones: MatterMilestone[];
   handleUpdateMilestone: (id: string, changes: Partial<MatterMilestone>) => Promise<void>;
   handleCreateMilestone: (ms: Omit<MatterMilestone, 'id'>) => Promise<void>;
+  // Assignments
+  handleUpdateAssignments: (matterId: string, profileIds: string[], leadId: string) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { session } = useAuth();
+  const { session, profile: authProfile } = useAuth();
+
+  // Helper para audit log — fire-and-forget
+  const audit = (action: import('../types').AuditAction, entityType: import('../types').AuditEntityType, entityId?: string, entityLabel?: string, details?: Record<string, unknown>) => {
+    if (!session?.user || !authProfile) return;
+    logAudit({ actorId: session.user.id, actorName: authProfile.fullName, action, entityType, entityId, entityLabel, details });
+  };
 
   const [matters, setMatters] = useState<Matter[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -176,6 +185,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       await db.updateMatter(targetId, matterChanges);
       await db.createTimelineEvent(newEvent);
+      audit('editar_asunto', 'matter', targetId, data.title, { action: data.title, type: data.type });
     } catch (err) {
       console.error('Error guardando acción:', err);
     }
@@ -196,6 +206,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setIsEditMatterOpen(false);
     try {
       await db.updateMatter(selectedMatterId, changes);
+      audit('editar_asunto', 'matter', selectedMatterId, data.title, changes);
     } catch (err) {
       console.error('Error editando asunto:', err);
     }
@@ -213,6 +224,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const saved = await db.createClient_({ ...data, lastActivity: optimistic.lastActivity });
       setClients(prev => prev.map(c => c.id === optimistic.id ? saved : c));
+      audit('crear_cliente', 'client', saved.id, saved.name);
     } catch (err) {
       console.error('Error creando cliente:', err);
       setClients(prev => prev.filter(c => c.id !== optimistic.id));
@@ -223,6 +235,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setClients(prev => prev.map(c => c.id === id ? { ...c, ...data } : c));
     try {
       await db.updateClient_(id, data);
+      audit('editar_cliente', 'client', id, data.name);
     } catch (err) {
       console.error('Error actualizando cliente:', err);
     }
@@ -232,6 +245,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setDocuments(prev => prev.map(d => d.id === id ? { ...d, ...changes } : d));
     try {
       await db.updateDocument(id, changes);
+      audit('editar_documento', 'document', id, undefined, changes);
     } catch (err) {
       console.error('Error actualizando documento:', err);
     }
@@ -243,24 +257,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const saved = await db.createDocument(doc);
       setDocuments(prev => prev.map(d => d.id === optimistic.id ? saved : d));
+      audit('crear_documento', 'document', saved.id, saved.name);
     } catch (err) {
       console.error('Error creando documento:', err);
     }
   };
 
   const handleCloseMatter = async (matterId: string) => {
+    const matter = matters.find(m => m.id === matterId);
     setMatters(prev => prev.map(m => m.id === matterId ? { ...m, status: 'Cerrado' as any } : m));
     try {
       await db.updateMatter(matterId, { status: 'Cerrado' });
+      audit('cerrar_asunto', 'matter', matterId, matter?.title);
     } catch (err) {
       console.error('Error cerrando asunto:', err);
     }
   };
 
   const handleUpdateMatterDirect = async (matterId: string, changes: Partial<Matter>) => {
+    const matter = matters.find(m => m.id === matterId);
     setMatters(prev => prev.map(m => m.id === matterId ? { ...m, ...changes, lastActivity: new Date().toISOString() } : m));
     try {
       await db.updateMatter(matterId, { ...changes, lastActivity: new Date().toISOString() });
+      audit('editar_asunto', 'matter', matterId, matter?.title, changes as Record<string, unknown>);
     } catch (err) {
       console.error('Error actualizando asunto:', err);
     }
@@ -295,9 +314,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       savedMatter = await db.createMatter(newMatter);
       setMatters(prev => prev.map(m => m.id === optimistic.id ? savedMatter : m));
+      audit('crear_asunto', 'matter', savedMatter.id, savedMatter.title, { type: savedMatter.type, client: savedMatter.client });
     } catch (err) {
       console.error('Error creando asunto:', err);
       savedMatter = optimistic;
+    }
+
+    // Create matter assignments
+    const assignedIds: string[] = data.assignedAttorneyIds || [];
+    const leadProfile = profiles.find(p => p.fullName === data.responsible);
+    const leadId = leadProfile?.id || '';
+    // Ensure lead is in the list
+    const allIds = leadId && !assignedIds.includes(leadId) ? [leadId, ...assignedIds] : assignedIds;
+    if (allIds.length > 0 && leadId) {
+      try {
+        await db.updateMatterAssignments(savedMatter.id, allIds, leadId, session?.user?.id || '');
+        setMatters(prev => prev.map(m =>
+          m.id === savedMatter.id ? { ...m, assignedAttorneys: allIds } : m
+        ));
+      } catch (err) {
+        console.error('Error creando asignaciones:', err);
+      }
     }
 
     // Instantiate flow: create tasks, documents & milestones from template
@@ -364,6 +401,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const saved = await db.createConsultation(data);
       setConsultations(prev => prev.map(c => c.id === optimistic.id ? saved : c));
+      audit('crear_consulta', 'consultation', saved.id, saved.name);
     } catch (err) {
       console.error('Error creando consulta:', err);
       setConsultations(prev => prev.filter(c => c.id !== optimistic.id));
@@ -381,6 +419,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const saved = await db.createTask(task);
       setTasks(prev => prev.map(t => t.id === optimistic.id ? saved : t));
+      audit('crear_tarea', 'task', saved.id, saved.title);
     } catch (err) {
       console.error('Error creando tarea:', err);
       setTasks(prev => prev.filter(t => t.id !== optimistic.id));
@@ -391,6 +430,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setTasks(prev => prev.map(t => t.id === id ? { ...t, ...changes } : t));
     try {
       await db.updateTask(id, changes);
+      const t = tasks.find(t => t.id === id);
+      audit('editar_tarea', 'task', id, t?.title, changes as Record<string, unknown>);
     } catch (err) {
       console.error('Error actualizando tarea:', err);
     }
@@ -403,6 +444,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     ));
     try {
       await db.updateTask(id, { status: 'Completada', completedAt: now, completedBy });
+      const t = tasks.find(t => t.id === id);
+      audit('completar_tarea', 'task', id, t?.title);
     } catch (err) {
       console.error('Error completando tarea:', err);
     }
@@ -424,6 +467,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setConsultations(prev => prev.map(c => c.id === id ? { ...c, status: newStatus, nextStep } : c));
     try {
       await db.updateConsultation(id, { status: newStatus, nextStep });
+      const c = consultations.find(c => c.id === id);
+      audit('cambiar_estado_consulta', 'consultation', id, c?.name, { newStatus });
     } catch (err) {
       console.error('Error actualizando estado consulta:', err);
     }
@@ -439,6 +484,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setMilestones(prev => prev.map(m => m.id === id ? { ...m, ...changes } : m));
     try {
       await db.updateMilestone(id, changes);
+      const ms = milestones.find(m => m.id === id);
+      audit('editar_hito', 'milestone', id, ms?.label, changes as Record<string, unknown>);
     } catch (err) {
       console.error('Error actualizando hito:', err);
     }
@@ -450,6 +497,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const saved = await db.createMilestone(ms);
       setMilestones(prev => prev.map(m => m.id === optimistic.id ? saved : m));
+      audit('crear_hito', 'milestone', saved.id, saved.label);
     } catch (err) {
       console.error('Error creando hito:', err);
       setMilestones(prev => prev.filter(m => m.id !== optimistic.id));
@@ -462,6 +510,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setExpedientes(exps);
     } catch (err) {
       console.error('Error refrescando expedientes:', err);
+    }
+  };
+
+  const handleUpdateAssignments = async (matterId: string, profileIds: string[], leadId: string) => {
+    // Optimistic update
+    setMatters(prev => prev.map(m =>
+      m.id === matterId ? { ...m, assignedAttorneys: profileIds } : m
+    ));
+    // Update lead responsible name
+    const leadProfile = profiles.find(p => p.id === leadId);
+    if (leadProfile) {
+      setMatters(prev => prev.map(m =>
+        m.id === matterId ? { ...m, responsible: leadProfile.fullName } : m
+      ));
+    }
+    try {
+      await db.updateMatterAssignments(matterId, profileIds, leadId, session?.user?.id || '');
+      if (leadProfile) {
+        await db.updateMatter(matterId, { responsible: leadProfile.fullName });
+      }
+      const matter = matters.find(m => m.id === matterId);
+      const names = profileIds.map(pid => profiles.find(p => p.id === pid)?.fullName).filter(Boolean);
+      audit('asignar_abogados', 'assignment', matterId, matter?.title, { abogados: names, lead: leadProfile?.fullName });
+    } catch (err) {
+      console.error('Error actualizando asignaciones:', err);
     }
   };
 
@@ -485,6 +558,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       handleConsultationStatusChange,
       expedientes, handleRefreshExpedientes,
       milestones, handleUpdateMilestone, handleCreateMilestone,
+      handleUpdateAssignments,
     }}>
       {children}
     </AppContext.Provider>

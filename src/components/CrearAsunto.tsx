@@ -59,7 +59,7 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
   const [direction, setDirection] = useState(1); // 1 = forward, -1 = backward
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCreatingClient, setIsCreatingClient] = useState(false);
-  const [abogados, setAbogados] = useState<{ full_name: string }[]>([]);
+  const [abogados, setAbogados] = useState<{ id: string; full_name: string; role: string }[]>([]);
   const [clientSearch, setClientSearch] = useState('');
   const [selectedClient, setSelectedClient] = useState<any>(null);
   const [titleManuallyEdited, setTitleManuallyEdited] = useState(false);
@@ -74,6 +74,7 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
     expediente: '',
     description: '',
     responsible: '',
+    assignedAttorneyIds: [] as string[],
     priority: 'Media' as Priority,
     nextAction: '',
     nextActionDate: format(addDays(new Date(), 7), 'yyyy-MM-dd'),
@@ -88,7 +89,7 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
 
   // Fetch lawyers from profiles table
   useEffect(() => {
-    supabase.from('profiles').select('full_name').eq('is_active', true).then(({ data }) => {
+    supabase.from('profiles').select('id, full_name, role').eq('is_active', true).then(({ data }) => {
       if (data && data.length > 0) setAbogados(data);
     });
   }, []);
@@ -172,13 +173,13 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
         const jurisdictionOk = !showJurisdictionPicker || formData.jurisdiction;
         return (hasWizardStep || formData.title) && formData.type && jurisdictionOk && formData.subtype && selectedClient;
       case 2:
-        if (!hasWizardStep) return formData.responsible && formData.nextAction && formData.nextActionDate;
+        if (!hasWizardStep) return formData.responsible && formData.assignedAttorneyIds.length > 0 && formData.nextAction && formData.nextActionDate;
         // Validate required wizard fields + que la carátula se haya generado
         return formData.title && wizardSections.every(section =>
           section.fields.filter(f => f.required).every(f => formData.caseData[f.key]?.trim())
         );
       case 3:
-        if (hasWizardStep) return formData.responsible && formData.nextAction && formData.nextActionDate;
+        if (hasWizardStep) return formData.responsible && formData.assignedAttorneyIds.length > 0 && formData.nextAction && formData.nextActionDate;
         return true;
       default:
         return true;
@@ -733,31 +734,58 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
 
             <div className="space-y-8">
               <div className="space-y-4">
-                <Label>Responsable del Asunto</Label>
+                <Label>Equipo asignado</Label>
+                <p className="text-xs text-muted-foreground">El primero que selecciones sera el responsable principal (lead). Podes asignar varios.</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {abogados.map(a => a.full_name).map(name => (
-                    <button
-                      key={name}
-                      onClick={() => setFormData({...formData, responsible: name})}
-                      className={cn(
-                        "p-4 rounded-xl border flex items-center gap-3 transition-all text-left",
-                        formData.responsible === name 
-                          ? "bg-primary/5 border-primary shadow-sm ring-1 ring-primary/20" 
-                          : "bg-muted/30 border-border/50 hover:border-primary/30"
-                      )}
-                    >
-                      <div className={cn(
-                        "w-10 h-10 rounded-full flex items-center justify-center text-[10px] font-black border",
-                        formData.responsible === name ? "bg-primary text-white border-primary" : "bg-background text-muted-foreground border-border"
-                      )}>
-                        {name.split(' ').map(n => n[0]).join('')}
-                      </div>
-                      <div>
-                        <div className="text-sm font-bold text-foreground">{name}</div>
-                        <div className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Socio Principal</div>
-                      </div>
-                    </button>
-                  ))}
+                  {abogados.map(a => {
+                    const isSelected = formData.assignedAttorneyIds.includes(a.id);
+                    const isLead = formData.assignedAttorneyIds[0] === a.id;
+                    return (
+                      <button
+                        key={a.id}
+                        onClick={() => {
+                          setFormData(prev => {
+                            let ids = [...prev.assignedAttorneyIds];
+                            if (isSelected) {
+                              ids = ids.filter(id => id !== a.id);
+                            } else {
+                              ids.push(a.id);
+                            }
+                            const leadName = ids.length > 0
+                              ? abogados.find(ab => ab.id === ids[0])?.full_name || ''
+                              : '';
+                            return { ...prev, assignedAttorneyIds: ids, responsible: leadName };
+                          });
+                        }}
+                        className={cn(
+                          "p-4 rounded-xl border flex items-center gap-3 transition-all text-left",
+                          isLead
+                            ? "bg-primary/10 border-primary shadow-sm ring-1 ring-primary/30"
+                            : isSelected
+                              ? "bg-primary/5 border-primary/50 shadow-sm"
+                              : "bg-muted/30 border-border/50 hover:border-primary/30"
+                        )}
+                      >
+                        <div className={cn(
+                          "w-10 h-10 rounded-full flex items-center justify-center text-[10px] font-black border",
+                          isLead ? "bg-primary text-white border-primary"
+                            : isSelected ? "bg-primary/20 text-primary border-primary/50"
+                            : "bg-background text-muted-foreground border-border"
+                        )}>
+                          {a.full_name.split(' ').map(n => n[0]).join('')}
+                        </div>
+                        <div className="flex-1">
+                          <div className="text-sm font-bold text-foreground">{a.full_name}</div>
+                          <div className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
+                            {isLead ? 'Lead' : isSelected ? 'Asignado' : a.role}
+                          </div>
+                        </div>
+                        {isSelected && (
+                          <Check size={16} className={cn(isLead ? "text-primary" : "text-primary/60")} />
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -1097,13 +1125,25 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
                   </div>
                 </div>
 
-                <div className="pt-4 border-t border-border/50 flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-black border border-primary/20">
-                    {formData.responsible.split(' ').map(n => n[0]).join('')}
-                  </div>
-                  <div>
-                    <div className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.2em]">Responsable</div>
-                    <div className="text-sm font-bold">{formData.responsible}</div>
+                <div className="pt-4 border-t border-border/50 space-y-2">
+                  <div className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.2em]">Equipo asignado</div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {formData.assignedAttorneyIds.map((id, idx) => {
+                      const ab = abogados.find(a => a.id === id);
+                      if (!ab) return null;
+                      return (
+                        <div key={id} className="flex items-center gap-1.5 bg-muted/50 rounded-full px-2.5 py-1 border border-border/50">
+                          <div className={cn(
+                            "w-6 h-6 rounded-full flex items-center justify-center text-[8px] font-black",
+                            idx === 0 ? "bg-primary text-white" : "bg-primary/10 text-primary"
+                          )}>
+                            {ab.full_name.split(' ').map(n => n[0]).join('')}
+                          </div>
+                          <span className="text-xs font-bold">{ab.full_name}</span>
+                          {idx === 0 && <span className="text-[8px] font-black text-primary uppercase">Lead</span>}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               </Card>
@@ -1181,7 +1221,7 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
               </div>
               <div>
                 <p className="text-sm font-bold text-foreground">Listo para el flujo</p>
-                <p className="text-xs text-muted-foreground font-medium">Al confirmar, el asunto se activará en la mesa de control de {formData.responsible.split(' ').pop()}.</p>
+                <p className="text-xs text-muted-foreground font-medium">Al confirmar, el asunto se activará para {formData.assignedAttorneyIds.length} abogado{formData.assignedAttorneyIds.length !== 1 ? 's' : ''}.</p>
               </div>
             </div>
           </div>
@@ -1398,12 +1438,20 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
                 {/* Operational Motor */}
                 <div className="space-y-4 pt-6 border-t border-border/50">
                   <div className="space-y-1">
-                    <div className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.2em]">Responsable</div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center text-[8px] font-black text-primary border border-primary/20">
-                        {formData.responsible.split(' ').map(n => n[0]).join('')}
-                      </div>
-                      <span className="text-xs font-bold text-foreground">{formData.responsible}</span>
+                    <div className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.2em]">Equipo</div>
+                    <div className="flex items-center gap-1">
+                      {formData.assignedAttorneyIds.map((id, idx) => {
+                        const ab = abogados.find(a => a.id === id);
+                        if (!ab) return null;
+                        return (
+                          <div key={id} className={cn(
+                            "w-6 h-6 rounded-full flex items-center justify-center text-[8px] font-black border",
+                            idx === 0 ? "bg-primary text-white border-primary" : "bg-primary/10 text-primary border-primary/20"
+                          )} title={ab.full_name + (idx === 0 ? ' (Lead)' : '')}>
+                            {ab.full_name.split(' ').map(n => n[0]).join('')}
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
 

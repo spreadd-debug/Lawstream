@@ -38,7 +38,14 @@ import {
   SecloTramite,
   LiquidacionLaboral,
   ExpedienteLaboral,
-  ChatMessage,
+  Conversation,
+  ConversationMessage,
+  ConversationType,
+  MatterAssignment,
+  AssignmentRole,
+  AuditLogEntry,
+  AuditAction,
+  AuditEntityType,
 } from '../types';
 
 // ── Profiles ──────────────────────────────────────────────────────
@@ -50,6 +57,7 @@ const toProfile = (r: any): UserProfile => ({
   role:     r.role,
   initials: r.initials,
   isActive: r.is_active,
+  mustChangePassword: r.must_change_password ?? false,
 });
 
 export const fetchProfiles = async (): Promise<UserProfile[]> => {
@@ -66,7 +74,8 @@ export const updateProfile = async (id: string, changes: Partial<UserProfile>): 
   if (changes.fullName !== undefined) row.full_name = changes.fullName;
   if (changes.role !== undefined)     row.role = changes.role;
   if (changes.initials !== undefined) row.initials = changes.initials;
-  if (changes.isActive !== undefined) row.is_active = changes.isActive;
+  if (changes.isActive !== undefined)          row.is_active = changes.isActive;
+  if (changes.mustChangePassword !== undefined) row.must_change_password = changes.mustChangePassword;
   row.updated_at = new Date().toISOString();
 
   const { error } = await supabase
@@ -97,7 +106,11 @@ export const inviteUser = async (email: string, fullName: string, role: string):
   if (profiles) {
     await supabase
       .from('profiles')
-      .update({ role, initials: fullName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) })
+      .update({
+        role,
+        initials: fullName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2),
+        must_change_password: true,
+      })
       .eq('id', profiles.id);
   }
 
@@ -257,10 +270,13 @@ const documentToRow = (d: Partial<LegalDocument>) => ({
 export const fetchMatters = async (): Promise<Matter[]> => {
   const { data, error } = await supabase
     .from('matters')
-    .select('*')
+    .select('*, matter_assignments(profile_id, role)')
     .order('created_at', { ascending: false });
   if (error) throw error;
-  return (data ?? []).map(toMatter);
+  return (data ?? []).map(r => ({
+    ...toMatter(r),
+    assignedAttorneys: (r.matter_assignments || []).map((a: any) => a.profile_id),
+  }));
 };
 
 export const fetchClients = async (): Promise<Client[]> => {
@@ -1591,31 +1607,238 @@ export const updateExpedienteLaboral = async (id: string, changes: Partial<Exped
   if (error) throw error;
 };
 
-// ── Chat Global ──────────────────────────────────────────────────
+// ── Matter Assignments ───────────────────────────────────────────
 
-const toChatMessage = (r: any): ChatMessage => ({
-  id:        r.id,
-  senderId:  r.sender_id,
-  content:   r.content,
-  createdAt: r.created_at,
+const toAssignment = (r: any): MatterAssignment => ({
+  id:         r.id,
+  matterId:   r.matter_id,
+  profileId:  r.profile_id,
+  role:       r.role,
+  assignedAt: r.assigned_at,
+  assignedBy: r.assigned_by ?? undefined,
 });
 
-export const fetchChatMessages = async (limit = 50): Promise<ChatMessage[]> => {
+export const fetchMatterAssignments = async (matterId: string): Promise<MatterAssignment[]> => {
   const { data, error } = await supabase
-    .from('chat_messages')
+    .from('matter_assignments')
     .select('*')
+    .eq('matter_id', matterId);
+  if (error) throw error;
+  return (data ?? []).map(toAssignment);
+};
+
+export const updateMatterAssignments = async (
+  matterId: string,
+  profileIds: string[],
+  leadId: string,
+  assignedBy: string,
+): Promise<void> => {
+  // 1. Remove existing assignments for this matter
+  const { error: delErr } = await supabase
+    .from('matter_assignments')
+    .delete()
+    .eq('matter_id', matterId);
+  if (delErr) throw delErr;
+
+  // 2. Insert new assignments
+  if (profileIds.length === 0) return;
+  const rows = profileIds.map(pid => ({
+    matter_id:   matterId,
+    profile_id:  pid,
+    role:        pid === leadId ? 'lead' : 'assigned',
+    assigned_by: assignedBy,
+  }));
+  const { error: insErr } = await supabase
+    .from('matter_assignments')
+    .insert(rows);
+  if (insErr) throw insErr;
+};
+
+// ── Mensajería (Conversations) ────────────────────────────────────
+
+const toConversationMessage = (r: any): ConversationMessage => ({
+  id:             r.id,
+  conversationId: r.conversation_id,
+  senderId:       r.sender_id,
+  content:        r.content,
+  createdAt:      r.created_at,
+});
+
+const toConversation = (r: any): Conversation => ({
+  id:        r.id,
+  type:      r.type,
+  name:      r.name ?? undefined,
+  createdBy: r.created_by,
+  createdAt: r.created_at,
+  memberIds: (r.conversation_members || []).map((m: any) => m.profile_id),
+  lastMessage: r.last_msg?.[0] ? toConversationMessage(r.last_msg[0]) : undefined,
+});
+
+export const fetchConversations = async (): Promise<Conversation[]> => {
+  const { data, error } = await supabase
+    .from('conversations')
+    .select('*, conversation_members(profile_id), last_msg:conversation_messages(id, conversation_id, sender_id, content, created_at)')
+    .order('created_at', { foreignTable: 'conversation_messages', ascending: false })
+    .limit(1, { foreignTable: 'conversation_messages' })
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(toConversation);
+};
+
+export const fetchConversationMessages = async (conversationId: string, limit = 80): Promise<ConversationMessage[]> => {
+  const { data, error } = await supabase
+    .from('conversation_messages')
+    .select('*')
+    .eq('conversation_id', conversationId)
     .order('created_at', { ascending: false })
     .limit(limit);
   if (error) throw error;
-  return (data ?? []).map(toChatMessage).reverse();
+  return (data ?? []).map(toConversationMessage).reverse();
 };
 
-export const sendChatMessage = async (senderId: string, content: string): Promise<ChatMessage> => {
+export const sendConversationMessage = async (conversationId: string, senderId: string, content: string): Promise<ConversationMessage> => {
   const { data, error } = await supabase
-    .from('chat_messages')
-    .insert({ sender_id: senderId, content })
+    .from('conversation_messages')
+    .insert({ conversation_id: conversationId, sender_id: senderId, content })
     .select()
     .single();
   if (error) throw error;
-  return toChatMessage(data);
+  return toConversationMessage(data);
+};
+
+export const createConversation = async (
+  type: ConversationType,
+  memberIds: string[],
+  createdBy: string,
+  name?: string,
+): Promise<Conversation> => {
+  // 1. Create the conversation
+  const { data: conv, error: convErr } = await supabase
+    .from('conversations')
+    .insert({ type, name: name ?? null, created_by: createdBy })
+    .select()
+    .single();
+  if (convErr) throw convErr;
+
+  // 2. Add creator as member first (needed for RLS on subsequent inserts)
+  const { error: selfErr } = await supabase
+    .from('conversation_members')
+    .insert({ conversation_id: conv.id, profile_id: createdBy });
+  if (selfErr) throw selfErr;
+
+  // 3. Add remaining members
+  const others = memberIds.filter(id => id !== createdBy);
+  if (others.length > 0) {
+    const rows = others.map(pid => ({ conversation_id: conv.id, profile_id: pid }));
+    const { error: memErr } = await supabase
+      .from('conversation_members')
+      .insert(rows);
+    if (memErr) throw memErr;
+  }
+
+  return {
+    id: conv.id,
+    type: conv.type,
+    name: conv.name ?? undefined,
+    createdBy: conv.created_by,
+    createdAt: conv.created_at,
+    memberIds,
+  };
+};
+
+export const findDirectConversation = async (userId1: string, userId2: string): Promise<Conversation | null> => {
+  // Find a 'direct' conversation where both users are members
+  const { data, error } = await supabase
+    .from('conversations')
+    .select('*, conversation_members(profile_id), last_msg:conversation_messages(id, conversation_id, sender_id, content, created_at)')
+    .eq('type', 'direct')
+    .order('created_at', { foreignTable: 'conversation_messages', ascending: false })
+    .limit(1, { foreignTable: 'conversation_messages' });
+  if (error) throw error;
+
+  const match = (data ?? []).find((c: any) => {
+    const members = (c.conversation_members || []).map((m: any) => m.profile_id);
+    return members.length === 2 && members.includes(userId1) && members.includes(userId2);
+  });
+
+  return match ? toConversation(match) : null;
+};
+
+export const addConversationMembers = async (conversationId: string, profileIds: string[]): Promise<void> => {
+  const rows = profileIds.map(pid => ({ conversation_id: conversationId, profile_id: pid }));
+  const { error } = await supabase
+    .from('conversation_members')
+    .insert(rows);
+  if (error) throw error;
+};
+
+export const leaveConversation = async (conversationId: string, profileId: string): Promise<void> => {
+  const { error } = await supabase
+    .from('conversation_members')
+    .delete()
+    .eq('conversation_id', conversationId)
+    .eq('profile_id', profileId);
+  if (error) throw error;
+};
+
+// ── Bitácora / Audit Log ──────────────────────────────────────────
+
+const toAuditEntry = (r: any): AuditLogEntry => ({
+  id:          r.id,
+  actorId:     r.actor_id,
+  actorName:   r.actor_name,
+  action:      r.action,
+  entityType:  r.entity_type,
+  entityId:    r.entity_id ?? undefined,
+  entityLabel: r.entity_label ?? undefined,
+  details:     r.details ?? undefined,
+  createdAt:   r.created_at,
+});
+
+export const logAudit = async (entry: {
+  actorId: string;
+  actorName: string;
+  action: AuditAction;
+  entityType: AuditEntityType;
+  entityId?: string;
+  entityLabel?: string;
+  details?: Record<string, unknown>;
+}): Promise<void> => {
+  const { error } = await supabase
+    .from('audit_log')
+    .insert({
+      actor_id:     entry.actorId,
+      actor_name:   entry.actorName,
+      action:       entry.action,
+      entity_type:  entry.entityType,
+      entity_id:    entry.entityId ?? null,
+      entity_label: entry.entityLabel ?? null,
+      details:      entry.details ?? {},
+    });
+  if (error) console.error('[audit] Error logging:', error);
+};
+
+export const fetchAuditLog = async (opts?: {
+  limit?: number;
+  offset?: number;
+  action?: AuditAction;
+  entityType?: AuditEntityType;
+  actorId?: string;
+}): Promise<AuditLogEntry[]> => {
+  let query = supabase
+    .from('audit_log')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (opts?.action)     query = query.eq('action', opts.action);
+  if (opts?.entityType) query = query.eq('entity_type', opts.entityType);
+  if (opts?.actorId)    query = query.eq('actor_id', opts.actorId);
+
+  const limit  = opts?.limit  ?? 100;
+  const offset = opts?.offset ?? 0;
+  query = query.range(offset, offset + limit - 1);
+
+  const { data, error } = await query;
+  if (error) throw error;
+  return (data ?? []).map(toAuditEntry);
 };
