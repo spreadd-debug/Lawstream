@@ -29,6 +29,7 @@ import { EditMatterForm } from './EditMatterForm';
 import { FiltersContent, defaultFilters } from './FiltersContent';
 import { OverdueInterviewBanner } from './OverdueInterviewBanner';
 import { EntrevistaModal } from './EntrevistaModal';
+import { GlobalChat } from './GlobalChat';
 
 // ── Sidebar link using NavLink ────────────────────────────────────
 
@@ -380,6 +381,9 @@ export const AppLayout: React.FC = () => {
           onClose={() => { setActiveFilters(defaultFilters); setIsFiltersOpen(false); }}
         />
       </Drawer>
+
+      {/* ── Chat Global ── */}
+      <GlobalChat />
     </div>
   );
 };

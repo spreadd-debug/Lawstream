@@ -461,6 +461,15 @@ export interface OnboardingItem {
   orden: number;
 }
 
+// ── CHAT GLOBAL ────────────────────────────────────────────
+
+export interface ChatMessage {
+  id: string;
+  senderId: string;
+  content: string;
+  createdAt: string;
+}
+
 // ── COMUNICACIONES ──────────────────────────────────────────
 
 export type CanalCommunication = 'WhatsApp' | 'Email' | 'Teléfono' | 'Presencial' | 'Interno';

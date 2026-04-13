@@ -38,6 +38,7 @@ import {
   SecloTramite,
   LiquidacionLaboral,
   ExpedienteLaboral,
+  ChatMessage,
 } from '../types';
 
 // ── Profiles ──────────────────────────────────────────────────────
@@ -1588,4 +1589,33 @@ export const updateExpedienteLaboral = async (id: string, changes: Partial<Exped
   if (changes.tipoEmpresa      !== undefined) row.tipo_empresa      = changes.tipoEmpresa;
   const { error } = await supabase.from('expedientes_laborales').update(row).eq('id', id);
   if (error) throw error;
+};
+
+// ── Chat Global ──────────────────────────────────────────────────
+
+const toChatMessage = (r: any): ChatMessage => ({
+  id:        r.id,
+  senderId:  r.sender_id,
+  content:   r.content,
+  createdAt: r.created_at,
+});
+
+export const fetchChatMessages = async (limit = 50): Promise<ChatMessage[]> => {
+  const { data, error } = await supabase
+    .from('chat_messages')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return (data ?? []).map(toChatMessage).reverse();
+};
+
+export const sendChatMessage = async (senderId: string, content: string): Promise<ChatMessage> => {
+  const { data, error } = await supabase
+    .from('chat_messages')
+    .insert({ sender_id: senderId, content })
+    .select()
+    .single();
+  if (error) throw error;
+  return toChatMessage(data);
 };
