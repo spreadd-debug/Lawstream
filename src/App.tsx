@@ -23,7 +23,6 @@ import { DocumentosPage }   from './pages/DocumentosPage';
 import { PlantillasPage }   from './pages/PlantillasPage';
 import { ConfiguracionPage } from './pages/ConfiguracionPage';
 import { ReportesPage }     from './pages/ReportesPage';
-import { BitacoraPage }     from './pages/BitacoraPage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { ChangePasswordPage } from './pages/ChangePasswordPage';
 
@@ -53,7 +52,6 @@ export default function App() {
             <Route path="/documentos"      element={<DocumentosPage />} />
             <Route path="/plantillas"      element={<PlantillasPage />} />
             <Route path="/reportes"         element={<ReportesPage />} />
-            <Route path="/bitacora"        element={<BitacoraPage />} />
             <Route path="/configuracion"   element={<ConfiguracionPage />} />
             {/* Catch-all → hoy */}
             <Route path="*" element={<Navigate to="/hoy" replace />} />

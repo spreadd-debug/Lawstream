@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Button, Input, MoneyInput } from './UI';
-import { User, Shield, Briefcase, FileText, Bell, CreditCard, ChevronRight, LogOut, Calculator, Check, ArrowLeft, Upload, Building2 } from 'lucide-react';
+import { User, Shield, Briefcase, FileText, Bell, CreditCard, ChevronRight, LogOut, Calculator, Check, ArrowLeft, Upload, Building2, ScrollText } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { UsuariosConfig } from './UsuariosConfig';
+import { BitacoraPage } from '../pages/BitacoraPage';
 import { fetchStudioConfig, upsertStudioConfig, fetchEstudioPerfil, upsertEstudioPerfil, uploadEstudioAsset } from '../lib/db';
 import { EstudioPerfil } from '../types';
 import { format, parseISO } from 'date-fns';
@@ -362,8 +363,10 @@ const ConsultaValorConfig = ({ onBack }: { onBack: () => void }) => {
 };
 
 export const Configuracion = () => {
-  const { signOut } = useAuth();
+  const { signOut, profile } = useAuth();
   const [activeSection, setActiveSection] = useState<string | null>(null);
+
+  const isSocio = profile?.role === 'Socio';
 
   const sections = [
     { id: 'estudio',        label: 'Datos del Estudio',    icon: Briefcase,  desc: 'Nombre, CUIT, dirección y contacto.' },
@@ -374,12 +377,14 @@ export const Configuracion = () => {
     { id: 'notificaciones', label: 'Notificaciones',       icon: Bell,       desc: 'Alertas de vencimientos y actividad.' },
     { id: 'perfil',         label: 'Mi Perfil',            icon: User,       desc: 'Cambiar contraseña y preferencias personales.' },
     { id: 'plan',           label: 'Plan y Facturación',   icon: CreditCard, desc: 'Gestionar suscripción y facturas.' },
+    ...(isSocio ? [{ id: 'bitacora', label: 'Bitácora', icon: ScrollText, desc: 'Registro de toda la actividad del estudio.' }] : []),
   ];
 
-  if (activeSection === 'usuarios') return <UsuariosConfig onBack={() => setActiveSection(null)} />;
-  if (activeSection === 'ius')      return <IUSConfig onBack={() => setActiveSection(null)} />;
-  if (activeSection === 'consulta') return <ConsultaValorConfig onBack={() => setActiveSection(null)} />;
-  if (activeSection === 'estudio')  return <EstudioPerfilConfig onBack={() => setActiveSection(null)} />;
+  if (activeSection === 'usuarios')  return <UsuariosConfig onBack={() => setActiveSection(null)} />;
+  if (activeSection === 'ius')       return <IUSConfig onBack={() => setActiveSection(null)} />;
+  if (activeSection === 'consulta')  return <ConsultaValorConfig onBack={() => setActiveSection(null)} />;
+  if (activeSection === 'estudio')   return <EstudioPerfilConfig onBack={() => setActiveSection(null)} />;
+  if (activeSection === 'bitacora')  return <BitacoraPage onBack={() => setActiveSection(null)} />;
 
   return (
     <div className="space-y-10 max-w-3xl mx-auto pb-20">

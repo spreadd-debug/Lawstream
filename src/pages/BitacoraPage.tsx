@@ -19,6 +19,7 @@ import {
   Filter,
   RefreshCw,
   UserCircle,
+  ArrowLeft,
 } from 'lucide-react';
 
 // ── Action metadata ────────────────────────────────────────────────
@@ -75,7 +76,7 @@ const isSameDay = (a: string, b: string) =>
 
 // ── Page ───────────────────────────────────────────────────────────
 
-export const BitacoraPage: React.FC = () => {
+export const BitacoraPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
   const { profiles } = useAppContext();
   const [entries, setEntries] = useState<AuditLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -150,6 +151,11 @@ export const BitacoraPage: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
+          {onBack && (
+            <button onClick={onBack} className="p-2 hover:bg-muted rounded-xl transition-colors">
+              <ArrowLeft size={20} />
+            </button>
+          )}
           <ScrollText className="w-6 h-6 text-primary" />
           <div>
             <h1 className="text-xl font-black text-foreground">Bitácora</h1>
