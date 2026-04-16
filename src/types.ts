@@ -108,6 +108,8 @@ export interface Task {
   completedAt?: string;
   completedBy?: string;
   etapa?: string;
+  /** Campos de caseData que satisfacen esta tarea (copiado del template) */
+  satisfiedBy?: { key: string; label: string }[];
 }
 
 export type DocumentStatus = 'Faltante' | 'Solicitado' | 'Recibido' | 'En revisión' | 'Aprobado' | 'Listo para presentar' | 'Presentado';
@@ -128,9 +130,27 @@ export interface LegalDocument {
   category?: string;
 }
 
+export interface FlowTaskCondition {
+  key: string;
+  equals?: string;
+  notEquals?: string;
+}
+
+export interface FlowTaskDef {
+  task: string;
+  priority: 'crítico' | 'recomendado' | 'opcional';
+  bloqueante?: boolean;
+  /** Solo generar esta tarea si caseData cumple la condición */
+  condition?: FlowTaskCondition;
+  /** Auto-completar si caseData[key] tiene valor */
+  autoCompleteIf?: { key: string };
+  /** Campos de caseData que satisfacen esta tarea — UI muestra cuáles faltan */
+  satisfiedBy?: { key: string; label: string }[];
+}
+
 export interface FlowStageTemplate {
   name: string;
-  tasks: { task: string; priority: 'crítico' | 'recomendado' | 'opcional'; bloqueante?: boolean }[];
+  tasks: FlowTaskDef[];
   documents: { name: string; required: boolean }[];
   milestone: string;
   fichaTitle?: string;

@@ -345,6 +345,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         savedMatter.client,
         savedMatter.responsible,
         template,
+        savedMatter.caseData,
       );
 
       // Persist tasks

@@ -105,6 +105,16 @@ export const MatterDetail = ({
   const template = (matter.flowTemplateId && MATTER_TEMPLATES.find(t => t.id === matter.flowTemplateId)) || findTemplate(matter.type, matter.subtype);
   const flow: FlowSnapshot = getFlowSnapshot(matter, template, tasks, documents);
 
+  // Lookup satisfiedBy from template for a given task (by title + etapa)
+  const getSatisfiedBy = (task: Task) => {
+    if (task.satisfiedBy) return task.satisfiedBy;
+    if (!template?.stages) return undefined;
+    const stage = template.stages.find(s => s.name === task.etapa);
+    if (!stage) return undefined;
+    const def = stage.tasks.find(t => t.task === task.title);
+    return def?.satisfiedBy;
+  };
+
   // Stage navigation
   const hasStages = flow.stages.length > 0;
   const selectedStage = viewingStage || flow.currentStage || '';
@@ -594,6 +604,7 @@ export const MatterDetail = ({
                       onReopen={onReopenTask}
                       hasFicha={hasStageFicha}
                       onOpenFicha={hasStageFicha ? () => setFichaOpenStage(selectedStage) : undefined}
+                      satisfiedBy={getSatisfiedBy(task)}
                     />
                   ))}
                 </div>
@@ -609,7 +620,7 @@ export const MatterDetail = ({
                 </div>
                 <div className="grid grid-cols-1 gap-3">
                   {stageNonBlockingPending.map(task => (
-                    <TaskCard key={task.id} task={task} matter={matter} navigate={navigate} onComplete={onCompleteTask} onReopen={onReopenTask} />
+                    <TaskCard key={task.id} task={task} matter={matter} navigate={navigate} onComplete={onCompleteTask} onReopen={onReopenTask} satisfiedBy={getSatisfiedBy(task)} />
                   ))}
                 </div>
               </section>
@@ -625,7 +636,7 @@ export const MatterDetail = ({
                 </div>
                 <div className="grid grid-cols-1 gap-2">
                   {stageCompletedTasks.map(task => (
-                    <TaskCard key={task.id} task={task} matter={matter} navigate={navigate} onComplete={onCompleteTask} onReopen={onReopenTask} />
+                    <TaskCard key={task.id} task={task} matter={matter} navigate={navigate} onComplete={onCompleteTask} onReopen={onReopenTask} satisfiedBy={getSatisfiedBy(task)} />
                   ))}
                 </div>
               </section>
@@ -1204,8 +1215,17 @@ const TaskCard: React.FC<{
   onReopen?: (taskId: string) => void;
   onOpenFicha?: () => void;
   hasFicha?: boolean;
-}> = ({ task, matter, navigate, onComplete, onReopen, onOpenFicha, hasFicha }) => {
+  satisfiedBy?: { key: string; label: string }[];
+}> = ({ task, matter, navigate, onComplete, onReopen, onOpenFicha, hasFicha, satisfiedBy }) => {
   const isCompleted = task.status === 'Completada';
+  const caseData = matter.caseData ?? {};
+
+  // Compute satisfaction status
+  const satisfaction = satisfiedBy && satisfiedBy.length > 0 ? (() => {
+    const filled = satisfiedBy.filter(f => caseData[f.key] && caseData[f.key].trim() !== '' && caseData[f.key] !== '[]');
+    const missing = satisfiedBy.filter(f => !caseData[f.key] || caseData[f.key].trim() === '' || caseData[f.key] === '[]');
+    return { filled, missing, allDone: missing.length === 0 };
+  })() : null;
 
   return (
     <Card className={cn(
@@ -1234,6 +1254,32 @@ const TaskCard: React.FC<{
             <Badge variant="error" className="text-[8px] font-black uppercase tracking-widest px-1.5 py-0">Bloqueante</Badge>
           )}
         </div>
+        {/* Satisfaction indicator */}
+        {satisfaction && !isCompleted && (
+          satisfaction.allDone ? (
+            <div className="flex items-center gap-1.5 mt-1">
+              <CheckCircle2 size={11} className="text-emerald-500" />
+              <span className="text-[10px] font-bold text-emerald-600 tracking-wide">Datos completos</span>
+            </div>
+          ) : (
+            <button
+              onClick={(e) => { e.stopPropagation(); onOpenFicha?.(); }}
+              className="flex items-center gap-1.5 mt-1 group/sat hover:opacity-80 transition-opacity text-left"
+            >
+              <AlertCircle size={11} className="text-amber-500 shrink-0" />
+              <span className="text-[10px] font-bold text-amber-600 tracking-wide">
+                Falta: {satisfaction.missing.map(f => f.label).join(', ')}
+              </span>
+            </button>
+          )
+        )}
+        {/* Auto-completed by system */}
+        {isCompleted && task.completedBy === 'Sistema' && (
+          <div className="flex items-center gap-1.5 mt-1">
+            <CheckCircle2 size={11} className="text-emerald-500" />
+            <span className="text-[10px] font-bold text-muted-foreground tracking-wide">Completada automáticamente</span>
+          </div>
+        )}
         <div className="flex items-center gap-3 text-[10px] font-black text-muted-foreground uppercase tracking-widest opacity-60">
           {task.dueDate && (
             <span className="flex items-center gap-1"><Clock size={10} /> {format(parseISO(task.dueDate), 'd MMM', { locale: es })}</span>
@@ -1241,7 +1287,8 @@ const TaskCard: React.FC<{
         </div>
       </div>
       <div className="flex items-center gap-2 shrink-0">
-        {!isCompleted && hasFicha && onOpenFicha && (
+        {/* Show "Completar datos" button if ficha available AND there are missing fields */}
+        {!isCompleted && hasFicha && onOpenFicha && satisfaction && !satisfaction.allDone && (
           <Button
             variant="outline"
             size="sm"
@@ -1250,6 +1297,30 @@ const TaskCard: React.FC<{
           >
             <FileText size={12} className="mr-1.5" />
             Completar datos
+          </Button>
+        )}
+        {/* Show "Completar datos" if ficha but no satisfiedBy tracking */}
+        {!isCompleted && hasFicha && onOpenFicha && !satisfaction && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-[10px] font-black uppercase tracking-widest rounded-xl opacity-0 group-hover:opacity-100 transition-all border-amber-500/30 text-amber-600 hover:bg-amber-500/5"
+            onClick={(e) => { e.stopPropagation(); onOpenFicha(); }}
+          >
+            <FileText size={12} className="mr-1.5" />
+            Completar datos
+          </Button>
+        )}
+        {/* Show "Marcar resuelta" if all data is filled */}
+        {!isCompleted && satisfaction?.allDone && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-[10px] font-black uppercase tracking-widest rounded-xl border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/5 transition-all"
+            onClick={(e) => { e.stopPropagation(); onComplete?.(task.id); }}
+          >
+            <CheckCircle2 size={12} className="mr-1.5" />
+            Marcar resuelta
           </Button>
         )}
         {!isCompleted && (() => {
@@ -1266,17 +1337,26 @@ const TaskCard: React.FC<{
             </Button>
           ) : null;
         })()}
-        <Button
-          variant="outline"
-          size="sm"
-          className="text-[10px] font-black uppercase tracking-widest rounded-xl opacity-0 group-hover:opacity-100 transition-all"
-          onClick={(e) => {
-            e.stopPropagation();
-            isCompleted ? onReopen?.(task.id) : onComplete?.(task.id);
-          }}
-        >
-          {isCompleted ? 'Reabrir' : 'Resolver'}
-        </Button>
+        {!isCompleted && !satisfaction?.allDone && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-[10px] font-black uppercase tracking-widest rounded-xl opacity-0 group-hover:opacity-100 transition-all"
+            onClick={(e) => { e.stopPropagation(); onComplete?.(task.id); }}
+          >
+            Resolver
+          </Button>
+        )}
+        {isCompleted && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-[10px] font-black uppercase tracking-widest rounded-xl opacity-0 group-hover:opacity-100 transition-all"
+            onClick={(e) => { e.stopPropagation(); onReopen?.(task.id); }}
+          >
+            Reabrir
+          </Button>
+        )}
       </div>
     </Card>
   );

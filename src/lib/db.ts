@@ -969,6 +969,8 @@ export const createTask = async (task: Omit<Task, 'id'>): Promise<Task> => {
       generada_automaticamente: task.generadaAutomaticamente ?? false,
       trigger_estado:           task.triggerEstado       ?? null,
       etapa:                    task.etapa               ?? null,
+      completed_at:             task.completedAt         ?? null,
+      completed_by:             task.completedBy         ?? null,
     })
     .select()
     .single();

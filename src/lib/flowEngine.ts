@@ -16,6 +16,7 @@ import {
   FlowSnapshot,
   MatterTemplate,
   FlowStageTemplate,
+  FlowTaskCondition,
 } from '../types';
 
 // ── Calcular etapa actual ──────────────────────────────────────
@@ -222,9 +223,22 @@ export function getFlowSnapshot(
   return { currentStage, stages, nextAction, blockages, health, progress };
 }
 
+// ── Evaluación de condiciones ──────────────────────────────────
+
+function evaluateCondition(
+  cond: FlowTaskCondition,
+  caseData: Record<string, string>,
+): boolean {
+  const val = caseData[cond.key];
+  if (cond.equals !== undefined) return val === cond.equals;
+  if (cond.notEquals !== undefined) return val !== cond.notEquals;
+  return !!val; // exists check
+}
+
 /**
  * Genera las tareas, documentos e hitos iniciales a partir de un template.
  * Retorna objetos listos para insertar en DB (sin id).
+ * Si se pasa caseData, evalúa condiciones y auto-completa tareas.
  */
 export function instantiateFlow(
   matterId: string,
@@ -232,6 +246,7 @@ export function instantiateFlow(
   client: string,
   responsible: string,
   template: MatterTemplate,
+  caseData?: Record<string, string>,
 ): {
   tasks: Omit<Task, 'id'>[];
   documents: Omit<LegalDocument, 'id'>[];
@@ -241,21 +256,30 @@ export function instantiateFlow(
   const documents: Omit<LegalDocument, 'id'>[] = [];
   const milestones: Omit<MatterMilestone, 'id'>[] = [];
   const seenDocs = new Set<string>();
+  const cd = caseData ?? {};
 
   if (template.stages && template.stages.length > 0) {
     template.stages.forEach((stage, stageIdx) => {
       // Tasks per stage
       stage.tasks.forEach(t => {
+        // Skip task if condition not met
+        if (t.condition && !evaluateCondition(t.condition, cd)) return;
+
+        // Auto-complete if caseData already has the answer
+        const autoCompleted = t.autoCompleteIf && cd[t.autoCompleteIf.key];
+
         tasks.push({
           matterId,
           title: t.task,
           dueDate: '',
-          status: 'Pendiente',
+          status: autoCompleted ? 'Completada' : 'Pendiente',
           priority: t.priority === 'crítico' ? 'Alta' : t.priority === 'recomendado' ? 'Media' : 'Baja',
           bloqueante: t.bloqueante ?? (t.priority === 'crítico'),
           generadaAutomaticamente: true,
           triggerEstado: `flow:${template.id}`,
           etapa: stage.name,
+          ...(autoCompleted ? { completedAt: new Date().toISOString(), completedBy: 'Sistema' } : {}),
+          ...(t.satisfiedBy ? { satisfiedBy: t.satisfiedBy } : {}),
         });
       });
 

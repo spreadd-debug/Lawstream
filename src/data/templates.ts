@@ -6,30 +6,87 @@ export const MATTER_TEMPLATES: MatterTemplate[] = [
   // ═══════════════════════════════════════════════════════════
 
   {
+    // ═══════════════════════════════════════════════════════════
+    // DIVORCIO — CABA (Juzgado Nacional en lo Civil)
+    // Art. 437-438 CCyCN. Divorcio incausado.
+    // CABA: no hay Consejero de Familia. Mediación de cuestiones
+    // conexas por Ley 26.589 (el divorcio en sí está excluido).
+    // Bilateral: presentación conjunta con convenio → audiencia
+    //   art. 438 (formalidad) → homologación → sentencia rápida.
+    // Unilateral: demanda + traslado + contestación/contrapropuesta
+    //   + audiencia art. 438 negociación + sentencia.
+    // ═══════════════════════════════════════════════════════════
     id: 'fam-divorcio',
-    name: 'Divorcio',
+    name: 'Divorcio (CABA)',
     rama: 'Familia',
     subtipo: 'Divorcio',
     jurisdiccion: 'CABA',
     via: 'Ordinaria',
     etapaInicial: 'Inicio',
-    descripcion: 'Proceso de divorcio vincular (unilateral o bilateral).',
+    descripcion: 'Divorcio ante Juzgado Nacional en lo Civil (CABA). Flujo adaptativo según tipo: bilateral (presentación conjunta) o unilateral (demanda con traslado).',
     stages: [
+      // ── ETAPA 1: INICIO ──────────────────────────────────────
       {
         name: 'Inicio',
         tasks: [
-          { task: 'Verificar datos del matrimonio (fecha, hijos, bienes)', priority: 'crítico', bloqueante: true },
-          { task: 'Determinar si es unilateral o de común acuerdo', priority: 'crítico', bloqueante: true },
+          {
+            task: 'Verificar datos del matrimonio (fecha, hijos, bienes)',
+            priority: 'crítico',
+            bloqueante: true,
+            satisfiedBy: [
+              { key: 'fecha_matrimonio', label: 'Fecha de matrimonio' },
+              { key: 'registro_civil', label: 'Registro Civil' },
+              { key: 'acta_numero', label: 'Acta N°' },
+              { key: 'hijos_menores', label: 'Hijos menores' },
+              { key: 'bienes_gananciales', label: 'Bienes gananciales' },
+            ],
+          },
+          {
+            task: 'Determinar si es unilateral o de común acuerdo',
+            priority: 'crítico',
+            bloqueante: true,
+            autoCompleteIf: { key: 'tipo_divorcio' },
+          },
+          {
+            task: 'Verificar datos personales de ambos cónyuges',
+            priority: 'crítico',
+            bloqueante: true,
+            satisfiedBy: [
+              { key: 'conyuge1_nombre', label: 'Nombre cónyuge 1' },
+              { key: 'conyuge1_dni', label: 'DNI cónyuge 1' },
+              { key: 'conyuge1_domicilio', label: 'Domicilio cónyuge 1' },
+              { key: 'conyuge2_nombre', label: 'Nombre cónyuge 2' },
+              { key: 'conyuge2_dni', label: 'DNI cónyuge 2' },
+              { key: 'conyuge2_domicilio', label: 'Domicilio cónyuge 2' },
+            ],
+          },
           { task: 'Evaluar existencia de convenio regulador previo', priority: 'recomendado' },
-          { task: 'Identificar bienes gananciales y propios', priority: 'recomendado' },
+          {
+            task: 'Identificar bienes gananciales y propios',
+            priority: 'recomendado',
+            satisfiedBy: [
+              { key: 'bienes_gananciales', label: 'Bienes gananciales' },
+              { key: 'regimen_patrimonial', label: 'Régimen patrimonial' },
+            ],
+          },
+          {
+            task: 'Evaluar urgencia por violencia familiar',
+            priority: 'crítico',
+            bloqueante: true,
+            autoCompleteIf: { key: 'hay_urgencia' },
+            satisfiedBy: [
+              { key: 'hay_urgencia', label: 'Hay urgencia/violencia' },
+            ],
+          },
         ],
         documents: [
-          { name: 'Acta de matrimonio', required: true },
+          { name: 'Acta de matrimonio (actualizada)', required: true },
           { name: 'DNI de ambas partes', required: true },
           { name: 'Partidas de nacimiento de hijos menores', required: true },
+          { name: 'Constancia de domicilio', required: false },
           { name: 'Títulos de propiedad de bienes', required: false },
         ],
-        milestone: 'Análisis inicial completo',
+        milestone: 'Instrucción completa',
         fichaTitle: 'Instrucción del Caso',
         fichaFields: [
           {
@@ -101,18 +158,32 @@ export const MATTER_TEMPLATES: MatterTemplate[] = [
           },
         ],
       },
+      // ── ETAPA 2: DEMANDA ─────────────────────────────────────
+      // Bilateral: presentación conjunta con convenio regulador firmado por ambos.
+      // Unilateral: demanda unilateral + propuesta reguladora + mediación
+      //   de cuestiones conexas (Ley 26.589) + cédula de notificación.
       {
         name: 'Demanda',
         tasks: [
           { task: 'Redactar propuesta reguladora (hijos, bienes, vivienda)', priority: 'crítico', bloqueante: true },
-          { task: 'Preparar demanda de divorcio', priority: 'crítico', bloqueante: true },
+          // Bilateral: presentación conjunta firmada por ambos cónyuges y sus letrados
+          { task: 'Preparar presentación conjunta de divorcio', priority: 'crítico', bloqueante: true, condition: { key: 'tipo_divorcio', equals: 'De común acuerdo' } },
+          { task: 'Obtener firma de ambos cónyuges y letrados en la presentación', priority: 'crítico', bloqueante: true, condition: { key: 'tipo_divorcio', equals: 'De común acuerdo' } },
+          // Unilateral: demanda individual + trámites de notificación
+          { task: 'Preparar demanda unilateral de divorcio', priority: 'crítico', bloqueante: true, condition: { key: 'tipo_divorcio', equals: 'Unilateral' } },
+          { task: 'Mediación de cuestiones conexas (alimentos, bienes) — Ley 26.589', priority: 'crítico', bloqueante: true, condition: { key: 'tipo_divorcio', equals: 'Unilateral' } },
+          { task: 'Presentar demanda ante Juzgado Nacional en lo Civil', priority: 'crítico', bloqueante: true, condition: { key: 'tipo_divorcio', equals: 'Unilateral' } },
+          { task: 'Preparar cédula de notificación al otro cónyuge', priority: 'crítico', bloqueante: true, condition: { key: 'tipo_divorcio', equals: 'Unilateral' } },
+          { task: 'Diligenciar cédula y acreditar notificación', priority: 'crítico', bloqueante: true, condition: { key: 'tipo_divorcio', equals: 'Unilateral' } },
+          { task: 'Esperar plazo de traslado — 5 días (contestación/contrapropuesta)', priority: 'recomendado', condition: { key: 'tipo_divorcio', equals: 'Unilateral' } },
           { task: 'Calcular compensación económica si corresponde', priority: 'recomendado' },
-          { task: 'Verificar mediación previa obligatoria', priority: 'crítico', bloqueante: true },
         ],
         documents: [
           { name: 'Propuesta reguladora firmada', required: true },
-          { name: 'Constancia de mediación', required: true },
-          { name: 'Escrito de demanda', required: true },
+          { name: 'Escrito de demanda / Presentación conjunta', required: true },
+          { name: 'Constancia de mediación (cuestiones conexas)', required: false },
+          { name: 'Cédula de notificación diligenciada', required: false },
+          { name: 'Bono de derecho fijo (CPACF)', required: true },
         ],
         milestone: 'Demanda presentada',
         fichaTitle: 'Propuesta Reguladora',
@@ -196,40 +267,57 @@ export const MATTER_TEMPLATES: MatterTemplate[] = [
           },
         ],
       },
+      // ── ETAPA 3: AUDIENCIA ART. 438 ──────────────────────────
+      // Bilateral: audiencia de formalidad, el juez homologa el convenio.
+      // Unilateral: audiencia de negociación, intento de acuerdo sobre
+      //   efectos (hijos, bienes). Divorcio se decreta igual.
       {
         name: 'Audiencia',
         tasks: [
-          { task: 'Preparar cliente para audiencia', priority: 'crítico', bloqueante: true },
-          { task: 'Verificar notificaciones a contraparte', priority: 'crítico', bloqueante: true },
+          { task: 'Preparar cliente para audiencia art. 438 CCyCN', priority: 'crítico', bloqueante: true },
+          // Unilateral: verificar que la contraparte fue notificada
+          { task: 'Verificar notificación fehaciente a contraparte', priority: 'crítico', bloqueante: true, condition: { key: 'tipo_divorcio', equals: 'Unilateral' } },
+          // Unilateral: analizar contrapropuesta si la hubo
+          { task: 'Analizar contrapropuesta reguladora (si fue presentada)', priority: 'recomendado', condition: { key: 'tipo_divorcio', equals: 'Unilateral' } },
           { task: 'Revisar puntos pendientes del convenio', priority: 'recomendado' },
+          // Bilateral: confirmar asistencia de ambos cónyuges + letrados
+          { task: 'Confirmar asistencia de ambos cónyuges y letrados', priority: 'crítico', bloqueante: true, condition: { key: 'tipo_divorcio', equals: 'De común acuerdo' } },
         ],
         documents: [
-          { name: 'Cédula de notificación', required: true },
+          { name: 'Cédula de notificación de audiencia', required: true },
         ],
         milestone: 'Audiencia celebrada',
       },
+      // ── ETAPA 4: SENTENCIA ───────────────────────────────────
       {
         name: 'Sentencia',
         tasks: [
-          { task: 'Verificar sentencia de divorcio', priority: 'crítico', bloqueante: true },
+          { task: 'Verificar dictado de sentencia de divorcio', priority: 'crítico', bloqueante: true },
+          { task: 'Verificar homologación del convenio regulador', priority: 'crítico', bloqueante: true, condition: { key: 'tipo_divorcio', equals: 'De común acuerdo' } },
           { task: 'Solicitar inscripción en Registro Civil', priority: 'crítico', bloqueante: true },
-          { task: 'Inscribir transferencia de bienes si corresponde', priority: 'recomendado' },
+          { task: 'Librar oficio al Registro Civil', priority: 'crítico', bloqueante: true },
+          // Unilateral: cuestiones no resueltas quedan pendientes
+          { task: 'Evaluar cuestiones pendientes post-sentencia (bienes, compensación)', priority: 'recomendado', condition: { key: 'tipo_divorcio', equals: 'Unilateral' } },
         ],
         documents: [
           { name: 'Sentencia de divorcio', required: true },
           { name: 'Oficio al Registro Civil', required: true },
+          { name: 'Convenio regulador homologado', required: false },
         ],
         milestone: 'Sentencia firme e inscripta',
       },
+      // ── ETAPA 5: EJECUCIÓN ───────────────────────────────────
       {
         name: 'Ejecución',
         tasks: [
           { task: 'Verificar inscripción de sentencia en Registro Civil', priority: 'crítico', bloqueante: true },
-          { task: 'Ejecutar liquidación de bienes pendientes', priority: 'recomendado' },
+          { task: 'Inscribir transferencia de bienes en registros correspondientes', priority: 'recomendado' },
+          { task: 'Ejecutar liquidación de sociedad conyugal', priority: 'recomendado' },
           { task: 'Archivar expediente', priority: 'opcional' },
         ],
         documents: [
           { name: 'Constancia de inscripción Registro Civil', required: true },
+          { name: 'Escrituras de transferencia de bienes', required: false },
         ],
         milestone: 'Divorcio ejecutado',
       },
@@ -246,11 +334,376 @@ export const MATTER_TEMPLATES: MatterTemplate[] = [
       { name: 'Partidas de nacimiento hijos', required: true },
       { name: 'Títulos de propiedad', required: false },
     ],
-    hitosProyectados: ['Análisis inicial', 'Demanda presentada', 'Audiencia', 'Sentencia', 'Ejecución'],
-    bloqueantesTipicos: ['Falta acta de matrimonio', 'Contraparte no notificada', 'Mediación pendiente'],
-    proximaAccionSugerida: 'Solicitar acta de matrimonio actualizada',
+    hitosProyectados: ['Instrucción completa', 'Demanda presentada', 'Audiencia celebrada', 'Sentencia firme', 'Divorcio ejecutado'],
+    bloqueantesTipicos: ['Falta acta de matrimonio actualizada', 'Contraparte no notificada', 'Convenio sin firma de ambos'],
+    proximaAccionSugerida: 'Solicitar acta de matrimonio actualizada al Registro Civil',
     fechaSeguimientoSugeridaDays: 5,
     prioridadSugerida: 'Alta',
+    notasOperativas: 'CABA: Juzgado Nacional en lo Civil. No hay Consejero de Familia. Mediación obligatoria solo para cuestiones conexas (Ley 26.589), no para el divorcio en sí. Bilateral resuelve en 15-45 días. Unilateral 2-4 meses.',
+  },
+
+  // ═══════════════════════════════════════════════════════════
+  // DIVORCIO — PROVINCIA DE BUENOS AIRES (Juzgado de Familia)
+  // Art. 437-438 CCyCN + Ley 14.442 (Fuero de Familia PBA).
+  // PBA: etapa previa obligatoria ante Consejero de Familia
+  // (art. 24 Ley 14.442) antes de llegar al juez.
+  // Bilateral: presentación conjunta → Consejero homologa o
+  //   eleva → audiencia (breve) → sentencia.
+  // Unilateral: demanda → Consejero intenta conciliación →
+  //   si no hay acuerdo → audiencia ante juez → sentencia.
+  // ═══════════════════════════════════════════════════════════
+  {
+    id: 'fam-divorcio-pba',
+    name: 'Divorcio (PBA)',
+    rama: 'Familia',
+    subtipo: 'Divorcio',
+    jurisdiccion: 'PBA',
+    via: 'Ordinaria',
+    etapaInicial: 'Inicio',
+    descripcion: 'Divorcio ante Juzgado de Familia de PBA (Ley 14.442). Incluye etapa previa obligatoria ante Consejero de Familia.',
+    stages: [
+      // ── ETAPA 1: INICIO ──────────────────────────────────────
+      {
+        name: 'Inicio',
+        tasks: [
+          {
+            task: 'Verificar datos del matrimonio (fecha, hijos, bienes)',
+            priority: 'crítico',
+            bloqueante: true,
+            satisfiedBy: [
+              { key: 'fecha_matrimonio', label: 'Fecha de matrimonio' },
+              { key: 'registro_civil', label: 'Registro Civil' },
+              { key: 'acta_numero', label: 'Acta N°' },
+              { key: 'hijos_menores', label: 'Hijos menores' },
+              { key: 'bienes_gananciales', label: 'Bienes gananciales' },
+            ],
+          },
+          {
+            task: 'Determinar si es unilateral o de común acuerdo',
+            priority: 'crítico',
+            bloqueante: true,
+            autoCompleteIf: { key: 'tipo_divorcio' },
+          },
+          {
+            task: 'Verificar datos personales de ambos cónyuges',
+            priority: 'crítico',
+            bloqueante: true,
+            satisfiedBy: [
+              { key: 'conyuge1_nombre', label: 'Nombre cónyuge 1' },
+              { key: 'conyuge1_dni', label: 'DNI cónyuge 1' },
+              { key: 'conyuge1_domicilio', label: 'Domicilio cónyuge 1' },
+              { key: 'conyuge2_nombre', label: 'Nombre cónyuge 2' },
+              { key: 'conyuge2_dni', label: 'DNI cónyuge 2' },
+              { key: 'conyuge2_domicilio', label: 'Domicilio cónyuge 2' },
+            ],
+          },
+          { task: 'Evaluar existencia de convenio regulador previo', priority: 'recomendado' },
+          {
+            task: 'Identificar bienes gananciales y propios',
+            priority: 'recomendado',
+            satisfiedBy: [
+              { key: 'bienes_gananciales', label: 'Bienes gananciales' },
+              { key: 'regimen_patrimonial', label: 'Régimen patrimonial' },
+            ],
+          },
+          {
+            task: 'Evaluar urgencia por violencia familiar',
+            priority: 'crítico',
+            bloqueante: true,
+            autoCompleteIf: { key: 'hay_urgencia' },
+            satisfiedBy: [
+              { key: 'hay_urgencia', label: 'Hay urgencia/violencia' },
+            ],
+          },
+          { task: 'Identificar Juzgado de Familia competente (departamento judicial)', priority: 'recomendado' },
+        ],
+        documents: [
+          { name: 'Acta de matrimonio (actualizada)', required: true },
+          { name: 'DNI de ambas partes', required: true },
+          { name: 'Partidas de nacimiento de hijos menores', required: true },
+          { name: 'Constancia de domicilio', required: false },
+          { name: 'Títulos de propiedad de bienes', required: false },
+        ],
+        milestone: 'Instrucción completa',
+        fichaTitle: 'Instrucción del Caso',
+        fichaFields: [
+          {
+            title: 'Datos del Matrimonio',
+            icon: 'Calendar',
+            fields: [
+              { key: 'registro_civil', label: 'Registro Civil', type: 'text', placeholder: 'Ej: Registro Civil de La Plata' },
+              { key: 'registro_civil_circunscripcion', label: 'Circunscripción', type: 'text', placeholder: 'Ej: 3ª' },
+              { key: 'acta_numero', label: 'Acta N°', type: 'text', placeholder: 'Ej: 234' },
+              { key: 'acta_tomo', label: 'Tomo', type: 'text', placeholder: 'Ej: 2B' },
+              { key: 'regimen_patrimonial', label: 'Régimen patrimonial', type: 'select', options: ['Comunidad de ganancias', 'Separación de bienes', 'Sin convención matrimonial'] },
+              { key: 'fecha_separacion_hecho', label: 'Fecha de separación de hecho', type: 'date' },
+              { key: 'departamento_judicial', label: 'Departamento judicial', type: 'select', options: ['La Plata', 'Lomas de Zamora', 'San Martín', 'San Isidro', 'Morón', 'Mercedes', 'Quilmes', 'La Matanza', 'Bahía Blanca', 'Mar del Plata', 'Junín', 'Pergamino', 'Necochea', 'Azul', 'Dolores', 'San Nicolás', 'Zárate-Campana', 'Trenque Lauquen', 'Otro'] },
+            ],
+          },
+          {
+            title: 'Hijos en Común',
+            icon: 'User',
+            fields: [
+              {
+                key: 'hijos',
+                label: 'Datos de cada hijo/a',
+                type: 'repeatable',
+                addLabel: 'Agregar hijo/a',
+                subFields: [
+                  { key: 'nombre', label: 'Nombre completo', type: 'text', placeholder: 'Apellido, Nombre', required: true },
+                  { key: 'dni', label: 'DNI', type: 'text', placeholder: '12.345.678' },
+                  { key: 'fecha_nacimiento', label: 'Fecha de nacimiento', type: 'date', required: true },
+                  { key: 'escolaridad', label: 'Escolaridad (grado/año)', type: 'text', placeholder: 'Ej: 5° grado' },
+                  { key: 'establecimiento', label: 'Establecimiento educativo', type: 'text', placeholder: 'Nombre del colegio' },
+                ],
+              },
+            ],
+          },
+          {
+            title: 'Datos Laborales — Cónyuge 1 (Cliente)',
+            icon: 'Briefcase',
+            fields: [
+              { key: 'conyuge1_nacionalidad', label: 'Nacionalidad', type: 'text', placeholder: 'Argentina' },
+              { key: 'conyuge1_fecha_nacimiento', label: 'Fecha de nacimiento', type: 'date' },
+              { key: 'conyuge1_profesion', label: 'Profesión / Ocupación', type: 'text', placeholder: 'Ej: Ingeniero en sistemas' },
+              { key: 'conyuge1_situacion_laboral', label: 'Situación laboral', type: 'select', options: ['Empleado en relación de dependencia', 'Monotributista', 'Autónomo', 'Desempleado', 'Jubilado/Pensionado', 'Otro'] },
+              { key: 'conyuge1_empleador', label: 'Empleador / Actividad', type: 'text', placeholder: 'Nombre de empresa o actividad' },
+              { key: 'conyuge1_ingreso_mensual', label: 'Ingreso mensual neto', type: 'money' },
+            ],
+          },
+          {
+            title: 'Datos Laborales — Cónyuge 2',
+            icon: 'Briefcase',
+            fields: [
+              { key: 'conyuge2_nacionalidad', label: 'Nacionalidad', type: 'text', placeholder: 'Argentina' },
+              { key: 'conyuge2_fecha_nacimiento', label: 'Fecha de nacimiento', type: 'date' },
+              { key: 'conyuge2_profesion', label: 'Profesión / Ocupación', type: 'text', placeholder: 'Ej: Diseñadora gráfica' },
+              { key: 'conyuge2_situacion_laboral', label: 'Situación laboral', type: 'select', options: ['Empleado en relación de dependencia', 'Monotributista', 'Autónomo', 'Desempleado', 'Jubilado/Pensionado', 'Otro'] },
+              { key: 'conyuge2_empleador', label: 'Empleador / Actividad', type: 'text', placeholder: 'Nombre de empresa o actividad' },
+              { key: 'conyuge2_ingreso_mensual', label: 'Ingreso mensual neto', type: 'money' },
+              { key: 'conyuge2_abogado', label: 'Abogado de la otra parte', type: 'text', placeholder: 'Nombre del letrado' },
+              { key: 'conyuge2_abogado_matricula', label: 'Matrícula (T°/F°/Colegio)', type: 'text', placeholder: 'Ej: T° 89 F° 234 CALP' },
+            ],
+          },
+          {
+            title: 'Violencia Familiar / Medidas de Protección',
+            icon: 'AlertCircle',
+            fields: [
+              { key: 'medida_tipo_denuncia', label: 'Tipo / Organismo de denuncia', type: 'text', placeholder: 'Ej: Comisaría de la Mujer / Juzgado de Paz' },
+              { key: 'medida_fecha', label: 'Fecha de denuncia/medida', type: 'date' },
+              { key: 'medida_descripcion', label: 'Medida vigente', type: 'text', placeholder: 'Ej: Exclusión del hogar' },
+              { key: 'medida_vigencia_hasta', label: 'Vigencia hasta', type: 'date' },
+            ],
+          },
+        ],
+      },
+      // ── ETAPA 2: DEMANDA ─────────────────────────────────────
+      // PBA: la demanda se presenta ante el Juzgado de Familia.
+      // No hay mediación previa obligatoria para divorcio en PBA
+      // (art. 4 Ley 13.951 excluye "acciones de estado").
+      {
+        name: 'Demanda',
+        tasks: [
+          { task: 'Redactar propuesta reguladora (hijos, bienes, vivienda)', priority: 'crítico', bloqueante: true },
+          // Bilateral
+          { task: 'Preparar presentación conjunta de divorcio', priority: 'crítico', bloqueante: true, condition: { key: 'tipo_divorcio', equals: 'De común acuerdo' } },
+          { task: 'Obtener firma de ambos cónyuges y letrados en la presentación', priority: 'crítico', bloqueante: true, condition: { key: 'tipo_divorcio', equals: 'De común acuerdo' } },
+          // Unilateral
+          { task: 'Preparar demanda unilateral de divorcio', priority: 'crítico', bloqueante: true, condition: { key: 'tipo_divorcio', equals: 'Unilateral' } },
+          { task: 'Presentar demanda ante Juzgado de Familia', priority: 'crítico', bloqueante: true, condition: { key: 'tipo_divorcio', equals: 'Unilateral' } },
+          { task: 'Calcular compensación económica si corresponde', priority: 'recomendado' },
+          { task: 'Abonar tasa de justicia y aportes colegiales (CALP)', priority: 'crítico', bloqueante: true },
+        ],
+        documents: [
+          { name: 'Propuesta reguladora firmada', required: true },
+          { name: 'Escrito de demanda / Presentación conjunta', required: true },
+          { name: 'Bono ley y aportes CALP', required: true },
+        ],
+        milestone: 'Demanda presentada',
+        fichaTitle: 'Propuesta Reguladora',
+        fichaFields: [
+          {
+            title: 'Régimen Parental',
+            icon: 'User',
+            fields: [
+              { key: 'tipo_cuidado', label: 'Tipo de cuidado personal', type: 'select', options: ['Compartido con residencia principal en uno', 'Compartido alternado', 'Compartido indistinto', 'Unipersonal a favor del cliente', 'Unipersonal a favor del otro', 'Por determinar'] },
+              { key: 'residencia_principal', label: 'Residencia principal de los hijos', type: 'select', options: ['Domicilio del cónyuge 1 (cliente)', 'Domicilio del cónyuge 2', 'Alternado', 'Por determinar'] },
+              { key: 'regimen_comunicacion', label: 'Régimen de comunicación propuesto', type: 'textarea', placeholder: 'Días, horarios, pernoctes. Ej: Miércoles 17-20hs, fines de semana alternos viernes a domingo 20hs...' },
+              { key: 'regimen_vacaciones', label: 'Régimen de vacaciones', type: 'textarea', placeholder: 'Ej: Mitades de invierno y verano, alternando Navidad y Año Nuevo...' },
+            ],
+          },
+          {
+            title: 'Cuota Alimentaria',
+            icon: 'FileText',
+            fields: [
+              { key: 'cuota_porcentaje', label: 'Porcentaje de ingresos propuesto', type: 'text', placeholder: 'Ej: 25%' },
+              { key: 'cuota_gastos_compartidos', label: 'Gastos compartidos (colegio, obra social, etc.)', type: 'textarea', placeholder: 'Detallar qué gastos se comparten y en qué proporción...' },
+              { key: 'obra_social', label: 'Obra social / Prepaga de los hijos', type: 'text', placeholder: 'Ej: IOMA' },
+              { key: 'actividades_extracurriculares', label: 'Actividades extracurriculares', type: 'textarea', placeholder: 'Ej: Fútbol (hijo), Ballet (hija)...' },
+            ],
+          },
+          {
+            title: 'Bienes a Liquidar',
+            icon: 'Building2',
+            fields: [
+              {
+                key: 'bienes',
+                label: 'Detalle de bienes',
+                type: 'repeatable',
+                addLabel: 'Agregar bien',
+                subFields: [
+                  { key: 'tipo', label: 'Tipo de bien', type: 'select', options: ['Inmueble', 'Vehículo', 'Cuenta bancaria', 'Plazo fijo / Inversión', 'Mobiliario / Electrodomésticos', 'Emprendimiento / Negocio', 'Otro'], required: true },
+                  { key: 'descripcion', label: 'Descripción', type: 'text', placeholder: 'Ej: Casa en calle Mitre 1234, La Plata', required: true },
+                  { key: 'valor_estimado', label: 'Valor estimado', type: 'text', placeholder: 'Ej: US$ 230.000 o $18.000.000' },
+                  { key: 'titular', label: 'Titular', type: 'select', options: ['Cónyuge 1', 'Cónyuge 2', 'Ambos', 'Tercero'] },
+                  { key: 'observaciones', label: 'Observaciones', type: 'text', placeholder: 'Ej: Hipoteca con saldo US$ 35.000' },
+                ],
+              },
+            ],
+          },
+          {
+            title: 'Deudas',
+            icon: 'AlertCircle',
+            fields: [
+              {
+                key: 'deudas',
+                label: 'Detalle de deudas',
+                type: 'repeatable',
+                addLabel: 'Agregar deuda',
+                subFields: [
+                  { key: 'tipo', label: 'Tipo', type: 'select', options: ['Hipoteca', 'Tarjeta de crédito', 'Préstamo personal', 'Préstamo prendario', 'Otra'], required: true },
+                  { key: 'acreedor', label: 'Acreedor', type: 'text', placeholder: 'Ej: Banco Provincia', required: true },
+                  { key: 'monto', label: 'Saldo deudor', type: 'text', placeholder: 'Ej: $1.200.000 o US$ 35.000' },
+                  { key: 'titular', label: 'A nombre de', type: 'select', options: ['Cónyuge 1', 'Cónyuge 2', 'Ambos'] },
+                  { key: 'observaciones', label: 'Observaciones', type: 'text' },
+                ],
+              },
+            ],
+          },
+          {
+            title: 'Compensación Económica',
+            icon: 'Briefcase',
+            fields: [
+              { key: 'reclama_compensacion', label: '¿Se reclama compensación económica?', type: 'select', options: ['Sí', 'No', 'Por evaluar'] },
+              { key: 'compensacion_fundamento', label: 'Fundamento del reclamo', type: 'textarea', placeholder: 'Ej: Art. 441 CCyCN — desequilibrio patrimonial...' },
+              { key: 'compensacion_tipo', label: 'Forma pretendida', type: 'select', options: ['Suma única', 'Renta mensual por tiempo determinado', 'Ambas (principal y subsidiaria)', 'Por determinar'] },
+              { key: 'compensacion_monto', label: 'Monto reclamado', type: 'text', placeholder: 'Ej: $25.000.000 o $600.000/mes' },
+              { key: 'compensacion_plazo', label: 'Plazo (si es renta)', type: 'text', placeholder: 'Ej: 36 meses' },
+            ],
+          },
+          {
+            title: 'Acuerdo entre Partes',
+            icon: 'FileText',
+            fields: [
+              { key: 'nivel_acuerdo', label: 'Nivel de acuerdo', type: 'select', options: ['Acuerdo total', 'Acuerdo parcial', 'Sin acuerdo'] },
+              { key: 'puntos_en_conflicto', label: 'Puntos en conflicto (si hay)', type: 'textarea', placeholder: 'Ej: Discuten compensación económica y división de bienes...' },
+            ],
+          },
+        ],
+      },
+      // ── ETAPA 3: CONSEJERO DE FAMILIA (PBA exclusivo) ────────
+      // Ley 14.442 art. 24: etapa previa obligatoria.
+      // El Consejero intenta conciliación y puede homologar acuerdos.
+      // Si no hay acuerdo, eleva a conocimiento del juez.
+      {
+        name: 'Consejero de Familia',
+        tasks: [
+          { task: 'Asistir a citación ante Consejero de Familia', priority: 'crítico', bloqueante: true },
+          // Bilateral: Consejero revisa convenio y puede homologar directamente
+          { task: 'Presentar convenio regulador al Consejero para homologación', priority: 'crítico', bloqueante: true, condition: { key: 'tipo_divorcio', equals: 'De común acuerdo' } },
+          // Unilateral: Consejero notifica a contraparte e intenta conciliación
+          { task: 'Notificación a contraparte por Consejero de Familia', priority: 'crítico', bloqueante: true, condition: { key: 'tipo_divorcio', equals: 'Unilateral' } },
+          { task: 'Audiencia de conciliación ante Consejero', priority: 'crítico', bloqueante: true, condition: { key: 'tipo_divorcio', equals: 'Unilateral' } },
+          { task: 'Evaluar resultado de etapa previa (acuerdo / sin acuerdo)', priority: 'crítico', bloqueante: true },
+        ],
+        documents: [
+          { name: 'Acta de audiencia ante Consejero de Familia', required: true },
+          { name: 'Resolución de elevación a conocimiento (si sin acuerdo)', required: false },
+        ],
+        milestone: 'Etapa previa ante Consejero completada',
+        fichaTitle: 'Etapa Previa — Consejero',
+        fichaFields: [
+          {
+            title: 'Resultado de la Etapa Previa',
+            icon: 'FileText',
+            fields: [
+              { key: 'consejero_nombre', label: 'Consejero de Familia asignado', type: 'text', placeholder: 'Nombre del Consejero' },
+              { key: 'consejero_fecha_audiencia', label: 'Fecha de audiencia ante Consejero', type: 'date' },
+              { key: 'consejero_resultado', label: 'Resultado', type: 'select', options: ['Acuerdo total homologado', 'Acuerdo parcial', 'Sin acuerdo — elevado a conocimiento', 'Incomparecencia de contraparte'] },
+              { key: 'consejero_observaciones', label: 'Observaciones', type: 'textarea', placeholder: 'Puntos acordados, pendientes, etc.' },
+            ],
+          },
+        ],
+      },
+      // ── ETAPA 4: AUDIENCIA ANTE JUEZ ─────────────────────────
+      // Bilateral con acuerdo homologado: puede ser breve o innecesaria.
+      // Unilateral / sin acuerdo: audiencia art. 438 ante juez de Familia.
+      {
+        name: 'Audiencia',
+        tasks: [
+          { task: 'Preparar cliente para audiencia ante Juez de Familia', priority: 'crítico', bloqueante: true },
+          // Unilateral: audiencia de negociación plena
+          { task: 'Analizar contrapropuesta reguladora (si fue presentada)', priority: 'recomendado', condition: { key: 'tipo_divorcio', equals: 'Unilateral' } },
+          { task: 'Revisar puntos pendientes del convenio', priority: 'recomendado' },
+          // Bilateral: confirmar asistencia
+          { task: 'Confirmar asistencia de ambos cónyuges y letrados', priority: 'crítico', bloqueante: true, condition: { key: 'tipo_divorcio', equals: 'De común acuerdo' } },
+        ],
+        documents: [
+          { name: 'Cédula de notificación de audiencia', required: true },
+        ],
+        milestone: 'Audiencia ante Juez celebrada',
+      },
+      // ── ETAPA 5: SENTENCIA ───────────────────────────────────
+      {
+        name: 'Sentencia',
+        tasks: [
+          { task: 'Verificar dictado de sentencia de divorcio', priority: 'crítico', bloqueante: true },
+          { task: 'Verificar homologación del convenio regulador', priority: 'crítico', bloqueante: true, condition: { key: 'tipo_divorcio', equals: 'De común acuerdo' } },
+          { task: 'Solicitar inscripción en Registro Civil (Dirección de Registro PBA)', priority: 'crítico', bloqueante: true },
+          { task: 'Librar oficio al Registro Civil', priority: 'crítico', bloqueante: true },
+          { task: 'Evaluar cuestiones pendientes post-sentencia (bienes, compensación)', priority: 'recomendado', condition: { key: 'tipo_divorcio', equals: 'Unilateral' } },
+        ],
+        documents: [
+          { name: 'Sentencia de divorcio', required: true },
+          { name: 'Oficio al Registro Civil', required: true },
+          { name: 'Convenio regulador homologado', required: false },
+        ],
+        milestone: 'Sentencia firme e inscripta',
+      },
+      // ── ETAPA 6: EJECUCIÓN ───────────────────────────────────
+      {
+        name: 'Ejecución',
+        tasks: [
+          { task: 'Verificar inscripción de sentencia en Registro Civil', priority: 'crítico', bloqueante: true },
+          { task: 'Inscribir transferencia de bienes en registros correspondientes', priority: 'recomendado' },
+          { task: 'Ejecutar liquidación de sociedad conyugal', priority: 'recomendado' },
+          { task: 'Archivar expediente', priority: 'opcional' },
+        ],
+        documents: [
+          { name: 'Constancia de inscripción Registro Civil', required: true },
+          { name: 'Escrituras de transferencia de bienes', required: false },
+        ],
+        milestone: 'Divorcio ejecutado',
+      },
+    ],
+    checklistBase: [
+      { task: 'Verificar datos del matrimonio', priority: 'crítico' },
+      { task: 'Determinar tipo de divorcio', priority: 'crítico' },
+      { task: 'Redactar propuesta reguladora', priority: 'crítico' },
+      { task: 'Identificar bienes gananciales', priority: 'recomendado' },
+    ],
+    documentosBase: [
+      { name: 'Acta de matrimonio', required: true },
+      { name: 'DNI de ambas partes', required: true },
+      { name: 'Partidas de nacimiento hijos', required: true },
+      { name: 'Títulos de propiedad', required: false },
+    ],
+    hitosProyectados: ['Instrucción completa', 'Demanda presentada', 'Consejero de Familia', 'Audiencia celebrada', 'Sentencia firme', 'Divorcio ejecutado'],
+    bloqueantesTipicos: ['Falta acta de matrimonio actualizada', 'Contraparte no notificada', 'Convenio sin firma de ambos', 'Incomparecencia ante Consejero'],
+    proximaAccionSugerida: 'Solicitar acta de matrimonio actualizada al Registro Civil',
+    fechaSeguimientoSugeridaDays: 5,
+    prioridadSugerida: 'Alta',
+    notasOperativas: 'PBA: Juzgado de Familia (Ley 14.442). Etapa previa OBLIGATORIA ante Consejero de Familia (art. 24). No hay mediación previa para divorcio (Ley 13.951 excluye acciones de estado). Bilateral puede resolverse rápido si Consejero homologa. Unilateral 2-5 meses según departamento judicial.',
   },
 
   {
@@ -2366,6 +2819,40 @@ export const WIZARD_FIELDS_BY_TEMPLATE: Record<string, WizardSection[]> = {
     },
   ],
 
+  'fam-divorcio-pba': [
+    {
+      title: 'Datos del Cónyuge (Cliente)',
+      icon: 'User',
+      fields: [
+        { key: 'conyuge1_nombre', label: 'Nombre completo', type: 'text', placeholder: 'Apellido, Nombre', required: true },
+        { key: 'conyuge1_dni', label: 'DNI', type: 'text', placeholder: '12.345.678' },
+        { key: 'conyuge1_domicilio', label: 'Domicilio actual', type: 'text', placeholder: 'Dirección...' },
+      ],
+    },
+    {
+      title: 'Datos del Otro Cónyuge',
+      icon: 'UserPlus',
+      fields: [
+        { key: 'conyuge2_nombre', label: 'Nombre completo', type: 'text', placeholder: 'Apellido, Nombre', required: true },
+        { key: 'conyuge2_dni', label: 'DNI', type: 'text', placeholder: '12.345.678' },
+        { key: 'conyuge2_domicilio', label: 'Domicilio actual', type: 'text', placeholder: 'Dirección...' },
+      ],
+    },
+    {
+      title: 'Situación',
+      icon: 'FileText',
+      fields: [
+        { key: 'tipo_divorcio', label: 'Tipo de divorcio', type: 'select', options: ['Unilateral', 'De común acuerdo'], required: true },
+        { key: 'fecha_matrimonio', label: 'Fecha de matrimonio (si la sabe)', type: 'date' },
+        { key: 'hijos_menores', label: 'Cantidad de hijos menores', type: 'number', placeholder: '0' },
+        { key: 'bienes_gananciales', label: '¿Hay bienes gananciales a liquidar?', type: 'select', options: ['Sí', 'No', 'Por determinar'] },
+        { key: 'departamento_judicial', label: 'Departamento judicial', type: 'select', options: ['La Plata', 'Lomas de Zamora', 'San Martín', 'San Isidro', 'Morón', 'Mercedes', 'Quilmes', 'La Matanza', 'Bahía Blanca', 'Mar del Plata', 'Junín', 'Pergamino', 'Necochea', 'Azul', 'Dolores', 'San Nicolás', 'Zárate-Campana', 'Trenque Lauquen', 'Otro'], required: true },
+        { key: 'hay_urgencia', label: '¿Hay urgencia o violencia?', type: 'select', options: ['No', 'Sí — denuncia/medida vigente', 'Sí — sin denuncia aún'] },
+        { key: 'urgencia_detalle', label: 'Detalle de urgencia (si corresponde)', type: 'textarea', placeholder: 'Describir brevemente la situación de urgencia...' },
+      ],
+    },
+  ],
+
   'fam-alimentos': [
     {
       title: 'Datos del Alimentado (hijo/a)',
@@ -3121,6 +3608,7 @@ const CARATULA_MAP: Record<string, CaratulaConfig> = {
 
   // ── FAMILIA ──
   'fam-divorcio':           { actor: 'conyuge1_nombre', demandado: 'conyuge2_nombre', objeto: 'divorcio' },
+  'fam-divorcio-pba':       { actor: 'conyuge1_nombre', demandado: 'conyuge2_nombre', objeto: 'divorcio' },
   'fam-alimentos':          { actor: 'hijo_nombre', demandado: 'alimentante_nombre', objeto: 'alimentos' },
   'fam-cuidado':            { actor: 'nino_nombre', actorFallback: 'client', demandado: 'otro_progenitor_nombre', objeto: 'cuidado personal' },
   'fam-comunicacion':       { actor: 'nino_nombre', actorFallback: 'client', demandado: 'otro_progenitor_nombre', objeto: 'régimen de comunicación' },
