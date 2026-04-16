@@ -21,18 +21,13 @@ import {
   AlertCircle,
   FileSearch,
   Scale,
-  PhoneCall,
-  Send,
-  Gavel,
   Coins,
-  Activity as ActivityIcon
 } from 'lucide-react';
 import { Matter, TimelineEvent, Task, LegalDocument, Expediente, MatterMilestone, FlowSnapshot } from '../types';
 import { Badge, Card, Button, Modal, Input, Textarea, Select } from './UI';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '../lib/utils';
-import { motion, AnimatePresence } from 'motion/react';
 import { fetchExpediente } from '../lib/db';
 import { ExpedienteForm } from './ExpedienteForm';
 import { ExpedienteDetail } from './ExpedienteDetail';
@@ -42,6 +37,10 @@ import { StageFicha } from './StageFicha';
 import { getFlowSnapshot } from '../lib/flowEngine';
 import { findTemplateForTask } from '../lib/taskTemplateMatch';
 import { useNavigate } from 'react-router-dom';
+import { ACTION_ICONS } from '../constants';
+import { CommunicationsLog } from './CommunicationsLog';
+import { ApprovalWorkflow } from './ApprovalWorkflow';
+import { ClientAccountStatement } from './ClientAccountStatement';
 
 interface MatterDetailProps {
   matter: Matter;
@@ -60,53 +59,93 @@ interface MatterDetailProps {
   onUpdateDocument?: (docId: string, changes: Partial<LegalDocument>) => void;
   onAddDocument?: (doc: Omit<LegalDocument, 'id'>) => void;
   onAddMilestone?: (ms: Omit<MatterMilestone, 'id'>) => void;
+  currentUser: string;
+  currentUserRole: string;
 }
 
-import { ACTION_ICONS } from '../constants';
-
-export const MatterDetail = ({ matter, timeline, tasks, documents, milestones, profiles, onBack, onNewAction, onEditMatter, onCompleteMilestone, onCompleteTask, onReopenTask, onUpdateMatter, onUpdateDocument, onAddDocument, onAddMilestone }: MatterDetailProps) => {
+export const MatterDetail = ({
+  matter, timeline, tasks, documents, milestones, profiles,
+  onBack, onNewAction, onEditMatter, onCompleteMilestone, onCompleteTask, onReopenTask,
+  onUpdateMatter, onUpdateDocument, onAddDocument, onAddMilestone,
+  currentUser, currentUserRole,
+}: MatterDetailProps) => {
   const navigate = useNavigate();
+
+  // Modal state
   const [isRequestDocOpen, setIsRequestDocOpen] = useState(false);
   const [isAddMilestoneOpen, setIsAddMilestoneOpen] = useState(false);
   const [isBlockageOpen, setIsBlockageOpen] = useState(false);
   const [isResponsableOpen, setIsResponsableOpen] = useState(false);
   const [blockageText, setBlockageText] = useState(matter.blockage || '');
-  const [showAllTasks, setShowAllTasks] = useState(false);
   const [showAllHistory, setShowAllHistory] = useState(false);
   const [expediente, setExpediente] = useState<Expediente | null | undefined>(undefined);
   const [showExpedienteForm, setShowExpedienteForm] = useState(false);
-  // Doc request form
   const [newDocName, setNewDocName] = useState('');
   const [newDocCriticality, setNewDocCriticality] = useState<'Crítico' | 'Recomendado' | 'Opcional'>('Crítico');
   const [newDocBlocks, setNewDocBlocks] = useState(false);
-  // Milestone form
   const [newMilestoneLabel, setNewMilestoneLabel] = useState('');
   const [newMilestoneDate, setNewMilestoneDate] = useState('');
-  // Doc context menu
   const [docMenuOpen, setDocMenuOpen] = useState<string | null>(null);
-  // Stage ficha
   const [fichaOpenStage, setFichaOpenStage] = useState<string | null>(null);
+
+  // New navigation state
+  const [activeTab, setActiveTab] = useState<'flujo' | 'expediente' | 'comunicaciones'>('flujo');
+  const [viewingStage, setViewingStage] = useState<string | null>(null);
 
   useEffect(() => {
     fetchExpediente(matter.id).then(setExpediente);
   }, [matter.id]);
 
-  // Flow engine snapshot — prefer exact template by ID, fallback to type+subtype match
+  // Flow engine
   const template = (matter.flowTemplateId && MATTER_TEMPLATES.find(t => t.id === matter.flowTemplateId)) || findTemplate(matter.type, matter.subtype);
   const flow: FlowSnapshot = getFlowSnapshot(matter, template, tasks, documents);
 
-  const missingDocs = documents.filter(d => d.status === 'Faltante');
-  const criticalTasks = tasks.filter(t => t.priority === 'Alta' && t.status !== 'Completada');
-  const displayedTasks = showAllTasks ? tasks : criticalTasks.slice(0, 3);
-  const displayedTimeline = showAllHistory ? timeline : timeline.slice(0, 3);
+  // Stage navigation
+  const hasStages = flow.stages.length > 0;
+  const selectedStage = viewingStage || flow.currentStage || '';
+  const isViewingCurrentStage = !viewingStage || viewingStage === flow.currentStage;
 
+  // Tasks filtered by stage
+  const stageTasks = hasStages && selectedStage
+    ? tasks.filter(t => t.etapa === selectedStage)
+    : tasks;
+  const stageBlockingPending = stageTasks.filter(t => t.bloqueante && t.status !== 'Completada');
+  const stageNonBlockingPending = stageTasks.filter(t => !t.bloqueante && t.status !== 'Completada');
+  const stageCompletedTasks = stageTasks.filter(t => t.status === 'Completada');
+
+  // Blocking counts
+  const blockingDocsCount = documents.filter(d => d.blocksProgress && d.status !== 'Presentado').length;
+  const totalBlockingCount = stageBlockingPending.length + blockingDocsCount;
+
+  // Next stage
+  const currentStageIdx = flow.stages.findIndex(s => s.status === 'current');
+  const nextStageName = currentStageIdx >= 0 && currentStageIdx < flow.stages.length - 1
+    ? flow.stages[currentStageIdx + 1].name
+    : null;
+
+  // Stage ficha info
+  const selectedTemplateStage = template?.stages?.find(s => s.name === selectedStage);
+  const hasStageFicha = !!selectedTemplateStage?.fichaFields;
+  const fichaKeys = hasStageFicha ? selectedTemplateStage!.fichaFields!.flatMap(s => s.fields.map(f => f.key)) : [];
+  const fichaFilled = fichaKeys.filter(k => {
+    const v = matter.caseData?.[k];
+    if (!v) return false;
+    try { const arr = JSON.parse(v); return Array.isArray(arr) && arr.length > 0; } catch { return v.trim().length > 0; }
+  }).length;
+
+  const displayedTimeline = showAllHistory ? timeline : timeline.slice(0, 3);
   const ActionIcon = matter.nextActionType ? ACTION_ICONS[matter.nextActionType] : Zap;
 
+  const docCompletionPct = Math.round(
+    (documents.filter(d => d.status === 'Presentado' || d.status === 'Aprobado').length / Math.max(documents.length, 1)) * 100
+  );
+
   return (
-    <div className="max-w-6xl mx-auto space-y-10 pb-20">
-      {/* Header - Compact & Clear */}
+    <div className="max-w-6xl mx-auto space-y-8 pb-20">
+
+      {/* ═══════════════════════ HEADER ═══════════════════════ */}
       <div className="flex flex-col gap-4">
-        <button 
+        <button
           onClick={onBack}
           className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors text-[10px] font-black w-fit uppercase tracking-[0.2em]"
         >
@@ -142,20 +181,47 @@ export const MatterDetail = ({ matter, timeline, tasks, documents, milestones, p
             <p className="text-sm font-bold text-muted-foreground uppercase tracking-tight">{matter.client}</p>
           </div>
 
-          <div className="flex items-center gap-3">
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="text-[10px] font-black uppercase tracking-widest h-11 px-6 rounded-xl"
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Quick access icons */}
+            <button
+              title="Consultar PJN"
+              className="w-10 h-10 rounded-xl border border-border flex items-center justify-center text-muted-foreground hover:text-primary hover:border-primary/30 hover:bg-primary/5 transition-all"
+            >
+              <ExternalLink size={16} />
+            </button>
+            <button
+              title="WhatsApp Cliente"
+              className="w-10 h-10 rounded-xl border border-border flex items-center justify-center text-emerald-600 hover:border-emerald-500/30 hover:bg-emerald-500/5 transition-all"
+            >
+              <MessageSquare size={16} />
+            </button>
+            <button
+              title="Carpeta Drive"
+              className="w-10 h-10 rounded-xl border border-border flex items-center justify-center text-amber-600 hover:border-amber-500/30 hover:bg-amber-500/5 transition-all"
+            >
+              <Paperclip size={16} />
+            </button>
+            <button
+              title="Movimientos financieros"
+              className="w-10 h-10 rounded-xl border border-border flex items-center justify-center text-muted-foreground hover:text-primary hover:border-primary/30 hover:bg-primary/5 transition-all"
+              onClick={() => setActiveTab('expediente')}
+            >
+              <Coins size={16} />
+            </button>
+            <div className="w-px h-8 bg-border mx-1" />
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-[10px] font-black uppercase tracking-widest h-10 px-5 rounded-xl"
               onClick={onEditMatter}
             >
               Editar Caso
             </Button>
-            <Button 
+            <Button
               onClick={onNewAction}
-              variant="primary" 
-              size="sm" 
-              className="text-[10px] font-black uppercase tracking-widest h-11 px-8 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground border-none shadow-xl shadow-primary/20"
+              variant="primary"
+              size="sm"
+              className="text-[10px] font-black uppercase tracking-widest h-10 px-6 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground border-none shadow-xl shadow-primary/20"
             >
               <Plus size={16} className="mr-2" />
               Nueva Acción
@@ -164,30 +230,81 @@ export const MatterDetail = ({ matter, timeline, tasks, documents, milestones, p
         </div>
       </div>
 
-      {/* HERO OPERATIVO - The Control Center */}
-      <section className="grid grid-cols-1 lg:grid-cols-12 gap-px bg-border border border-border rounded-[2.5rem] overflow-hidden shadow-2xl">
-        {/* Health & Next Action (Primary Focus) */}
+      {/* ═══════════════════ STEPPER HORIZONTAL ═══════════════════ */}
+      {hasStages && (
+        <section className="space-y-3">
+          <div className="overflow-x-auto -mx-4 px-4 pb-1">
+            <div className="flex items-center min-w-max">
+              {flow.stages.map((stage, idx) => (
+                <React.Fragment key={stage.name}>
+                  <button
+                    onClick={() => setViewingStage(stage.name === flow.currentStage ? null : stage.name)}
+                    className={cn(
+                      "flex items-center gap-2.5 px-4 py-2.5 rounded-xl transition-all whitespace-nowrap",
+                      selectedStage === stage.name && "bg-primary/5 ring-1 ring-primary/20",
+                      stage.status === 'pending' && "opacity-50 hover:opacity-80"
+                    )}
+                  >
+                    <div className={cn(
+                      "w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-black shrink-0 border-2 transition-all",
+                      stage.status === 'completed' ? "bg-emerald-500 border-emerald-500 text-white" :
+                      stage.status === 'current' ? "bg-primary border-primary text-primary-foreground" :
+                      "bg-muted border-border text-muted-foreground"
+                    )}>
+                      {stage.status === 'completed' ? <CheckCircle2 size={14} /> : idx + 1}
+                    </div>
+                    <span className={cn(
+                      "text-xs font-bold tracking-tight",
+                      stage.status === 'completed' ? "text-emerald-700 dark:text-emerald-400" :
+                      stage.status === 'current' ? "text-foreground" :
+                      "text-muted-foreground"
+                    )}>
+                      {stage.name}
+                    </span>
+                  </button>
+                  {idx < flow.stages.length - 1 && (
+                    <div className={cn(
+                      "w-8 h-0.5 shrink-0",
+                      stage.status === 'completed' ? "bg-emerald-500" : "bg-border"
+                    )} />
+                  )}
+                </React.Fragment>
+              ))}
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+              <div className="h-full bg-primary transition-all duration-700 rounded-full" style={{ width: `${flow.progress}%` }} />
+            </div>
+            <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest shrink-0">{flow.progress}%</span>
+          </div>
+        </section>
+      )}
+
+      {/* ═══════════════════ HERO COMPACT ═══════════════════ */}
+      <section className="grid grid-cols-1 lg:grid-cols-12 gap-px bg-border border border-border rounded-[2rem] overflow-hidden shadow-xl">
+        {/* Left: Health & Next Action */}
         <div className={cn(
-          "lg:col-span-5 p-10 flex flex-col justify-between min-h-[300px] relative overflow-hidden",
+          "lg:col-span-7 p-8 flex flex-col justify-between relative overflow-hidden",
           flow.health === 'Roto' ? 'bg-rose-600 text-white' :
           flow.health === 'Trabado' ? 'bg-amber-500 text-white' :
           flow.health === 'En espera' ? 'bg-sky-600 text-white' :
           'bg-slate-900 text-white'
         )}>
-          <div className="relative z-10">
-            <div className="flex items-center gap-3 mb-8">
-              <div className="p-2 bg-white/10 rounded-lg backdrop-blur-md border border-white/10">
-                {flow.health === 'Sano' ? <CheckCircle2 size={20} /> :
-                 flow.health === 'Trabado' ? <PauseCircle size={20} /> :
-                 flow.health === 'Roto' ? <ShieldAlert size={20} /> :
-                 <Clock size={20} />}
+          <div className="relative z-10 space-y-5">
+            <div className="flex items-center gap-3">
+              <div className="p-1.5 bg-white/10 rounded-lg backdrop-blur-md border border-white/10">
+                {flow.health === 'Sano' ? <CheckCircle2 size={16} /> :
+                 flow.health === 'Trabado' ? <PauseCircle size={16} /> :
+                 flow.health === 'Roto' ? <ShieldAlert size={16} /> :
+                 <Clock size={16} />}
               </div>
-              <span className="text-[11px] font-black uppercase tracking-[0.3em] opacity-80">Salud del Asunto: {flow.health}</span>
+              <span className="text-[10px] font-black uppercase tracking-[0.3em] opacity-80">Salud: {flow.health}</span>
               {flow.health !== matter.health && (
                 <span className="text-[8px] font-black uppercase tracking-widest bg-white/20 px-2 py-0.5 rounded-full">Auto</span>
               )}
             </div>
-            
+
             <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-black text-white/50 uppercase tracking-[0.4em]">Próxima Acción</span>
@@ -197,30 +314,30 @@ export const MatterDetail = ({ matter, timeline, tasks, documents, milestones, p
                   </Badge>
                 )}
               </div>
-              <div className="flex items-start gap-4">
+              <div className="flex items-start gap-3">
                 <div className={cn(
-                  "p-3 rounded-xl backdrop-blur-md border mt-1 shrink-0",
+                  "p-2.5 rounded-xl backdrop-blur-md border mt-0.5 shrink-0",
                   !(flow.nextAction || matter.nextAction) ? "bg-rose-500/20 border-rose-500/40 text-rose-100 animate-pulse" : "bg-white/10 border-white/20"
                 )}>
-                  <ActionIcon size={24} />
+                  <ActionIcon size={20} />
                 </div>
-                <div className="space-y-3">
+                <div className="space-y-2">
                   <h2 className={cn(
-                    "text-3xl md:text-4xl font-black tracking-tight leading-tight",
+                    "text-2xl md:text-3xl font-black tracking-tight leading-tight",
                     !(flow.nextAction || matter.nextAction) && "text-rose-100/90"
                   )}>
                     {flow.nextAction || matter.nextAction || 'Sin próxima acción'}
                   </h2>
-                  <div className="flex items-center gap-3 flex-wrap">
+                  <div className="flex items-center gap-2 flex-wrap">
                     {!matter.nextAction && (
                       <Button
                         onClick={onNewAction}
                         variant="primary"
                         size="sm"
-                        className="bg-white text-rose-600 hover:bg-white/90 border-none text-[10px] font-black uppercase tracking-widest h-9 px-4 rounded-lg shadow-lg"
+                        className="bg-white text-rose-600 hover:bg-white/90 border-none text-[10px] font-black uppercase tracking-widest h-8 px-3 rounded-lg shadow-lg"
                       >
-                        <Plus size={14} className="mr-2" />
-                        Definir Acción Ahora
+                        <Plus size={14} className="mr-1.5" />
+                        Definir Acción
                       </Button>
                     )}
                     {(() => {
@@ -231,9 +348,9 @@ export const MatterDetail = ({ matter, timeline, tasks, documents, milestones, p
                           onClick={() => navigate(`/plantillas?template=${matched.id}&matter=${matter.id}`)}
                           variant="primary"
                           size="sm"
-                          className="bg-white/15 text-white hover:bg-white/25 border border-white/20 text-[10px] font-black uppercase tracking-widest h-9 px-4 rounded-lg backdrop-blur-md"
+                          className="bg-white/15 text-white hover:bg-white/25 border border-white/20 text-[10px] font-black uppercase tracking-widest h-8 px-3 rounded-lg backdrop-blur-md"
                         >
-                          <FileText size={14} className="mr-2" />
+                          <FileText size={14} className="mr-1.5" />
                           Generar con Plantilla
                         </Button>
                       ) : null;
@@ -244,131 +361,366 @@ export const MatterDetail = ({ matter, timeline, tasks, documents, milestones, p
             </div>
           </div>
 
-          <div className="relative z-10 flex items-end justify-between pt-8">
+          <div className="relative z-10 flex items-end justify-between pt-6">
             <div className="space-y-1">
-              <span className="text-[9px] font-black text-white/40 uppercase tracking-[0.2em]">Fecha de Seguimiento</span>
+              <span className="text-[9px] font-black text-white/40 uppercase tracking-[0.2em]">Seguimiento</span>
               <div className={cn(
-                "text-2xl font-black tracking-tighter flex items-center gap-2",
+                "text-xl font-black tracking-tighter flex items-center gap-2",
                 !matter.nextActionDate && "text-rose-200/60"
               )}>
-                <Calendar size={20} className="opacity-50" />
-                {matter.nextActionDate ? format(parseISO(matter.nextActionDate), "d 'de' MMMM", { locale: es }) : 'Sin fecha definida'}
+                <Calendar size={16} className="opacity-50" />
+                {matter.nextActionDate ? format(parseISO(matter.nextActionDate), "d 'de' MMMM", { locale: es }) : 'Sin fecha'}
               </div>
-              {!matter.nextActionDate && (
-                <p className="text-[9px] font-bold text-rose-100/40 uppercase tracking-widest">Falta estructura operativa</p>
+            </div>
+            <div className="flex items-center gap-2">
+              {matter.priority === 'Alta' && (
+                <div className="px-2.5 py-1 bg-white/10 backdrop-blur-md border border-white/20 rounded-full text-[9px] font-black uppercase tracking-widest">
+                  Prioridad Alta
+                </div>
+              )}
+              {totalBlockingCount > 0 && nextStageName && (
+                <button
+                  onClick={() => setActiveTab('flujo')}
+                  className="px-3 py-1.5 bg-rose-500/20 backdrop-blur-md border border-rose-400/30 rounded-full text-[9px] font-black uppercase tracking-widest hover:bg-rose-500/30 transition-all flex items-center gap-1.5"
+                >
+                  <ShieldAlert size={12} />
+                  {totalBlockingCount} bloqueo{totalBlockingCount !== 1 ? 's' : ''} → {nextStageName}
+                </button>
               )}
             </div>
-            {matter.priority === 'Alta' && (
-              <div className="px-3 py-1 bg-white/10 backdrop-blur-md border border-white/20 rounded-full text-[9px] font-black uppercase tracking-widest">
-                Prioridad Alta
-              </div>
-            )}
           </div>
-          
-          {/* Decorative Background Icon */}
-          <Zap size={240} className="absolute -bottom-20 -right-20 opacity-5 pointer-events-none" />
+
+          <Zap size={180} className="absolute -bottom-16 -right-16 opacity-5 pointer-events-none" />
         </div>
 
-        {/* Blockage & Responsibility (Secondary Focus) */}
-        <div className="lg:col-span-7 grid grid-cols-1 md:grid-cols-2 bg-card">
-          {/* Blockage Section */}
-          <div className="p-10 border-b md:border-b-0 md:border-r border-border flex flex-col justify-between group hover:bg-muted/30 transition-colors">
-            <div>
-              <div className="flex items-center gap-2 mb-6">
-                <AlertCircle size={16} className={cn(matter.blockage ? "text-rose-500" : "text-muted-foreground opacity-30")} />
-                <span className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em]">Bloqueo Actual</span>
-              </div>
-              <p className={cn(
-                "text-xl font-bold tracking-tight leading-snug",
-                matter.blockage ? "text-foreground" : "text-muted-foreground italic opacity-40"
+        {/* Right: Responsable & Status */}
+        <div className="lg:col-span-5 p-8 bg-card flex flex-col justify-between space-y-6">
+          <div className="flex items-center gap-4">
+            <div className={cn(
+              "w-11 h-11 rounded-xl flex items-center justify-center text-sm font-black shadow-lg",
+              matter.responsible === 'Sin asignar' || !matter.responsible
+                ? "bg-rose-500/10 text-rose-600 border-2 border-dashed border-rose-500/30 shadow-none"
+                : "bg-primary text-primary-foreground shadow-primary/20"
+            )}>
+              {matter.responsible && matter.responsible !== 'Sin asignar'
+                ? matter.responsible.split(' ').map(n => n[0]).join('')
+                : <User size={18} />}
+            </div>
+            <div className="flex-1">
+              <div className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-0.5">Responsable</div>
+              <div className={cn(
+                "text-sm font-bold",
+                (matter.responsible === 'Sin asignar' || !matter.responsible) ? "text-rose-600" : "text-foreground"
               )}>
-                {matter.blockage || 'Sin bloqueos detectados'}
+                {matter.responsible || 'Sin asignar'}
+              </div>
+              {(matter.responsible === 'Sin asignar' || !matter.responsible) && (
+                <button className="text-[9px] font-black text-primary uppercase tracking-widest hover:underline mt-0.5" onClick={onEditMatter}>Asignar</button>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <div className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-2">Última Actividad</div>
+            <div className="flex items-start gap-3">
+              <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+              <p className="text-xs font-bold text-foreground/80 leading-relaxed">
+                {timeline[0]?.title || 'Sin actividad reciente'}
+                <span className="block text-[10px] font-black text-muted-foreground uppercase tracking-widest mt-0.5 opacity-50">
+                  {timeline[0]?.date
+                    ? format(parseISO(timeline[0].date), "d 'de' MMMM", { locale: es })
+                    : '—'}
+                </span>
               </p>
             </div>
-            <div className="pt-6">
-              <Button variant="ghost" size="sm" className="text-[9px] font-black uppercase tracking-widest h-8 px-3 border border-border/50 opacity-0 group-hover:opacity-100 transition-all" onClick={() => { setBlockageText(matter.blockage || ''); setIsBlockageOpen(true); }}>Reportar Bloqueo</Button>
+          </div>
+
+          <div className="pt-4 border-t border-border">
+            <div className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-2">Estado documental</div>
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-emerald-400 transition-all duration-1000"
+                  style={{ width: `${docCompletionPct}%` }}
+                />
+              </div>
+              <span className="text-[10px] font-black text-foreground">{docCompletionPct}%</span>
             </div>
           </div>
 
-          {/* Responsibility & Activity Section */}
-          <div className="p-10 flex flex-col justify-between space-y-8">
-            <div className="flex items-center gap-4">
-              <div className={cn(
-                "w-12 h-12 rounded-2xl flex items-center justify-center text-sm font-black shadow-lg",
-                matter.responsible === 'Sin asignar' || !matter.responsible 
-                  ? "bg-rose-500/10 text-rose-600 border-2 border-dashed border-rose-500/30 shadow-none" 
-                  : "bg-primary text-primary-foreground shadow-primary/20"
-              )}>
-                {matter.responsible && matter.responsible !== 'Sin asignar' 
-                  ? matter.responsible.split(' ').map(n => n[0]).join('') 
-                  : <User size={20} />}
-              </div>
-              <div>
-                <div className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-1">Responsable</div>
-                <div className={cn(
-                  "text-base font-bold",
-                  (matter.responsible === 'Sin asignar' || !matter.responsible) ? "text-rose-600" : "text-foreground"
-                )}>
-                  {matter.responsible || 'Sin asignar'}
-                </div>
-                {(matter.responsible === 'Sin asignar' || !matter.responsible) && (
-                  <button className="text-[9px] font-black text-primary uppercase tracking-widest hover:underline mt-1" onClick={onEditMatter}>Asignar para activar</button>
-                )}
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <div className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-2">Última Actividad</div>
-                <div className="flex items-start gap-3">
-                  <div className="mt-1 w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
-                  <p className="text-xs font-bold text-foreground/80 leading-relaxed">
-                    {timeline[0]?.title || 'Sin actividad reciente'}
-                    <span className="block text-[10px] font-black text-muted-foreground uppercase tracking-widest mt-1 opacity-50">
-                      Hace {format(parseISO(timeline[0]?.date || matter.lastActivity), "d 'días'", { locale: es })}
-                    </span>
-                  </p>
-                </div>
-              </div>
-              
-              <div className="pt-4 border-t border-white/10">
-                <div className="text-[9px] font-black text-white/40 uppercase tracking-[0.2em] mb-2">Estado documental</div>
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-emerald-400 transition-all duration-1000" 
-                      style={{ width: `${Math.round((documents.filter(d => d.status === 'Presentado' || d.status === 'Aprobado').length / documents.length) * 100) || 0}%` }} 
-                    />
-                  </div>
-                  <span className="text-[10px] font-black text-white">
-                    {Math.round((documents.filter(d => d.status === 'Presentado' || d.status === 'Aprobado').length / documents.length) * 100) || 0}%
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-[9px] font-black uppercase tracking-widest h-8 w-fit border border-border/50"
+            onClick={() => { setBlockageText(matter.blockage || ''); setIsBlockageOpen(true); }}
+          >
+            <AlertCircle size={12} className="mr-1.5" />
+            {matter.blockage ? 'Ver Bloqueo' : 'Reportar Bloqueo'}
+          </Button>
         </div>
       </section>
 
-      {/* MAIN OPERATIONAL CONTENT */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
-        {/* Left Column - Flow & Action */}
-        <div className="lg:col-span-8 space-y-12">
-          
-          {/* DOCUMENTACIÓN OPERATIVA - Integrated Flow */}
-          <section className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-1.5 h-6 bg-primary rounded-full" />
-                <h3 className="text-lg font-black text-foreground uppercase tracking-widest">Documentación Requerida</h3>
+      {/* ═══════════════════════ TABS ═══════════════════════ */}
+      <div>
+        <div className="flex border-b border-border">
+          {([
+            { key: 'flujo' as const, label: 'Flujo', icon: Zap },
+            { key: 'expediente' as const, label: 'Expediente', icon: FileText },
+            { key: 'comunicaciones' as const, label: 'Comunicaciones', icon: MessageSquare },
+          ]).map(tab => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={cn(
+                "flex items-center gap-2 px-6 py-3.5 text-[11px] font-black uppercase tracking-widest border-b-2 transition-all",
+                activeTab === tab.key
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
+              )}
+            >
+              <tab.icon size={16} />
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* ─────────── TAB: FLUJO ─────────── */}
+        {activeTab === 'flujo' && (
+          <div className="py-8 space-y-8">
+            {/* Stage summary */}
+            {hasStages && (
+              <div className="flex items-center justify-between flex-wrap gap-3">
+                <div className="flex items-center gap-3">
+                  <h3 className="text-base font-black text-foreground uppercase tracking-widest">
+                    {selectedStage}
+                  </h3>
+                  <span className="text-sm text-muted-foreground font-bold">
+                    {stageCompletedTasks.length} de {stageTasks.length} tareas completadas
+                    {blockingDocsCount > 0 && ` — ${blockingDocsCount} doc${blockingDocsCount !== 1 ? 's' : ''} pendiente${blockingDocsCount !== 1 ? 's' : ''}`}
+                  </span>
+                </div>
+                {!isViewingCurrentStage && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-[10px] font-black uppercase tracking-widest h-8 rounded-lg"
+                    onClick={() => setViewingStage(null)}
+                  >
+                    ← Volver a etapa actual
+                  </Button>
+                )}
               </div>
-              <div className="flex items-center gap-2">
-                <Badge variant="outline" className="text-[8px] font-black uppercase tracking-widest border-rose-500/20 text-rose-600 bg-rose-500/5">
-                  {documents.filter(d => d.blocksProgress && d.status !== 'Presentado').length} Bloqueos
-                </Badge>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
+            )}
+
+            {/* Stage ficha button */}
+            {hasStageFicha && (
+              <button
+                onClick={() => setFichaOpenStage(selectedStage)}
+                className={cn(
+                  "w-full flex items-center gap-3 p-4 rounded-2xl border transition-all",
+                  fichaFilled === fichaKeys.length && fichaFilled > 0
+                    ? "bg-emerald-500/10 border-emerald-500/20 hover:bg-emerald-500/15"
+                    : fichaFilled > 0
+                    ? "bg-amber-500/10 border-amber-500/20 hover:bg-amber-500/15"
+                    : "bg-primary/5 border-primary/20 hover:bg-primary/10"
+                )}
+              >
+                <FileText size={18} className={cn(
+                  fichaFilled === fichaKeys.length && fichaFilled > 0 ? "text-emerald-600" :
+                  fichaFilled > 0 ? "text-amber-600" : "text-primary"
+                )} />
+                <div className="flex-1 text-left">
+                  <span className="text-sm font-bold">{selectedTemplateStage?.fichaTitle || selectedStage}</span>
+                  <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-3">
+                    {fichaFilled}/{fichaKeys.length} campos
+                  </span>
+                </div>
+                <ChevronRight size={16} className="text-muted-foreground" />
+              </button>
+            )}
+
+            {/* Blocking tasks */}
+            {stageBlockingPending.length > 0 && (
+              <section className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-1.5 h-5 bg-rose-500 rounded-full" />
+                  <h4 className="text-sm font-black text-foreground uppercase tracking-widest">Tareas Bloqueantes</h4>
+                  <Badge variant="error" className="text-[8px] font-black uppercase tracking-widest px-1.5 py-0">
+                    {stageBlockingPending.length}
+                  </Badge>
+                </div>
+                <div className="grid grid-cols-1 gap-3">
+                  {stageBlockingPending.map(task => (
+                    <TaskCard key={task.id} task={task} matter={matter} navigate={navigate} onComplete={onCompleteTask} onReopen={onReopenTask} />
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* Other pending tasks */}
+            {stageNonBlockingPending.length > 0 && (
+              <section className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-1.5 h-5 bg-primary rounded-full" />
+                  <h4 className="text-sm font-black text-foreground uppercase tracking-widest">Otras Tareas</h4>
+                </div>
+                <div className="grid grid-cols-1 gap-3">
+                  {stageNonBlockingPending.map(task => (
+                    <TaskCard key={task.id} task={task} matter={matter} navigate={navigate} onComplete={onCompleteTask} onReopen={onReopenTask} />
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* Completed tasks */}
+            {stageCompletedTasks.length > 0 && (
+              <section className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-1.5 h-5 bg-emerald-500 rounded-full" />
+                  <h4 className="text-sm font-black text-muted-foreground uppercase tracking-widest">Completadas</h4>
+                  <span className="text-[10px] font-black text-muted-foreground opacity-50">{stageCompletedTasks.length}</span>
+                </div>
+                <div className="grid grid-cols-1 gap-2">
+                  {stageCompletedTasks.map(task => (
+                    <TaskCard key={task.id} task={task} matter={matter} navigate={navigate} onComplete={onCompleteTask} onReopen={onReopenTask} />
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* Empty state */}
+            {stageTasks.length === 0 && hasStages && (
+              <div className="py-12 text-center border-2 border-dashed border-border/50 rounded-3xl bg-muted/5">
+                <CheckSquare size={40} className="mx-auto text-muted-foreground/20 mb-4" />
+                <p className="text-sm font-bold text-muted-foreground uppercase tracking-widest">No hay tareas para esta etapa</p>
+              </div>
+            )}
+
+            {/* Documents */}
+            <section className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-1.5 h-5 bg-primary rounded-full" />
+                  <h4 className="text-sm font-black text-foreground uppercase tracking-widest">Documentación Requerida</h4>
+                </div>
+                <div className="flex items-center gap-2">
+                  {blockingDocsCount > 0 && (
+                    <Badge variant="outline" className="text-[8px] font-black uppercase tracking-widest border-rose-500/20 text-rose-600 bg-rose-500/5">
+                      {blockingDocsCount} Bloqueo{blockingDocsCount !== 1 ? 's' : ''}
+                    </Badge>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-[10px] font-black uppercase tracking-widest gap-2"
+                    onClick={() => setIsRequestDocOpen(true)}
+                  >
+                    <Plus size={14} />
+                    Solicitar
+                  </Button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3">
+                {documents.length > 0 ? (
+                  documents.map(doc => (
+                    <DocumentMatterItem
+                      key={doc.id}
+                      doc={doc}
+                      menuOpen={docMenuOpen === doc.id}
+                      onToggleMenu={() => setDocMenuOpen(docMenuOpen === doc.id ? null : doc.id)}
+                      onChangeStatus={(docId, status) => { onUpdateDocument?.(docId, { status }); setDocMenuOpen(null); }}
+                    />
+                  ))
+                ) : (
+                  <div className="py-8 text-center border-2 border-dashed border-border/50 rounded-3xl bg-muted/5">
+                    <FileSearch size={40} className="mx-auto text-muted-foreground/20 mb-4" />
+                    <p className="text-sm font-bold text-muted-foreground uppercase tracking-widest">No hay documentos</p>
+                    <Button variant="outline" size="sm" className="mt-4 text-[10px] font-black uppercase tracking-widest h-9 rounded-xl" onClick={() => setIsRequestDocOpen(true)}>Cargar Documento</Button>
+                  </div>
+                )}
+              </div>
+            </section>
+
+            {/* CTA: advance to next stage */}
+            {isViewingCurrentStage && nextStageName && totalBlockingCount > 0 && (
+              <div className="p-6 bg-primary/5 border border-primary/20 rounded-2xl flex items-center justify-between">
+                <p className="text-sm font-bold text-foreground">
+                  Completá {totalBlockingCount === 1 ? 'la tarea bloqueante' : `las ${totalBlockingCount} tareas bloqueantes`} para avanzar a <span className="text-primary font-black">{nextStageName}</span>
+                </p>
+                <ChevronRight size={20} className="text-primary shrink-0" />
+              </div>
+            )}
+            {isViewingCurrentStage && totalBlockingCount === 0 && nextStageName && (
+              <div className="p-6 bg-emerald-500/5 border border-emerald-500/20 rounded-2xl flex items-center gap-3">
+                <CheckCircle2 size={20} className="text-emerald-500 shrink-0" />
+                <p className="text-sm font-bold text-foreground">
+                  Sin bloqueos — listo para avanzar a <span className="text-emerald-600 font-black">{nextStageName}</span>
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ─────────── TAB: EXPEDIENTE ─────────── */}
+        {activeTab === 'expediente' && (
+          <div className="py-8 space-y-10">
+            {/* Datos del Asunto */}
+            <section className="space-y-4">
+              <h3 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em]">Datos del Asunto</h3>
+              <Card className="p-6 bg-muted/30 border-border space-y-4">
+                <div className="text-xs text-foreground/70 leading-relaxed italic">
+                  "{matter.description || 'Sin descripción narrativa.'}"
+                </div>
+                <div className="grid grid-cols-2 gap-4 pt-4 border-t border-border">
+                  <div>
+                    <div className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-1">Tipo</div>
+                    <div className="text-xs font-bold text-foreground">{matter.type}</div>
+                  </div>
+                  <div>
+                    <div className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-1">Prioridad</div>
+                    <div className="text-xs font-bold text-foreground">{matter.priority}</div>
+                  </div>
+                </div>
+              </Card>
+            </section>
+
+            {/* Expediente Judicial */}
+            <section className="space-y-4">
+              <h3 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em]">Expediente Judicial</h3>
+              {expediente === undefined ? (
+                <div className="p-4 text-xs text-muted-foreground">Cargando...</div>
+              ) : expediente ? (
+                <Card className="p-5 bg-muted/30 border-border">
+                  <ExpedienteDetail
+                    expediente={expediente}
+                    onUpdated={setExpediente}
+                    onEdit={() => setShowExpedienteForm(true)}
+                  />
+                </Card>
+              ) : (
+                <button
+                  onClick={() => setShowExpedienteForm(true)}
+                  className="w-full flex items-center gap-4 p-5 rounded-2xl border-2 border-dashed border-border hover:border-primary hover:bg-primary/5 transition-colors group"
+                >
+                  <div className="p-3 rounded-xl bg-muted group-hover:bg-primary/10 transition-colors">
+                    <Scale size={20} className="text-muted-foreground group-hover:text-primary" />
+                  </div>
+                  <div className="text-left">
+                    <p className="text-sm font-bold">Crear expediente judicial</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Carátula, fuero, juzgado, MEV y seguimiento</p>
+                  </div>
+                </button>
+              )}
+            </section>
+
+            {/* Documentación completa */}
+            <section className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em]">Documentación Completa</h3>
+                <Button
+                  variant="ghost"
+                  size="sm"
                   className="text-[10px] font-black uppercase tracking-widest gap-2"
                   onClick={() => setIsRequestDocOpen(true)}
                 >
@@ -376,407 +728,212 @@ export const MatterDetail = ({ matter, timeline, tasks, documents, milestones, p
                   Solicitar
                 </Button>
               </div>
-            </div>
-            
-            <div className="grid grid-cols-1 gap-3">
-              {documents.length > 0 ? (
-                documents.map((doc) => (
-                  <DocumentMatterItem
-                    key={doc.id}
-                    doc={doc}
-                    menuOpen={docMenuOpen === doc.id}
-                    onToggleMenu={() => setDocMenuOpen(docMenuOpen === doc.id ? null : doc.id)}
-                    onChangeStatus={(docId, status) => { onUpdateDocument?.(docId, { status }); setDocMenuOpen(null); }}
-                  />
-                ))
-              ) : (
-                <div className="py-12 text-center border-2 border-dashed border-border/50 rounded-3xl bg-muted/5">
-                  <FileSearch size={40} className="mx-auto text-muted-foreground/20 mb-4" />
-                  <p className="text-sm font-bold text-muted-foreground uppercase tracking-widest">No hay documentos sugeridos</p>
-                  <p className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-widest mt-1">Podés cargar la estructura manualmente</p>
-                  <Button variant="outline" size="sm" className="mt-6 text-[10px] font-black uppercase tracking-widest h-9 rounded-xl" onClick={() => setIsRequestDocOpen(true)}>Cargar Documento</Button>
-                </div>
-              )}
-            </div>
-          </section>
-
-          {/* TAREAS CRÍTICAS */}
-          <section className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-1.5 h-6 bg-rose-500 rounded-full" />
-                <h3 className="text-lg font-black text-foreground uppercase tracking-widest">Checklist Inicial</h3>
-              </div>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="text-[10px] font-black uppercase tracking-widest"
-                onClick={() => setShowAllTasks(!showAllTasks)}
-              >
-                {showAllTasks ? 'Ver menos' : 'Ver todas'}
-              </Button>
-            </div>
-
-            <div className="grid grid-cols-1 gap-4">
-              {displayedTasks.length > 0 ? (
-                displayedTasks.map(task => (
-                  <Card key={task.id} className="p-5 flex items-center gap-6 group hover:border-rose-500/30 transition-all bg-card border-border shadow-sm">
-                    <div className="w-12 h-12 rounded-2xl bg-rose-500/10 flex items-center justify-center text-rose-600 shrink-0">
-                      <AlertCircle size={24} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-3 mb-1">
-                        <span className="text-sm font-bold text-foreground tracking-tight">{task.title}</span>
-                        <Badge variant="error" className="text-[8px] font-black uppercase tracking-widest px-1.5 py-0">Bloqueante</Badge>
-                      </div>
-                      <div className="flex items-center gap-4 text-[10px] font-black text-muted-foreground uppercase tracking-widest opacity-60">
-                        {task.dueDate ? (
-                          <span className="flex items-center gap-1.5"><Clock size={12} /> Vence: {format(parseISO(task.dueDate), 'd MMM', { locale: es })}</span>
-                        ) : task.etapa ? (
-                          <span className="flex items-center gap-1.5"><Clock size={12} /> Etapa: {task.etapa}</span>
-                        ) : null}
-                        <span className="flex items-center gap-1.5"><User size={12} /> {matter.responsible.split(' ').pop()}</span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      {(() => {
-                        const matched = findTemplateForTask(task.title, matter.type as any);
-                        return matched ? (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="text-[10px] font-black uppercase tracking-widest rounded-xl opacity-0 group-hover:opacity-100 transition-all border-primary/30 text-primary hover:bg-primary/5"
-                            onClick={(e) => { e.stopPropagation(); navigate(`/plantillas?template=${matched.id}&matter=${matter.id}`); }}
-                          >
-                            <FileText size={12} className="mr-1.5" />
-                            Generar
-                          </Button>
-                        ) : null;
-                      })()}
-                      <Button variant="outline" size="sm" className="text-[10px] font-black uppercase tracking-widest rounded-xl opacity-0 group-hover:opacity-100 transition-all" onClick={(e) => { e.stopPropagation(); onCompleteTask?.(task.id); }}>
-                        {task.status === 'Completada' ? 'Reabrir' : 'Resolver'}
-                      </Button>
-                    </div>
-                  </Card>
-                ))
-              ) : (
-                <div className="py-8 text-center border border-border/50 rounded-2xl bg-muted/5">
-                  <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest opacity-40">No hay tareas críticas pendientes</p>
-                </div>
-              )}
-            </div>
-          </section>
-
-          {/* ÚLTIMOS MOVIMIENTOS - Operational Timeline */}
-          <section className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-1.5 h-6 bg-slate-400 rounded-full" />
-                <h3 className="text-lg font-black text-foreground uppercase tracking-widest">Última Actividad</h3>
-              </div>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="text-[10px] font-black uppercase tracking-widest"
-                onClick={() => setShowAllHistory(!showAllHistory)}
-              >
-                {showAllHistory ? 'Ver menos' : 'Historial Completo'}
-              </Button>
-            </div>
-
-            <div className="space-y-0 border-l-2 border-border ml-3 pl-8">
-              {displayedTimeline.length > 0 ? (
-                displayedTimeline.map((event, idx) => (
-                  <div key={event.id} className="relative pb-10 last:pb-0">
-                    <div className={cn(
-                      "absolute -left-[41px] top-0 w-6 h-6 rounded-full border-4 border-background flex items-center justify-center z-10",
-                      idx === 0 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-                    )}>
-                      <TimelineIcon type={event.type} />
-                    </div>
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-3">
-                        <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest opacity-50">
-                          {format(parseISO(event.date), "d 'de' MMMM", { locale: es })}
-                        </span>
-                        <span className="text-[10px] font-black text-primary uppercase tracking-widest">{event.user}</span>
-                      </div>
-                      <h4 className="text-sm font-bold text-foreground tracking-tight">{event.title}</h4>
-                      {event.description && <p className="text-xs text-muted-foreground leading-relaxed max-w-xl">{event.description}</p>}
-                    </div>
+              <div className="grid grid-cols-1 gap-3">
+                {documents.length > 0 ? (
+                  documents.map(doc => (
+                    <DocumentMatterItem
+                      key={doc.id}
+                      doc={doc}
+                      menuOpen={docMenuOpen === doc.id}
+                      onToggleMenu={() => setDocMenuOpen(docMenuOpen === doc.id ? null : doc.id)}
+                      onChangeStatus={(docId, status) => { onUpdateDocument?.(docId, { status }); setDocMenuOpen(null); }}
+                    />
+                  ))
+                ) : (
+                  <div className="py-8 text-center border border-border/50 rounded-2xl bg-muted/5">
+                    <p className="text-[10px] font-black text-muted-foreground/40 uppercase tracking-widest">Sin documentos cargados</p>
                   </div>
-                ))
-              ) : (
-                <div className="py-10 text-left">
-                  <div className="flex items-center gap-4 text-muted-foreground/40">
-                    <History size={32} strokeWidth={1} />
-                    <div>
-                      <p className="text-sm font-bold uppercase tracking-widest">Sin últimos movimientos</p>
-                      <p className="text-[10px] font-medium uppercase tracking-widest mt-1">Todavía no se registraron actividades en este asunto</p>
-                    </div>
-                  </div>
-                  <Button variant="outline" size="sm" className="mt-6 text-[10px] font-black uppercase tracking-widest h-9 rounded-xl" onClick={onNewAction}>Registrar Primer Movimiento</Button>
-                </div>
-              )}
-            </div>
-          </section>
-        </div>
+                )}
+              </div>
+            </section>
 
-        {/* Right Column - Context & Secondary Info */}
-        <div className="lg:col-span-4 space-y-12">
-          
-          {/* FLOW STAGE TRACKER */}
-          {flow.stages.length > 0 && (
+            {/* Approval workflow */}
+            <ApprovalWorkflow
+              documents={documents}
+              currentUserRole={currentUserRole}
+              currentUserName={currentUser}
+              onApprove={async (docId) => { onUpdateDocument?.(docId, { status: 'Aprobado' }); }}
+              onReject={async (docId) => { onUpdateDocument?.(docId, { status: 'Faltante' }); }}
+              onRequestApproval={async (docId) => { onUpdateDocument?.(docId, { status: 'En revisión' }); }}
+            />
+
+            {/* Hitos del Camino */}
             <section className="space-y-4">
-              <h3 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em]">Etapas del Proceso</h3>
-              <div className="space-y-2">
-                {flow.stages.map((stage, idx) => {
-                  const templateStage = template?.stages?.find(s => s.name === stage.name);
-                  const hasFicha = !!templateStage?.fichaFields;
-                  const isAccessible = stage.status === 'current' || stage.status === 'completed';
-                  // Count ficha completion
-                  const fichaKeys = hasFicha ? templateStage!.fichaFields!.flatMap(s => s.fields.map(f => f.key)) : [];
-                  const fichaFilled = fichaKeys.filter(k => {
-                    const v = matter.caseData?.[k];
-                    if (!v) return false;
-                    try { const arr = JSON.parse(v); return Array.isArray(arr) && arr.length > 0; } catch { return v.trim().length > 0; }
-                  }).length;
-
-                  return (
-                    <div key={stage.name} className="space-y-1">
-                      <div className="flex items-center gap-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em]">Hitos del Camino</h3>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 text-[8px] font-black uppercase tracking-widest border border-border/50"
+                  onClick={() => setIsAddMilestoneOpen(true)}
+                >
+                  Agregar Hito
+                </Button>
+              </div>
+              <div className="space-y-3">
+                {milestones.length > 0 ? (
+                  milestones.map(milestone => (
+                    <div
+                      key={milestone.id}
+                      className={cn(
+                        "p-4 bg-card border border-border rounded-2xl flex items-center justify-between group hover:border-primary/30 transition-all",
+                        milestone.status === 'Completado' && "opacity-60"
+                      )}
+                    >
+                      <div className="flex items-center gap-4">
                         <div className={cn(
-                          "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 border-2",
-                          stage.status === 'completed' ? "bg-emerald-500 border-emerald-500 text-white" :
-                          stage.status === 'current' ? "bg-primary border-primary text-primary-foreground" :
-                          "bg-muted border-border text-muted-foreground"
-                        )}>
-                          {stage.status === 'completed' ? <CheckCircle2 size={12} /> : idx + 1}
+                          "w-2 h-2 rounded-full",
+                          milestone.status === 'Completado' ? "bg-emerald-500" :
+                          milestone.status === 'En curso' ? "bg-amber-500" :
+                          "bg-slate-300"
+                        )} />
+                        <div>
+                          <span className={cn(
+                            "text-xs font-bold text-foreground/80",
+                            milestone.status === 'Completado' && "line-through"
+                          )}>{milestone.label}</span>
+                          {milestone.etapa && (
+                            <span className="block text-[9px] font-black text-muted-foreground uppercase tracking-widest opacity-40">{milestone.etapa}</span>
+                          )}
                         </div>
-                        <span className={cn(
-                          "text-xs font-bold tracking-tight flex-1",
-                          stage.status === 'completed' ? "text-muted-foreground line-through opacity-50" :
-                          stage.status === 'current' ? "text-foreground" :
-                          "text-muted-foreground opacity-50"
-                        )}>
-                          {stage.name}
-                        </span>
-                        {stage.status === 'current' && (
-                          <Badge variant="outline" className="text-[7px] font-black uppercase tracking-widest border-primary/30 text-primary">Actual</Badge>
-                        )}
                       </div>
-                      {hasFicha && isAccessible && (
-                        <div className="ml-9">
+                      <div className="flex items-center gap-2">
+                        {milestone.targetDate && (
+                          <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest opacity-50">
+                            {format(parseISO(milestone.targetDate), 'd MMM', { locale: es })}
+                          </span>
+                        )}
+                        {milestone.status !== 'Completado' && onCompleteMilestone && (
                           <button
-                            onClick={() => setFichaOpenStage(stage.name)}
-                            className={cn(
-                              "flex items-center gap-2 text-[10px] font-bold py-1.5 px-3 rounded-lg transition-all w-full",
-                              fichaFilled === fichaKeys.length && fichaFilled > 0
-                                ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/20"
-                                : fichaFilled > 0
-                                ? "bg-amber-500/10 text-amber-700 dark:text-amber-400 hover:bg-amber-500/20"
-                                : "bg-primary/5 text-primary hover:bg-primary/10"
-                            )}
+                            onClick={() => onCompleteMilestone(milestone.id)}
+                            className="opacity-0 group-hover:opacity-100 p-1 hover:bg-emerald-500/10 hover:text-emerald-500 rounded transition-all"
                           >
-                            <FileText size={12} />
-                            <span className="truncate">{templateStage!.fichaTitle}</span>
-                            <span className="ml-auto text-[8px] font-black opacity-70">
-                              {fichaFilled}/{fichaKeys.length}
-                            </span>
+                            <CheckCircle2 size={14} />
                           </button>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-              <div className="pt-2">
-                <div className="flex items-center justify-between text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-1.5">
-                  <span>Progreso general</span>
-                  <span>{flow.progress}%</span>
-                </div>
-                <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                  <div className="h-full bg-primary transition-all duration-700 rounded-full" style={{ width: `${flow.progress}%` }} />
-                </div>
-              </div>
-            </section>
-          )}
-
-          {/* BLOCKAGES FROM FLOW ENGINE */}
-          {flow.blockages.length > 0 && (
-            <section className="space-y-3">
-              <h3 className="text-[10px] font-black text-rose-500 uppercase tracking-[0.3em]">Bloqueos Detectados</h3>
-              <div className="space-y-2">
-                {flow.blockages.map((b, idx) => (
-                  <div key={idx} className="p-3 bg-rose-500/5 border border-rose-500/20 rounded-xl flex items-center gap-3">
-                    <ShieldAlert size={14} className="text-rose-500 shrink-0" />
-                    <span className="text-[11px] font-bold text-rose-700 dark:text-rose-400">{b}</span>
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
-
-          {/* HITOS DEL CAMINO */}
-          <section className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h3 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em]">Hitos del Camino</h3>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-6 px-2 text-[8px] font-black uppercase tracking-widest border border-border/50"
-                onClick={() => setIsAddMilestoneOpen(true)}
-              >
-                Agregar Hito
-              </Button>
-            </div>
-            <div className="space-y-3">
-              {milestones.length > 0 ? (
-                milestones.map(milestone => (
-                  <div
-                    key={milestone.id}
-                    className={cn(
-                      "p-4 bg-card border border-border rounded-2xl flex items-center justify-between group hover:border-primary/30 transition-all",
-                      milestone.status === 'Completado' && "opacity-60"
-                    )}
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className={cn(
-                        "w-2 h-2 rounded-full",
-                        milestone.status === 'Completado' ? "bg-emerald-500" :
-                        milestone.status === 'En curso' ? "bg-amber-500" :
-                        "bg-slate-300"
-                      )} />
-                      <div>
-                        <span className={cn(
-                          "text-xs font-bold text-foreground/80",
-                          milestone.status === 'Completado' && "line-through"
-                        )}>{milestone.label}</span>
-                        {milestone.etapa && (
-                          <span className="block text-[9px] font-black text-muted-foreground uppercase tracking-widest opacity-40">{milestone.etapa}</span>
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      {milestone.targetDate && (
-                        <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest opacity-50">
-                          {format(parseISO(milestone.targetDate), 'd MMM', { locale: es })}
-                        </span>
-                      )}
-                      {milestone.status !== 'Completado' && onCompleteMilestone && (
-                        <button
-                          onClick={() => onCompleteMilestone(milestone.id)}
-                          className="opacity-0 group-hover:opacity-100 p-1 hover:bg-emerald-500/10 hover:text-emerald-500 rounded transition-all"
-                        >
-                          <CheckCircle2 size={14} />
-                        </button>
-                      )}
-                    </div>
+                  ))
+                ) : (
+                  <div className="p-6 text-center border border-border/50 rounded-2xl bg-muted/5">
+                    <p className="text-[10px] font-black text-muted-foreground/40 uppercase tracking-widest">No hay hitos programados</p>
+                    <button className="text-[9px] font-black text-primary uppercase tracking-widest hover:underline mt-2" onClick={() => setIsAddMilestoneOpen(true)}>Programar Hitos</button>
                   </div>
-                ))
-              ) : (
-                <div className="p-6 text-center border border-border/50 rounded-2xl bg-muted/5">
-                  <p className="text-[10px] font-black text-muted-foreground/40 uppercase tracking-widest">No hay hitos programados</p>
-                  <button className="text-[9px] font-black text-primary uppercase tracking-widest hover:underline mt-2" onClick={() => setIsAddMilestoneOpen(true)}>Programar Hitos</button>
-                </div>
-              )}
-            </div>
-          </section>
-
-          {/* DATOS DEL CASO & DESCRIPCIÓN */}
-          <section className="space-y-6">
-            <h3 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em]">Datos del Asunto</h3>
-            <Card className="p-6 bg-muted/30 border-border space-y-6">
-              <div className="space-y-4">
-                <div className="text-xs text-foreground/70 leading-relaxed italic">
-                  "{matter.description || 'Sin descripción narrativa.'}"
-                </div>
+                )}
               </div>
-              <div className="grid grid-cols-2 gap-4 pt-4 border-t border-border">
-                <div>
-                  <div className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-1">Tipo</div>
-                  <div className="text-xs font-bold text-foreground">{matter.type}</div>
-                </div>
-                <div>
-                  <div className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-1">Prioridad</div>
-                  <div className="text-xs font-bold text-foreground">{matter.priority}</div>
-                </div>
-              </div>
-            </Card>
-          </section>
+            </section>
 
-          {/* EXPEDIENTE JUDICIAL */}
-          <section className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em]">Expediente Judicial</h3>
-            </div>
-            {expediente === undefined ? (
-              <div className="p-4 text-xs text-muted-foreground">Cargando...</div>
-            ) : expediente ? (
-              <Card className="p-5 bg-muted/30 border-border">
-                <ExpedienteDetail
-                  expediente={expediente}
-                  onUpdated={setExpediente}
-                  onEdit={() => setShowExpedienteForm(true)}
+            {/* Consolas Externas */}
+            <section className="space-y-4">
+              <h3 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em]">Consolas Externas</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                <QuickLink
+                  icon={ExternalLink}
+                  label="Consultar PJN"
+                  description="Poder Judicial de la Nación"
+                  iconColor="text-primary bg-primary/10"
                 />
-              </Card>
-            ) : (
-              <button
-                onClick={() => setShowExpedienteForm(true)}
-                className="w-full flex items-center gap-4 p-5 rounded-2xl border-2 border-dashed border-border hover:border-primary hover:bg-primary/5 transition-colors group"
-              >
-                <div className="p-3 rounded-xl bg-muted group-hover:bg-primary/10 transition-colors">
-                  <Scale size={20} className="text-muted-foreground group-hover:text-primary" />
-                </div>
-                <div className="text-left">
-                  <p className="text-sm font-bold">Crear expediente judicial</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">Carátula, fuero, juzgado, MEV y seguimiento de estados procesales</p>
-                </div>
-              </button>
-            )}
-          </section>
-
-          {/* VÍNCULOS RÁPIDOS */}
-          <section className="space-y-4">
-            <h3 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em]">Consolas Externas</h3>
-            <div className="grid grid-cols-1 gap-2">
-              <QuickLink
-                icon={ExternalLink}
-                label="Consultar PJN"
-                description="Poder Judicial de la Nación — consulta de causas"
-                iconColor="text-primary bg-primary/10"
-              />
-              <QuickLink
-                icon={MessageSquare}
-                label="WhatsApp Cliente"
-                description="Abrir conversación directa con el cliente"
-                iconColor="text-emerald-600 bg-emerald-500/10"
-              />
-              <QuickLink
-                icon={Paperclip}
-                label="Carpeta Drive"
-                description="Documentación del asunto en Google Drive"
-                iconColor="text-amber-600 bg-amber-500/10"
-              />
-            </div>
-          </section>
-
-          {/* BITÁCORA DE CONTROL */}
-          <section className="space-y-4">
-            <h3 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em]">Bitácora de Control</h3>
-            <div className="bg-slate-900 text-white p-6 rounded-[2rem] space-y-4 shadow-xl relative overflow-hidden">
-              <div className="absolute top-0 right-0 p-4 opacity-10">
-                <MessageSquare size={48} />
+                <QuickLink
+                  icon={MessageSquare}
+                  label="WhatsApp Cliente"
+                  description="Conversación directa"
+                  iconColor="text-emerald-600 bg-emerald-500/10"
+                />
+                <QuickLink
+                  icon={Paperclip}
+                  label="Carpeta Drive"
+                  description="Documentación en Drive"
+                  iconColor="text-amber-600 bg-amber-500/10"
+                />
               </div>
-              <p className="text-xs font-bold leading-relaxed opacity-90 italic relative z-10">"Sin notas aún."</p>
-              <div className="flex items-center justify-between pt-4 border-t border-white/10 relative z-10">
-                <div className="text-[9px] font-black uppercase tracking-widest text-white/40">{matter.responsible || '—'}</div>
-                <div className="text-[9px] font-black uppercase tracking-widest text-white/40">—</div>
+            </section>
+
+            {/* Bitácora de Control */}
+            <section className="space-y-4">
+              <h3 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em]">Bitácora de Control</h3>
+              <div className="bg-slate-900 text-white p-6 rounded-[2rem] space-y-4 shadow-xl relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-4 opacity-10">
+                  <MessageSquare size={48} />
+                </div>
+                <p className="text-xs font-bold leading-relaxed opacity-90 italic relative z-10">"Sin notas aún."</p>
+                <div className="flex items-center justify-between pt-4 border-t border-white/10 relative z-10">
+                  <div className="text-[9px] font-black uppercase tracking-widest text-white/40">{matter.responsible || '—'}</div>
+                  <div className="text-[9px] font-black uppercase tracking-widest text-white/40">—</div>
+                </div>
               </div>
-            </div>
-          </section>
-        </div>
+            </section>
+
+            {/* Movimientos financieros */}
+            <ClientAccountStatement clientName={matter.client} />
+          </div>
+        )}
+
+        {/* ─────────── TAB: COMUNICACIONES ─────────── */}
+        {activeTab === 'comunicaciones' && (
+          <div className="py-8 space-y-8">
+            <CommunicationsLog
+              matterId={matter.id}
+              currentUser={currentUser}
+            />
+
+            {/* Timeline / Historial de Actividad */}
+            <section className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-1.5 h-6 bg-slate-400 rounded-full" />
+                  <h3 className="text-lg font-black text-foreground uppercase tracking-widest">Historial de Actividad</h3>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-[10px] font-black uppercase tracking-widest"
+                  onClick={() => setShowAllHistory(!showAllHistory)}
+                >
+                  {showAllHistory ? 'Ver menos' : 'Historial Completo'}
+                </Button>
+              </div>
+
+              <div className="space-y-0 border-l-2 border-border ml-3 pl-8">
+                {displayedTimeline.length > 0 ? (
+                  displayedTimeline.map((event, idx) => (
+                    <div key={event.id} className="relative pb-10 last:pb-0">
+                      <div className={cn(
+                        "absolute -left-[41px] top-0 w-6 h-6 rounded-full border-4 border-background flex items-center justify-center z-10",
+                        idx === 0 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                      )}>
+                        <TimelineIcon type={event.type} />
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-3">
+                          <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest opacity-50">
+                            {format(parseISO(event.date), "d 'de' MMMM", { locale: es })}
+                          </span>
+                          <span className="text-[10px] font-black text-primary uppercase tracking-widest">{event.user}</span>
+                        </div>
+                        <h4 className="text-sm font-bold text-foreground tracking-tight">{event.title}</h4>
+                        {event.description && <p className="text-xs text-muted-foreground leading-relaxed max-w-xl">{event.description}</p>}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="py-10 text-left">
+                    <div className="flex items-center gap-4 text-muted-foreground/40">
+                      <History size={32} strokeWidth={1} />
+                      <div>
+                        <p className="text-sm font-bold uppercase tracking-widest">Sin últimos movimientos</p>
+                        <p className="text-[10px] font-medium uppercase tracking-widest mt-1">Todavía no se registraron actividades</p>
+                      </div>
+                    </div>
+                    <Button variant="outline" size="sm" className="mt-6 text-[10px] font-black uppercase tracking-widest h-9 rounded-xl" onClick={onNewAction}>Registrar Primer Movimiento</Button>
+                  </div>
+                )}
+              </div>
+            </section>
+          </div>
+        )}
       </div>
+
+      {/* ═══════════════════════ MODALS ═══════════════════════ */}
 
       {/* ExpedienteForm Modal */}
       {showExpedienteForm && (
@@ -793,15 +950,15 @@ export const MatterDetail = ({ matter, timeline, tasks, documents, milestones, p
 
       {/* Stage Ficha Modal */}
       {fichaOpenStage && (() => {
-        const templateStage = template?.stages?.find(s => s.name === fichaOpenStage);
-        if (!templateStage?.fichaFields) return null;
+        const tplStage = template?.stages?.find(s => s.name === fichaOpenStage);
+        if (!tplStage?.fichaFields) return null;
         return (
           <StageFicha
             isOpen={true}
             onClose={() => setFichaOpenStage(null)}
-            fichaTitle={templateStage.fichaTitle || fichaOpenStage}
+            fichaTitle={tplStage.fichaTitle || fichaOpenStage}
             stageName={fichaOpenStage}
-            sections={templateStage.fichaFields}
+            sections={tplStage.fichaFields}
             currentData={matter.caseData || {}}
             onSave={(newData) => {
               onUpdateMatter?.({ caseData: { ...(matter.caseData || {}), ...newData } } as Partial<Matter>);
@@ -810,7 +967,7 @@ export const MatterDetail = ({ matter, timeline, tasks, documents, milestones, p
         );
       })()}
 
-      {/* Modals for Quick Actions */}
+      {/* Solicitar Documentación Modal */}
       <Modal
         isOpen={isRequestDocOpen}
         onClose={() => setIsRequestDocOpen(false)}
@@ -915,6 +1072,7 @@ export const MatterDetail = ({ matter, timeline, tasks, documents, milestones, p
         </div>
       </Modal>
 
+      {/* Agregar Hito Modal */}
       <Modal
         isOpen={isAddMilestoneOpen}
         onClose={() => setIsAddMilestoneOpen(false)}
@@ -949,6 +1107,81 @@ export const MatterDetail = ({ matter, timeline, tasks, documents, milestones, p
   );
 };
 
+/* ═══════════════════════ SUB-COMPONENTS ═══════════════════════ */
+
+const TaskCard: React.FC<{
+  task: Task;
+  matter: Matter;
+  navigate: (path: string) => void;
+  onComplete?: (taskId: string) => void;
+  onReopen?: (taskId: string) => void;
+}> = ({ task, matter, navigate, onComplete, onReopen }) => {
+  const isCompleted = task.status === 'Completada';
+
+  return (
+    <Card className={cn(
+      "p-4 flex items-center gap-4 group transition-all",
+      isCompleted
+        ? "bg-muted/30 border-border/30 opacity-60"
+        : task.bloqueante
+        ? "hover:border-rose-500/30 bg-card border-border shadow-sm"
+        : "hover:border-primary/30 bg-card border-border shadow-sm"
+    )}>
+      <div className={cn(
+        "w-10 h-10 rounded-xl flex items-center justify-center shrink-0",
+        isCompleted ? "bg-emerald-500/10 text-emerald-600" :
+        task.bloqueante ? "bg-rose-500/10 text-rose-600" :
+        "bg-primary/10 text-primary"
+      )}>
+        {isCompleted ? <CheckCircle2 size={20} /> : task.bloqueante ? <AlertCircle size={20} /> : <CheckSquare size={20} />}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-0.5">
+          <span className={cn(
+            "text-sm font-bold tracking-tight",
+            isCompleted && "line-through text-muted-foreground"
+          )}>{task.title}</span>
+          {task.bloqueante && !isCompleted && (
+            <Badge variant="error" className="text-[8px] font-black uppercase tracking-widest px-1.5 py-0">Bloqueante</Badge>
+          )}
+        </div>
+        <div className="flex items-center gap-3 text-[10px] font-black text-muted-foreground uppercase tracking-widest opacity-60">
+          {task.dueDate && (
+            <span className="flex items-center gap-1"><Clock size={10} /> {format(parseISO(task.dueDate), 'd MMM', { locale: es })}</span>
+          )}
+        </div>
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        {!isCompleted && (() => {
+          const matched = findTemplateForTask(task.title, matter.type as any);
+          return matched ? (
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-[10px] font-black uppercase tracking-widest rounded-xl opacity-0 group-hover:opacity-100 transition-all border-primary/30 text-primary hover:bg-primary/5"
+              onClick={(e) => { e.stopPropagation(); navigate(`/plantillas?template=${matched.id}&matter=${matter.id}`); }}
+            >
+              <FileText size={12} className="mr-1.5" />
+              Generar
+            </Button>
+          ) : null;
+        })()}
+        <Button
+          variant="outline"
+          size="sm"
+          className="text-[10px] font-black uppercase tracking-widest rounded-xl opacity-0 group-hover:opacity-100 transition-all"
+          onClick={(e) => {
+            e.stopPropagation();
+            isCompleted ? onReopen?.(task.id) : onComplete?.(task.id);
+          }}
+        >
+          {isCompleted ? 'Reabrir' : 'Resolver'}
+        </Button>
+      </div>
+    </Card>
+  );
+};
+
 const DOC_STATUS_FLOW: LegalDocument['status'][] = ['Faltante', 'Solicitado', 'Recibido', 'En revisión', 'Aprobado', 'Listo para presentar', 'Presentado'];
 
 const DocumentMatterItem: React.FC<{ doc: LegalDocument; menuOpen: boolean; onToggleMenu: () => void; onChangeStatus?: (docId: string, status: LegalDocument['status']) => void }> = ({ doc, menuOpen, onToggleMenu, onChangeStatus }) => {
@@ -962,12 +1195,6 @@ const DocumentMatterItem: React.FC<{ doc: LegalDocument; menuOpen: boolean; onTo
     'Presentado': 'text-white bg-slate-900 border-slate-900',
   };
 
-  const criticalityLabels = {
-    'Crítico': 'Crítico',
-    'Recomendado': 'Rec.',
-    'Opcional': 'Opt.'
-  };
-
   return (
     <Card className={cn(
       "p-4 border border-border/50 flex items-center justify-between group hover:border-primary/30 transition-all rounded-2xl relative overflow-hidden",
@@ -976,7 +1203,7 @@ const DocumentMatterItem: React.FC<{ doc: LegalDocument; menuOpen: boolean; onTo
       {doc.blocksProgress && doc.status !== 'Presentado' && (
         <div className="absolute left-0 top-0 bottom-0 w-1 bg-rose-500" />
       )}
-      
+
       <div className="flex items-center gap-4 flex-1 min-w-0">
         <div className={cn(
           "w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border",
@@ -984,7 +1211,7 @@ const DocumentMatterItem: React.FC<{ doc: LegalDocument; menuOpen: boolean; onTo
         )}>
           {doc.status === 'Presentado' || doc.status === 'Aprobado' ? <CheckCircle2 size={18} /> : <FileText size={18} />}
         </div>
-        
+
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-0.5">
             <span className="text-sm font-bold text-foreground truncate tracking-tight">{doc.name}</span>
@@ -1038,57 +1265,9 @@ const DocumentMatterItem: React.FC<{ doc: LegalDocument; menuOpen: boolean; onTo
   );
 };
 
-const ChecklistItem = ({ label, type, critical, status }: { label: string, type: string, critical?: boolean, status: 'missing' | 'pending' | 'completed' }) => (
-  <div className="flex items-center justify-between p-5 hover:bg-muted/30 transition-colors group">
-    <div className="flex items-center gap-4">
-      <div className={cn(
-        "w-6 h-6 rounded-lg flex items-center justify-center transition-all",
-        status === 'completed' ? "bg-emerald-500 text-white" : "bg-muted text-muted-foreground border border-border"
-      )}>
-        {status === 'completed' ? <CheckCircle2 size={14} /> : <div className="w-2 h-2 rounded-full bg-current opacity-20" />}
-      </div>
-      <div>
-        <div className="flex items-center gap-3">
-          <span className={cn(
-            "text-sm font-bold tracking-tight",
-            status === 'completed' ? "text-muted-foreground line-through opacity-50" : "text-foreground"
-          )}>
-            {label}
-          </span>
-          {critical && status !== 'completed' && (
-            <Badge variant="error" className="text-[8px] font-black uppercase tracking-widest px-1.5 py-0">Crítico</Badge>
-          )}
-        </div>
-        <div className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mt-1 opacity-40">{type}</div>
-      </div>
-    </div>
-    <Button variant="ghost" size="sm" className="text-[10px] font-black uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-all">
-      {status === 'completed' ? 'Reabrir' : 'Resolver'}
-    </Button>
-  </div>
-);
-
-const HealthBadge = ({ health }: { health: Matter['health'] }) => {
-  const styles = {
-    'Sano': 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
-    'Trabado': 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
-    'Roto': 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20',
-    'En espera': 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20',
-  };
-
-  return (
-    <span className={cn(
-      'px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-[0.2em] border',
-      styles[health]
-    )}>
-      {health}
-    </span>
-  );
-};
-
 const QuickLink = ({ icon: Icon, label, description, iconColor }: { icon: any, label: string, description: string, iconColor: string }) => (
   <button className="w-full flex items-center justify-between p-4 bg-card border border-border rounded-xl hover:border-primary/30 hover:bg-muted/20 hover:shadow-sm transition-all group cursor-pointer">
-    <div className="flex items-center gap-4">
+    <div className="flex items-center gap-3">
       <div className={cn('w-9 h-9 rounded-lg flex items-center justify-center shrink-0', iconColor)}>
         <Icon size={17} />
       </div>
@@ -1099,18 +1278,6 @@ const QuickLink = ({ icon: Icon, label, description, iconColor }: { icon: any, l
     </div>
     <ChevronRight size={16} className="text-muted-foreground/30 group-hover:text-primary transition-all group-hover:translate-x-1 shrink-0" />
   </button>
-);
-
-const DocStatusCard = ({ label, count, variant }: { label: string, count: number, variant: 'error' | 'warning' | 'success' }) => (
-  <div className={cn(
-    'p-6 rounded-2xl border flex items-center justify-between shadow-sm',
-    variant === 'error' ? 'bg-rose-500/5 border-rose-500/20 text-rose-600 dark:text-rose-400' :
-    variant === 'warning' ? 'bg-amber-500/5 border-amber-500/20 text-amber-600 dark:text-amber-400' :
-    'bg-emerald-500/5 border-emerald-500/20 text-emerald-600 dark:text-emerald-400'
-  )}>
-    <span className="text-[10px] font-black uppercase tracking-[0.2em] opacity-70">{label}</span>
-    <span className="text-2xl font-black tracking-tighter">{count}</span>
-  </div>
 );
 
 const TimelineIcon = ({ type }: { type: TimelineEvent['type'] }) => {
