@@ -35,6 +35,7 @@ import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '../lib/utils';
 import { fetchExpediente } from '../lib/db';
+import { useAppContext } from '../lib/AppContext';
 import { ExpedienteForm } from './ExpedienteForm';
 import { ExpedienteDetail } from './ExpedienteDetail';
 import { ESTADO_COLORS } from '../data/juzgados';
@@ -76,6 +77,8 @@ export const MatterDetail = ({
   currentUser, currentUserRole,
 }: MatterDetailProps) => {
   const navigate = useNavigate();
+  const { clients } = useAppContext();
+  const clientObj = clients.find(c => c.name === matter.client);
 
   // Modal state
   const [isRequestDocOpen, setIsRequestDocOpen] = useState(false);
@@ -987,6 +990,8 @@ export const MatterDetail = ({
               currentUser={currentUser}
               initialContent={commPrefill}
               initialCanal={commPrefill ? 'WhatsApp' : undefined}
+              clientPhone={clientObj?.phone}
+              clientEmail={clientObj?.email}
             />
 
             {/* Timeline / Historial de Actividad */}

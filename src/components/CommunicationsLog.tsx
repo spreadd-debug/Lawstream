@@ -27,6 +27,9 @@ interface CommunicationsLogProps {
   /** Pre-fill the message textarea (e.g. from "Solicitar datos" in TaskCard) */
   initialContent?: string;
   initialCanal?: CanalCommunication;
+  /** Contact info to launch WhatsApp/email on send */
+  clientPhone?: string;
+  clientEmail?: string;
 }
 
 const CANALES: { value: CanalCommunication; label: string; icon: React.ReactNode; color: string; badgeClass: string }[] = [
@@ -77,6 +80,8 @@ export const CommunicationsLog: React.FC<CommunicationsLogProps> = ({
   currentUser,
   initialContent,
   initialCanal,
+  clientPhone,
+  clientEmail,
 }) => {
   const [communications, setCommunications] = useState<Communication[]>([]);
   const [loading, setLoading] = useState(true);
@@ -119,22 +124,48 @@ export const CommunicationsLog: React.FC<CommunicationsLogProps> = ({
     load();
   }, [matterId]);
 
+  // Normalize phone for wa.me (strip non-digits, assume AR if no country code)
+  const buildWhatsappUrl = (phone: string, text: string) => {
+    let digits = phone.replace(/\D/g, '');
+    // If no country code and starts with 0, assume Argentine mobile → 549 + rest-without-0
+    if (!digits.startsWith('54') && digits.startsWith('0')) digits = '549' + digits.slice(1);
+    else if (!digits.startsWith('54')) digits = '54' + digits;
+    return `https://wa.me/${digits}?text=${encodeURIComponent(text)}`;
+  };
+
+  const buildMailtoUrl = (email: string, text: string) => {
+    const firstLine = text.split('\n').find(l => l.trim()) ?? 'Consulta';
+    const subject = firstLine.length > 80 ? firstLine.slice(0, 77) + '...' : firstLine;
+    return `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`;
+  };
+
   const handleSubmit = async () => {
     if (!contenido.trim() || submitting) return;
     setSubmitting(true);
+    const contenidoFinal = contenido.trim();
     try {
       const created = await createCommunication({
         matterId,
         clientId,
         consultationId,
         canal,
-        contenido: contenido.trim(),
+        contenido: contenidoFinal,
         enviadoPor: currentUser,
         visibleParaCliente,
       });
       setCommunications((prev) => [created, ...prev]);
       setContenido('');
       setVisibleParaCliente(false);
+
+      // Launch native app (WhatsApp Web / email client) if contact info is available
+      if (canal === 'WhatsApp' && clientPhone) {
+        window.open(buildWhatsappUrl(clientPhone, contenidoFinal), '_blank', 'noopener');
+      } else if (canal === 'Email' && clientEmail) {
+        window.location.href = buildMailtoUrl(clientEmail, contenidoFinal);
+      } else if (canal === 'WhatsApp' && !clientPhone) {
+        // Fallback: open WhatsApp picker so user can choose contact
+        window.open(`https://wa.me/?text=${encodeURIComponent(contenidoFinal)}`, '_blank', 'noopener');
+      }
     } catch (err) {
       console.error('Error creating communication', err);
     } finally {
@@ -213,9 +244,26 @@ export const CommunicationsLog: React.FC<CommunicationsLogProps> = ({
             disabled={!contenido.trim() || submitting}
           >
             <Send size={14} className="mr-1.5" />
-            {submitting ? 'Enviando...' : 'Enviar'}
+            {submitting
+              ? 'Enviando...'
+              : canal === 'WhatsApp'
+              ? (clientPhone ? 'Abrir WhatsApp' : 'Abrir WhatsApp Web')
+              : canal === 'Email'
+              ? (clientEmail ? 'Abrir Email' : 'Registrar')
+              : 'Registrar'}
           </Button>
         </div>
+        {/* Helper text for contact missing */}
+        {canal === 'WhatsApp' && !clientPhone && (
+          <p className="text-[11px] text-muted-foreground -mt-2">
+            Sin teléfono cargado del cliente — se abrirá WhatsApp Web para elegir contacto.
+          </p>
+        )}
+        {canal === 'Email' && !clientEmail && (
+          <p className="text-[11px] text-amber-600 -mt-2">
+            Sin email cargado del cliente — solo se registrará en el log.
+          </p>
+        )}
       </Card>
 
       {/* Communications list */}
