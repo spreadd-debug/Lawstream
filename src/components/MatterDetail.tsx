@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   ArrowLeft,
   Calendar,
@@ -22,6 +22,11 @@ import {
   FileSearch,
   Scale,
   Coins,
+  Upload,
+  Download,
+  Eye,
+  RefreshCw,
+  Ban,
 } from 'lucide-react';
 import { Matter, TimelineEvent, Task, LegalDocument, Expediente, MatterMilestone, FlowSnapshot } from '../types';
 import { Badge, Card, Button, Modal, Input, Textarea, Select } from './UI';
@@ -113,9 +118,20 @@ export const MatterDetail = ({
   const stageNonBlockingPending = stageTasks.filter(t => !t.bloqueante && t.status !== 'Completada');
   const stageCompletedTasks = stageTasks.filter(t => t.status === 'Completada');
 
-  // Blocking counts
-  const blockingDocsCount = documents.filter(d => d.blocksProgress && d.status !== 'Presentado').length;
-  const totalBlockingCount = stageBlockingPending.length + blockingDocsCount;
+  // Documents filtered by stage (using associatedAction which stores stage name)
+  const stageDocs = hasStages && selectedStage
+    ? documents.filter(d => d.associatedAction === selectedStage)
+    : documents;
+  const stageDocsWithoutStage = hasStages && selectedStage
+    ? documents.filter(d => !d.associatedAction)
+    : [];
+  const allStageDocs = [...stageDocs, ...stageDocsWithoutStage];
+
+  // Blocking counts (stage-aware for Flujo, global for hero)
+  const stageBlockingDocsCount = allStageDocs.filter(d => d.blocksProgress && d.status !== 'Presentado' && d.status !== 'Recibido' && d.status !== 'Aprobado' && (d.status as string) !== 'No aplica').length;
+  const globalBlockingDocsCount = documents.filter(d => d.blocksProgress && d.status !== 'Presentado' && d.status !== 'Recibido' && d.status !== 'Aprobado' && (d.status as string) !== 'No aplica').length;
+  const blockingDocsCount = globalBlockingDocsCount;
+  const totalBlockingCount = stageBlockingPending.length + stageBlockingDocsCount;
 
   // Next stage
   const currentStageIdx = flow.stages.findIndex(s => s.status === 'current');
@@ -136,8 +152,9 @@ export const MatterDetail = ({
   const displayedTimeline = showAllHistory ? timeline : timeline.slice(0, 3);
   const ActionIcon = matter.nextActionType ? ACTION_ICONS[matter.nextActionType] : Zap;
 
+  const docsResolved = documents.filter(d => d.status === 'Presentado' || d.status === 'Aprobado' || d.status === 'Recibido' || (d.status as string) === 'No aplica');
   const docCompletionPct = Math.round(
-    (documents.filter(d => d.status === 'Presentado' || d.status === 'Aprobado').length / Math.max(documents.length, 1)) * 100
+    (docsResolved.length / Math.max(documents.length, 1)) * 100
   );
 
   return (
@@ -238,7 +255,10 @@ export const MatterDetail = ({
               {flow.stages.map((stage, idx) => (
                 <React.Fragment key={stage.name}>
                   <button
-                    onClick={() => setViewingStage(stage.name === flow.currentStage ? null : stage.name)}
+                    onClick={() => {
+                      setViewingStage(stage.name === flow.currentStage ? null : stage.name);
+                      setActiveTab('flujo');
+                    }}
                     className={cn(
                       "flex items-center gap-2.5 px-4 py-2.5 rounded-xl transition-all whitespace-nowrap",
                       selectedStage === stage.name && "bg-primary/5 ring-1 ring-primary/20",
@@ -261,6 +281,9 @@ export const MatterDetail = ({
                     )}>
                       {stage.name}
                     </span>
+                    {stage.status === 'current' && viewingStage && viewingStage !== stage.name && (
+                      <span className="text-[7px] font-black uppercase tracking-widest bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">Actual</span>
+                    )}
                   </button>
                   {idx < flow.stages.length - 1 && (
                     <div className={cn(
@@ -339,6 +362,17 @@ export const MatterDetail = ({
                         <Plus size={14} className="mr-1.5" />
                         Definir Acción
                       </Button>
+                    )}
+                    {(flow.nextAction || matter.nextAction) && (
+                      <button
+                        onClick={() => {
+                          setActiveTab('flujo');
+                          if (hasStageFicha) setFichaOpenStage(selectedStage);
+                        }}
+                        className="px-5 py-2 bg-white/20 hover:bg-white/30 backdrop-blur text-white font-bold rounded-xl transition-all text-[10px] uppercase tracking-widest"
+                      >
+                        Resolver →
+                      </button>
                     )}
                     {(() => {
                       const actionText = flow.nextAction || matter.nextAction;
@@ -496,7 +530,7 @@ export const MatterDetail = ({
                   </h3>
                   <span className="text-sm text-muted-foreground font-bold">
                     {stageCompletedTasks.length} de {stageTasks.length} tareas completadas
-                    {blockingDocsCount > 0 && ` — ${blockingDocsCount} doc${blockingDocsCount !== 1 ? 's' : ''} pendiente${blockingDocsCount !== 1 ? 's' : ''}`}
+                    {stageBlockingDocsCount > 0 && ` — ${stageBlockingDocsCount} doc${stageBlockingDocsCount !== 1 ? 's' : ''} pendiente${stageBlockingDocsCount !== 1 ? 's' : ''}`}
                   </span>
                 </div>
                 {!isViewingCurrentStage && (
@@ -551,7 +585,16 @@ export const MatterDetail = ({
                 </div>
                 <div className="grid grid-cols-1 gap-3">
                   {stageBlockingPending.map(task => (
-                    <TaskCard key={task.id} task={task} matter={matter} navigate={navigate} onComplete={onCompleteTask} onReopen={onReopenTask} />
+                    <TaskCard
+                      key={task.id}
+                      task={task}
+                      matter={matter}
+                      navigate={navigate}
+                      onComplete={onCompleteTask}
+                      onReopen={onReopenTask}
+                      hasFicha={hasStageFicha}
+                      onOpenFicha={hasStageFicha ? () => setFichaOpenStage(selectedStage) : undefined}
+                    />
                   ))}
                 </div>
               </section>
@@ -622,8 +665,8 @@ export const MatterDetail = ({
               </div>
 
               <div className="grid grid-cols-1 gap-3">
-                {documents.length > 0 ? (
-                  documents.map(doc => (
+                {allStageDocs.length > 0 ? (
+                  allStageDocs.map(doc => (
                     <DocumentMatterItem
                       key={doc.id}
                       doc={doc}
@@ -635,7 +678,7 @@ export const MatterDetail = ({
                 ) : (
                   <div className="py-8 text-center border-2 border-dashed border-border/50 rounded-3xl bg-muted/5">
                     <FileSearch size={40} className="mx-auto text-muted-foreground/20 mb-4" />
-                    <p className="text-sm font-bold text-muted-foreground uppercase tracking-widest">No hay documentos</p>
+                    <p className="text-sm font-bold text-muted-foreground uppercase tracking-widest">No hay documentos para esta etapa</p>
                     <Button variant="outline" size="sm" className="mt-4 text-[10px] font-black uppercase tracking-widest h-9 rounded-xl" onClick={() => setIsRequestDocOpen(true)}>Cargar Documento</Button>
                   </div>
                 )}
@@ -643,20 +686,64 @@ export const MatterDetail = ({
             </section>
 
             {/* CTA: advance to next stage */}
-            {isViewingCurrentStage && nextStageName && totalBlockingCount > 0 && (
-              <div className="p-6 bg-primary/5 border border-primary/20 rounded-2xl flex items-center justify-between">
-                <p className="text-sm font-bold text-foreground">
-                  Completá {totalBlockingCount === 1 ? 'la tarea bloqueante' : `las ${totalBlockingCount} tareas bloqueantes`} para avanzar a <span className="text-primary font-black">{nextStageName}</span>
-                </p>
-                <ChevronRight size={20} className="text-primary shrink-0" />
-              </div>
-            )}
-            {isViewingCurrentStage && totalBlockingCount === 0 && nextStageName && (
-              <div className="p-6 bg-emerald-500/5 border border-emerald-500/20 rounded-2xl flex items-center gap-3">
-                <CheckCircle2 size={20} className="text-emerald-500 shrink-0" />
-                <p className="text-sm font-bold text-foreground">
-                  Sin bloqueos — listo para avanzar a <span className="text-emerald-600 font-black">{nextStageName}</span>
-                </p>
+            {isViewingCurrentStage && nextStageName && (
+              <div className={cn(
+                "p-6 rounded-2xl border space-y-4",
+                totalBlockingCount > 0 ? "bg-primary/5 border-primary/20" : "bg-emerald-500/5 border-emerald-500/20"
+              )}>
+                <div className="flex items-center gap-3">
+                  <Zap size={20} className={totalBlockingCount > 0 ? "text-primary" : "text-emerald-500"} />
+                  <h4 className="text-sm font-black uppercase tracking-widest text-foreground">
+                    Para avanzar a {nextStageName}
+                  </h4>
+                </div>
+
+                {totalBlockingCount > 0 ? (
+                  <>
+                    <div className="space-y-2 pl-8">
+                      {stageBlockingPending.length > 0 && (
+                        <p className="text-sm text-foreground/80 flex items-center gap-2">
+                          <span className="w-4 h-4 rounded border border-border flex items-center justify-center text-muted-foreground shrink-0">
+                            <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/30" />
+                          </span>
+                          {stageBlockingPending.length} tarea{stageBlockingPending.length !== 1 ? 's' : ''} bloqueante{stageBlockingPending.length !== 1 ? 's' : ''} pendiente{stageBlockingPending.length !== 1 ? 's' : ''}
+                        </p>
+                      )}
+                      {stageBlockingDocsCount > 0 && (
+                        <p className="text-sm text-foreground/80 flex items-center gap-2">
+                          <span className="w-4 h-4 rounded border border-border flex items-center justify-center text-muted-foreground shrink-0">
+                            <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/30" />
+                          </span>
+                          {stageBlockingDocsCount} documento{stageBlockingDocsCount !== 1 ? 's' : ''} cr\u00edtico{stageBlockingDocsCount !== 1 ? 's' : ''} faltante{stageBlockingDocsCount !== 1 ? 's' : ''}
+                        </p>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground pl-8">
+                      Complet\u00e1 los requisitos para habilitar el avance
+                    </p>
+                  </>
+                ) : (
+                  <div className="flex items-center justify-between pl-8">
+                    <p className="text-sm font-bold text-foreground">
+                      Sin bloqueos — listo para avanzar
+                    </p>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      className="text-[10px] font-black uppercase tracking-widest h-9 px-5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white border-none shadow-lg"
+                      onClick={() => {
+                        // Advance to next stage by completing current stage tasks
+                        // For now, just navigate to next stage view
+                        const nextIdx = flow.stages.findIndex(s => s.name === nextStageName);
+                        if (nextIdx >= 0) {
+                          setViewingStage(nextStageName);
+                        }
+                      }}
+                    >
+                      Avanzar a {nextStageName} →
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1115,7 +1202,9 @@ const TaskCard: React.FC<{
   navigate: (path: string) => void;
   onComplete?: (taskId: string) => void;
   onReopen?: (taskId: string) => void;
-}> = ({ task, matter, navigate, onComplete, onReopen }) => {
+  onOpenFicha?: () => void;
+  hasFicha?: boolean;
+}> = ({ task, matter, navigate, onComplete, onReopen, onOpenFicha, hasFicha }) => {
   const isCompleted = task.status === 'Completada';
 
   return (
@@ -1152,6 +1241,17 @@ const TaskCard: React.FC<{
         </div>
       </div>
       <div className="flex items-center gap-2 shrink-0">
+        {!isCompleted && hasFicha && onOpenFicha && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-[10px] font-black uppercase tracking-widest rounded-xl opacity-0 group-hover:opacity-100 transition-all border-amber-500/30 text-amber-600 hover:bg-amber-500/5"
+            onClick={(e) => { e.stopPropagation(); onOpenFicha(); }}
+          >
+            <FileText size={12} className="mr-1.5" />
+            Completar datos
+          </Button>
+        )}
         {!isCompleted && (() => {
           const matched = findTemplateForTask(task.title, matter.type as any);
           return matched ? (
@@ -1184,7 +1284,14 @@ const TaskCard: React.FC<{
 
 const DOC_STATUS_FLOW: LegalDocument['status'][] = ['Faltante', 'Solicitado', 'Recibido', 'En revisión', 'Aprobado', 'Listo para presentar', 'Presentado'];
 
-const DocumentMatterItem: React.FC<{ doc: LegalDocument; menuOpen: boolean; onToggleMenu: () => void; onChangeStatus?: (docId: string, status: LegalDocument['status']) => void }> = ({ doc, menuOpen, onToggleMenu, onChangeStatus }) => {
+const DocumentMatterItem: React.FC<{
+  doc: LegalDocument;
+  menuOpen: boolean;
+  onToggleMenu: () => void;
+  onChangeStatus?: (docId: string, status: LegalDocument['status']) => void;
+}> = ({ doc, menuOpen, onToggleMenu, onChangeStatus }) => {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const statusStyles = {
     'Faltante': 'text-rose-600 bg-rose-500/10 border-rose-500/20',
     'Solicitado': 'text-sky-600 bg-sky-500/10 border-sky-500/20',
@@ -1195,70 +1302,151 @@ const DocumentMatterItem: React.FC<{ doc: LegalDocument; menuOpen: boolean; onTo
     'Presentado': 'text-white bg-slate-900 border-slate-900',
   };
 
+  const isMissing = doc.status === 'Faltante' || doc.status === 'Solicitado';
+  const isReceived = doc.status === 'Recibido' || doc.status === 'Aprobado' || doc.status === 'Presentado';
+  const isNoAplica = doc.status === 'No aplica';
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Mark as received when file is selected
+      onChangeStatus?.(doc.id, 'Recibido');
+    }
+    // Reset input
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
   return (
     <Card className={cn(
-      "p-4 border border-border/50 flex items-center justify-between group hover:border-primary/30 transition-all rounded-2xl relative overflow-hidden",
-      doc.blocksProgress && doc.status !== 'Presentado' && "bg-rose-500/[0.01]"
+      "p-4 border border-border/50 group hover:border-primary/30 transition-all rounded-2xl relative",
+      doc.blocksProgress && !isReceived && !isNoAplica && "border-l-4 border-l-rose-500 bg-rose-500/[0.01]",
+      isNoAplica && "opacity-50",
+      isReceived && "border-l-4 border-l-emerald-500"
     )}>
-      {doc.blocksProgress && doc.status !== 'Presentado' && (
-        <div className="absolute left-0 top-0 bottom-0 w-1 bg-rose-500" />
-      )}
+      <input
+        ref={fileInputRef}
+        type="file"
+        className="hidden"
+        accept=".pdf,.jpg,.jpeg,.png,.docx,.doc"
+        onChange={handleFileUpload}
+      />
 
-      <div className="flex items-center gap-4 flex-1 min-w-0">
-        <div className={cn(
-          "w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border",
-          statusStyles[doc.status]
-        )}>
-          {doc.status === 'Presentado' || doc.status === 'Aprobado' ? <CheckCircle2 size={18} /> : <FileText size={18} />}
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-4 flex-1 min-w-0">
+          <div className={cn(
+            "w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border",
+            statusStyles[doc.status] || statusStyles['Faltante']
+          )}>
+            {isReceived ? <CheckCircle2 size={18} /> : isNoAplica ? <Ban size={18} /> : <FileText size={18} />}
+          </div>
+
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-0.5">
+              <span className={cn(
+                "text-sm font-bold text-foreground truncate tracking-tight",
+                isNoAplica && "line-through text-muted-foreground"
+              )}>{doc.name}</span>
+              {doc.criticality === 'Crítico' && !isNoAplica && (
+                <span className="text-[8px] font-black uppercase tracking-widest text-rose-600 bg-rose-50 px-1 rounded border border-rose-100">Cr\u00edtico</span>
+              )}
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest opacity-60">{doc.status}</span>
+              {doc.blocksProgress && !isReceived && !isNoAplica && (
+                <span className="text-[9px] font-black text-rose-500 uppercase tracking-widest flex items-center gap-1">
+                  <ShieldAlert size={10} />
+                  Bloquea Avance
+                </span>
+              )}
+            </div>
+          </div>
         </div>
 
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-0.5">
-            <span className="text-sm font-bold text-foreground truncate tracking-tight">{doc.name}</span>
-            {doc.criticality === 'Crítico' && (
-              <span className="text-[8px] font-black uppercase tracking-widest text-rose-600 bg-rose-50 px-1 rounded border border-rose-100">Crítico</span>
-            )}
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest opacity-60">{doc.status}</span>
-            {doc.blocksProgress && doc.status !== 'Presentado' && (
-              <span className="text-[9px] font-black text-rose-500 uppercase tracking-widest flex items-center gap-1">
-                <ShieldAlert size={10} />
-                Bloquea Avance
-              </span>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div className="flex items-center gap-4 shrink-0">
-        {doc.updatedAt && (
-          <div className="text-right hidden sm:block">
-            <div className="text-[8px] font-black text-muted-foreground uppercase tracking-widest opacity-40">Actualizado</div>
-            <div className="text-[10px] font-bold text-foreground">{format(parseISO(doc.updatedAt), 'd MMM', { locale: es })}</div>
-          </div>
-        )}
-        <div className="relative">
-          <Button variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-lg opacity-0 group-hover:opacity-100 transition-all" onClick={(e) => { e.stopPropagation(); onToggleMenu(); }}>
-            <MoreHorizontal size={16} />
-          </Button>
-          {menuOpen && (
-            <div className="absolute right-0 top-9 z-50 w-48 bg-card border border-border rounded-xl shadow-xl py-1 animate-in fade-in slide-in-from-top-2 duration-200">
-              <div className="px-3 py-1.5 text-[9px] font-black text-muted-foreground uppercase tracking-widest">Cambiar estado</div>
-              {DOC_STATUS_FLOW.map(s => (
-                <button
-                  key={s}
-                  onClick={(e) => { e.stopPropagation(); onChangeStatus?.(doc.id, s); }}
-                  className={cn(
-                    "w-full text-left px-3 py-1.5 text-xs font-bold hover:bg-muted/50 transition-colors",
-                    s === doc.status ? "text-primary bg-primary/5" : "text-foreground"
-                  )}
-                >
-                  {s === doc.status ? `✓ ${s}` : s}
-                </button>
-              ))}
+        <div className="flex items-center gap-2 shrink-0">
+          {doc.updatedAt && (
+            <div className="text-right hidden sm:block mr-2">
+              <div className="text-[8px] font-black text-muted-foreground uppercase tracking-widest opacity-40">Actualizado</div>
+              <div className="text-[10px] font-bold text-foreground">{format(parseISO(doc.updatedAt), 'd MMM', { locale: es })}</div>
             </div>
           )}
+
+          {/* Action buttons — always visible when missing */}
+          {isMissing && (
+            <>
+              <button
+                onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest bg-primary/10 text-primary hover:bg-primary/20 rounded-lg transition-all"
+              >
+                <Upload size={12} />
+                Subir
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); onChangeStatus?.(doc.id, 'Recibido'); }}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 rounded-lg transition-all"
+              >
+                <CheckCircle2 size={12} />
+                Recibido
+              </button>
+            </>
+          )}
+
+          {/* Received/approved actions */}
+          {isReceived && (
+            <>
+              <button
+                className="flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-black uppercase tracking-widest text-muted-foreground hover:bg-muted/50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+              >
+                <Eye size={12} />
+                Ver
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-black uppercase tracking-widest text-muted-foreground hover:bg-muted/50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+              >
+                <RefreshCw size={12} />
+                Reemplazar
+              </button>
+            </>
+          )}
+
+          {/* 3-dot menu */}
+          <div className="relative">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
+              onClick={(e) => { e.stopPropagation(); onToggleMenu(); }}
+            >
+              <MoreHorizontal size={16} />
+            </Button>
+            {menuOpen && (
+              <div className="absolute right-0 top-9 z-50 w-52 bg-card border border-border rounded-xl shadow-xl py-1 animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="px-3 py-1.5 text-[9px] font-black text-muted-foreground uppercase tracking-widest">Cambiar estado</div>
+                {DOC_STATUS_FLOW.map(s => (
+                  <button
+                    key={s}
+                    onClick={(e) => { e.stopPropagation(); onChangeStatus?.(doc.id, s); }}
+                    className={cn(
+                      "w-full text-left px-3 py-1.5 text-xs font-bold hover:bg-muted/50 transition-colors",
+                      s === doc.status ? "text-primary bg-primary/5" : "text-foreground"
+                    )}
+                  >
+                    {s === doc.status ? `\u2713 ${s}` : s}
+                  </button>
+                ))}
+                <div className="border-t border-border my-1" />
+                <button
+                  onClick={(e) => { e.stopPropagation(); onChangeStatus?.(doc.id, 'No aplica' as any); }}
+                  className={cn(
+                    "w-full text-left px-3 py-1.5 text-xs font-bold hover:bg-muted/50 transition-colors text-muted-foreground",
+                    doc.status === 'No aplica' && "text-primary bg-primary/5"
+                  )}
+                >
+                  {doc.status === 'No aplica' ? '\u2713 No aplica' : 'Marcar como no aplica'}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </Card>
