@@ -25,7 +25,8 @@ import {
   Mail,
   Phone,
   Building2,
-  MapPin
+  MapPin,
+  Trash2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -48,6 +49,7 @@ interface CrearAsuntoProps {
     type?: string;
     description?: string;
     fromConsultationId?: string;
+    checklistData?: Record<string, string>;
   } | null;
 }
 
@@ -121,6 +123,31 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
           });
         }
       }
+
+      // Map interview checklist data to wizard case data fields
+      if (prefilledData.checklistData) {
+        const cl = prefilledData.checklistData;
+        const mapped: Record<string, string> = {};
+
+        if (cl.dni_cuit) mapped.conyuge1_dni = cl.dni_cuit;
+        if (cl.domicilio) mapped.conyuge1_domicilio = cl.domicilio;
+        if (cl.hijos_menores) mapped.hijos_menores = cl.hijos_menores;
+        if (cl.urgencia_cautelar) {
+          const u = cl.urgencia_cautelar.toLowerCase().trim();
+          if (u.startsWith('no') || u === '') {
+            mapped.hay_urgencia = 'No';
+          } else {
+            mapped.hay_urgencia = 'Sí — sin denuncia aún';
+            mapped.urgencia_detalle = cl.urgencia_cautelar;
+          }
+        }
+        if (cl.datos_contraparte) mapped.conyuge2_nombre = cl.datos_contraparte;
+
+        setFormData(prev => ({
+          ...prev,
+          caseData: { ...prev.caseData, ...mapped },
+        }));
+      }
     }
   }, [prefilledData]);
 
@@ -176,7 +203,13 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
         if (!hasWizardStep) return formData.responsible && formData.assignedAttorneyIds.length > 0 && formData.nextAction && formData.nextActionDate;
         // Validate required wizard fields + que la carátula se haya generado
         return formData.title && wizardSections.every(section =>
-          section.fields.filter(f => f.required).every(f => formData.caseData[f.key]?.trim())
+          section.fields.filter(f => f.required).every(f => {
+            const val = formData.caseData[f.key];
+            if (f.type === 'repeatable') {
+              try { return JSON.parse(val || '[]').length > 0; } catch { return false; }
+            }
+            return val?.trim();
+          })
         );
       case 3:
         if (hasWizardStep) return formData.responsible && formData.assignedAttorneyIds.length > 0 && formData.nextAction && formData.nextActionDate;
@@ -344,7 +377,92 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
                 <span className="text-xs font-black uppercase tracking-widest text-foreground">{section.title}</span>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {section.fields.map((field) => (
+                {section.fields.map((field) => {
+                  // ── Repeatable field (hijos, bienes, deudas) ──
+                  if (field.type === 'repeatable' && field.subFields) {
+                    const items: Record<string, string>[] = (() => {
+                      try { return JSON.parse(formData.caseData[field.key] || '[]'); } catch { return []; }
+                    })();
+                    const updateItems = (newItems: Record<string, string>[]) =>
+                      setFormData(prev => ({ ...prev, caseData: { ...prev.caseData, [field.key]: JSON.stringify(newItems) } }));
+                    return (
+                      <div key={field.key} className="md:col-span-2 space-y-3">
+                        <Label className="text-[10px]">{field.label}</Label>
+                        {items.map((item, idx) => (
+                          <div key={idx} className="relative bg-muted/20 border border-border/40 rounded-xl p-4 space-y-3">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">#{idx + 1}</span>
+                              <button
+                                type="button"
+                                className="text-muted-foreground hover:text-rose-500 transition-colors"
+                                onClick={() => updateItems(items.filter((_, i) => i !== idx))}
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                              {field.subFields!.map(sf => (
+                                <div key={sf.key} className={cn("space-y-1", sf.type === 'textarea' && "md:col-span-2")}>
+                                  <Label className="text-[10px]">
+                                    {sf.label}
+                                    {sf.required && <span className="text-rose-500 ml-0.5">*</span>}
+                                  </Label>
+                                  {sf.type === 'select' ? (
+                                    <select
+                                      className="w-full h-10 bg-background border border-border/50 rounded-lg px-3 text-sm font-bold text-foreground focus:outline-none focus:ring-2 focus:ring-teal-700/20 transition-all appearance-none"
+                                      value={item[sf.key] || ''}
+                                      onChange={e => {
+                                        const updated = [...items];
+                                        updated[idx] = { ...updated[idx], [sf.key]: e.target.value };
+                                        updateItems(updated);
+                                      }}
+                                    >
+                                      <option value="">Seleccionar...</option>
+                                      {sf.options?.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                                    </select>
+                                  ) : sf.type === 'textarea' ? (
+                                    <Textarea
+                                      placeholder={sf.placeholder}
+                                      className="min-h-[60px] bg-background border-border/50 text-sm"
+                                      value={item[sf.key] || ''}
+                                      onChange={e => {
+                                        const updated = [...items];
+                                        updated[idx] = { ...updated[idx], [sf.key]: e.target.value };
+                                        updateItems(updated);
+                                      }}
+                                    />
+                                  ) : (
+                                    <Input
+                                      type={sf.type === 'money' ? 'text' : sf.type}
+                                      placeholder={sf.placeholder}
+                                      className="bg-background border-border/50 font-bold h-10"
+                                      value={item[sf.key] || ''}
+                                      onChange={e => {
+                                        const updated = [...items];
+                                        updated[idx] = { ...updated[idx], [sf.key]: e.target.value };
+                                        updateItems(updated);
+                                      }}
+                                    />
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-1.5 text-xs font-bold"
+                          onClick={() => updateItems([...items, {}])}
+                        >
+                          <Plus size={14} /> {field.addLabel || 'Agregar'}
+                        </Button>
+                      </div>
+                    );
+                  }
+
+                  // ── Standard fields ──
+                  return (
                   <div key={field.key} className={cn("space-y-1.5", field.type === 'textarea' && "md:col-span-2")}>
                     <Label className="text-[10px]">
                       {field.label}
@@ -397,7 +515,8 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
                       />
                     )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           );
@@ -1205,12 +1324,29 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
                   </Badge>
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                  {wizardSections.flatMap(s => s.fields).filter(f => formData.caseData[f.key]).map(f => (
+                  {wizardSections.flatMap(s => s.fields).filter(f => formData.caseData[f.key]).map(f => {
+                    if (f.type === 'repeatable') {
+                      let items: Record<string, string>[] = [];
+                      try { items = JSON.parse(formData.caseData[f.key]); } catch { /* empty */ }
+                      if (items.length === 0) return null;
+                      return (
+                        <div key={f.key} className="md:col-span-3 space-y-1.5 pt-2 border-t border-border/30">
+                          <div className="text-[8px] font-black text-muted-foreground uppercase tracking-[0.15em]">{f.label} ({items.length})</div>
+                          {items.map((item, i) => (
+                            <div key={i} className="text-xs font-bold text-foreground">
+                              #{i + 1}: {Object.values(item).filter(Boolean).join(' — ')}
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    }
+                    return (
                     <div key={f.key} className="space-y-0.5">
                       <div className="text-[8px] font-black text-muted-foreground uppercase tracking-[0.15em]">{f.label}</div>
                       <div className="text-xs font-bold text-foreground truncate">{formData.caseData[f.key]}</div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </Card>
             )}

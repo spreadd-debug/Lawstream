@@ -38,6 +38,7 @@ import { ExpedienteForm } from './ExpedienteForm';
 import { ExpedienteDetail } from './ExpedienteDetail';
 import { ESTADO_COLORS } from '../data/juzgados';
 import { findTemplate, MATTER_TEMPLATES } from '../data/templates';
+import { StageFicha } from './StageFicha';
 import { getFlowSnapshot } from '../lib/flowEngine';
 import { findTemplateForTask } from '../lib/taskTemplateMatch';
 import { useNavigate } from 'react-router-dom';
@@ -83,6 +84,8 @@ export const MatterDetail = ({ matter, timeline, tasks, documents, milestones, p
   const [newMilestoneDate, setNewMilestoneDate] = useState('');
   // Doc context menu
   const [docMenuOpen, setDocMenuOpen] = useState<string | null>(null);
+  // Stage ficha
+  const [fichaOpenStage, setFichaOpenStage] = useState<string | null>(null);
 
   useEffect(() => {
     fetchExpediente(matter.id).then(setExpediente);
@@ -526,30 +529,66 @@ export const MatterDetail = ({ matter, timeline, tasks, documents, milestones, p
           {flow.stages.length > 0 && (
             <section className="space-y-4">
               <h3 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em]">Etapas del Proceso</h3>
-              <div className="space-y-1">
-                {flow.stages.map((stage, idx) => (
-                  <div key={stage.name} className="flex items-center gap-3">
-                    <div className={cn(
-                      "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 border-2",
-                      stage.status === 'completed' ? "bg-emerald-500 border-emerald-500 text-white" :
-                      stage.status === 'current' ? "bg-primary border-primary text-primary-foreground" :
-                      "bg-muted border-border text-muted-foreground"
-                    )}>
-                      {stage.status === 'completed' ? <CheckCircle2 size={12} /> : idx + 1}
+              <div className="space-y-2">
+                {flow.stages.map((stage, idx) => {
+                  const templateStage = template?.stages?.find(s => s.name === stage.name);
+                  const hasFicha = !!templateStage?.fichaFields;
+                  const isAccessible = stage.status === 'current' || stage.status === 'completed';
+                  // Count ficha completion
+                  const fichaKeys = hasFicha ? templateStage!.fichaFields!.flatMap(s => s.fields.map(f => f.key)) : [];
+                  const fichaFilled = fichaKeys.filter(k => {
+                    const v = matter.caseData?.[k];
+                    if (!v) return false;
+                    try { const arr = JSON.parse(v); return Array.isArray(arr) && arr.length > 0; } catch { return v.trim().length > 0; }
+                  }).length;
+
+                  return (
+                    <div key={stage.name} className="space-y-1">
+                      <div className="flex items-center gap-3">
+                        <div className={cn(
+                          "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 border-2",
+                          stage.status === 'completed' ? "bg-emerald-500 border-emerald-500 text-white" :
+                          stage.status === 'current' ? "bg-primary border-primary text-primary-foreground" :
+                          "bg-muted border-border text-muted-foreground"
+                        )}>
+                          {stage.status === 'completed' ? <CheckCircle2 size={12} /> : idx + 1}
+                        </div>
+                        <span className={cn(
+                          "text-xs font-bold tracking-tight flex-1",
+                          stage.status === 'completed' ? "text-muted-foreground line-through opacity-50" :
+                          stage.status === 'current' ? "text-foreground" :
+                          "text-muted-foreground opacity-50"
+                        )}>
+                          {stage.name}
+                        </span>
+                        {stage.status === 'current' && (
+                          <Badge variant="outline" className="text-[7px] font-black uppercase tracking-widest border-primary/30 text-primary">Actual</Badge>
+                        )}
+                      </div>
+                      {hasFicha && isAccessible && (
+                        <div className="ml-9">
+                          <button
+                            onClick={() => setFichaOpenStage(stage.name)}
+                            className={cn(
+                              "flex items-center gap-2 text-[10px] font-bold py-1.5 px-3 rounded-lg transition-all w-full",
+                              fichaFilled === fichaKeys.length && fichaFilled > 0
+                                ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/20"
+                                : fichaFilled > 0
+                                ? "bg-amber-500/10 text-amber-700 dark:text-amber-400 hover:bg-amber-500/20"
+                                : "bg-primary/5 text-primary hover:bg-primary/10"
+                            )}
+                          >
+                            <FileText size={12} />
+                            <span className="truncate">{templateStage!.fichaTitle}</span>
+                            <span className="ml-auto text-[8px] font-black opacity-70">
+                              {fichaFilled}/{fichaKeys.length}
+                            </span>
+                          </button>
+                        </div>
+                      )}
                     </div>
-                    <span className={cn(
-                      "text-xs font-bold tracking-tight",
-                      stage.status === 'completed' ? "text-muted-foreground line-through opacity-50" :
-                      stage.status === 'current' ? "text-foreground" :
-                      "text-muted-foreground opacity-50"
-                    )}>
-                      {stage.name}
-                    </span>
-                    {stage.status === 'current' && (
-                      <Badge variant="outline" className="text-[7px] font-black uppercase tracking-widest border-primary/30 text-primary">Actual</Badge>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
               <div className="pt-2">
                 <div className="flex items-center justify-between text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-1.5">
@@ -751,6 +790,25 @@ export const MatterDetail = ({ matter, timeline, tasks, documents, milestones, p
           }}
         />
       )}
+
+      {/* Stage Ficha Modal */}
+      {fichaOpenStage && (() => {
+        const templateStage = template?.stages?.find(s => s.name === fichaOpenStage);
+        if (!templateStage?.fichaFields) return null;
+        return (
+          <StageFicha
+            isOpen={true}
+            onClose={() => setFichaOpenStage(null)}
+            fichaTitle={templateStage.fichaTitle || fichaOpenStage}
+            stageName={fichaOpenStage}
+            sections={templateStage.fichaFields}
+            currentData={matter.caseData || {}}
+            onSave={(newData) => {
+              onUpdateMatter?.({ caseData: { ...(matter.caseData || {}), ...newData } } as Partial<Matter>);
+            }}
+          />
+        );
+      })()}
 
       {/* Modals for Quick Actions */}
       <Modal

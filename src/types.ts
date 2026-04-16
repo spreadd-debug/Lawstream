@@ -8,6 +8,7 @@ export interface UserProfile {
   initials: string;
   isActive: boolean;
   mustChangePassword?: boolean;
+  matricula?: string;
 }
 
 export type Priority = 'Alta' | 'Media' | 'Baja';
@@ -83,6 +84,14 @@ export interface Client {
   closedMatters: number;
   lastActivity: string;
   notes?: string;
+  dni?: string;
+  domicilio?: string;
+  fechaNacimiento?: string;
+  nacionalidad?: string;
+  profesion?: string;
+  situacionLaboral?: string;
+  empleador?: string;
+  ingresosEstimados?: string;
 }
 
 export interface Task {
@@ -124,6 +133,28 @@ export interface FlowStageTemplate {
   tasks: { task: string; priority: 'crítico' | 'recomendado' | 'opcional'; bloqueante?: boolean }[];
   documents: { name: string; required: boolean }[];
   milestone: string;
+  fichaTitle?: string;
+  fichaFields?: {
+    title: string;
+    icon: string;
+    fields: {
+      key: string;
+      label: string;
+      type: 'text' | 'date' | 'select' | 'number' | 'money' | 'textarea' | 'repeatable';
+      placeholder?: string;
+      options?: string[];
+      required?: boolean;
+      subFields?: {
+        key: string;
+        label: string;
+        type: 'text' | 'date' | 'select' | 'number' | 'money' | 'textarea';
+        placeholder?: string;
+        options?: string[];
+        required?: boolean;
+      }[];
+      addLabel?: string;
+    }[];
+  }[];
 }
 
 export interface MatterTemplate {
@@ -300,6 +331,7 @@ export interface Expediente {
   caratula: string;
   fuero: string;
   juzgado?: string;
+  secretaria?: string;
   estadoTroncal: EstadoTroncal;
   subestado?: string;
   estadoDesde: string;

@@ -315,26 +315,41 @@ SERÁ JUSTICIA.`,
     subcategory: 'Divorcio',
     description: 'Presentación de divorcio conforme al régimen del Código Civil y Comercial de la Nación. Puede ser unilateral o conjunto. Incluye propuesta reguladora.',
     tags: ['divorcio', 'art. 437', 'CCyCN', 'propuesta reguladora', 'convenio'],
-    legalBasis: 'Arts. 437, 438, 439 CCyCN (Ley 26.994)',
+    legalBasis: 'Arts. 437, 438, 439, 441, 442 CCyCN (Ley 26.994)',
     placeholders: [
       { key: 'PARTE_1', label: 'Nombre completo (Parte 1)', type: 'text' },
       { key: 'DNI_1', label: 'DNI (Parte 1)', type: 'text' },
+      { key: 'NACIONALIDAD_1', label: 'Nacionalidad (Parte 1)', type: 'text', defaultValue: 'argentina' },
+      { key: 'PROFESION_1', label: 'Profesión (Parte 1)', type: 'text' },
       { key: 'DOMICILIO_1', label: 'Domicilio (Parte 1)', type: 'text' },
       { key: 'PARTE_2', label: 'Nombre completo (Parte 2)', type: 'text' },
       { key: 'DNI_2', label: 'DNI (Parte 2)', type: 'text' },
+      { key: 'NACIONALIDAD_2', label: 'Nacionalidad (Parte 2)', type: 'text', defaultValue: 'argentina' },
+      { key: 'PROFESION_2', label: 'Profesión (Parte 2)', type: 'text' },
       { key: 'DOMICILIO_2', label: 'Domicilio (Parte 2)', type: 'text' },
       { key: 'FECHA_MATRIMONIO', label: 'Fecha de celebración del matrimonio', type: 'date' },
       { key: 'LUGAR_MATRIMONIO', label: 'Registro Civil donde se celebró', type: 'text' },
-      { key: 'ACTA_NUM', label: 'Número de acta de matrimonio', type: 'text' },
-      { key: 'HIJOS', label: 'Nombre y edad de hijos menores (si los hay)', type: 'textarea', defaultValue: 'Sin hijos menores de edad' },
+      { key: 'CIRCUNSCRIPCION', label: 'Circunscripción', type: 'text' },
+      { key: 'ACTA_NUM', label: 'Número de acta', type: 'text' },
+      { key: 'ACTA_TOMO', label: 'Tomo', type: 'text' },
+      { key: 'REGIMEN_PATRIMONIAL', label: 'Régimen patrimonial', type: 'text', defaultValue: 'comunidad de ganancias' },
+      { key: 'FECHA_SEPARACION', label: 'Fecha de separación de hecho', type: 'date' },
+      { key: 'HIJOS', label: 'Datos de hijos menores', type: 'textarea', defaultValue: 'Sin hijos menores de edad' },
+      { key: 'REGIMEN_CUIDADO', label: 'Régimen de cuidado personal propuesto', type: 'textarea' },
+      { key: 'REGIMEN_COMUNICACION', label: 'Régimen de comunicación propuesto', type: 'textarea' },
+      { key: 'CUOTA_ALIMENTARIA', label: 'Cuota alimentaria propuesta', type: 'textarea' },
+      { key: 'BIENES', label: 'Detalle de bienes gananciales', type: 'textarea', defaultValue: 'Sin bienes gananciales a liquidar' },
+      { key: 'DEUDAS', label: 'Detalle de deudas', type: 'textarea', defaultValue: 'Sin deudas comunes' },
+      { key: 'COMPENSACION', label: 'Compensación económica (si se reclama)', type: 'textarea', defaultValue: 'No se reclama compensación económica' },
       { key: 'JUZGADO', label: 'Juzgado', type: 'text', defaultValue: 'Juzgado Nacional en lo Civil' },
       { key: 'LETRADO', label: 'Nombre del letrado', type: 'text' },
+      { key: 'LETRADO_MATRICULA', label: 'Matrícula del letrado (T°/F°)', type: 'text' },
     ],
-    content: `SOLICITAN DIVORCIO — PRESENTACIÓN CONJUNTA
+    content: `SOLICITAN DIVORCIO
 
 Señor Juez:
 
-{{LETRADO}}, en representación de {{PARTE_1}}, D.N.I. {{DNI_1}}, con domicilio real en {{DOMICILIO_1}}, y de {{PARTE_2}}, D.N.I. {{DNI_2}}, con domicilio real en {{DOMICILIO_2}}, a V.S. respetuosamente nos presentamos y decimos:
+{{LETRADO}} ({{LETRADO_MATRICULA}}), en representación de {{PARTE_1}}, D.N.I. {{DNI_1}}, {{NACIONALIDAD_1}}, {{PROFESION_1}}, con domicilio real en {{DOMICILIO_1}}, y de {{PARTE_2}}, D.N.I. {{DNI_2}}, {{NACIONALIDAD_2}}, {{PROFESION_2}}, con domicilio real en {{DOMICILIO_2}}, a V.S. respetuosamente nos presentamos y decimos:
 
 I. OBJETO
 
@@ -342,7 +357,7 @@ Que de conformidad con lo dispuesto por los artículos 437, 438 y concordantes d
 
 II. DATOS DEL MATRIMONIO
 
-Las partes contrajeron matrimonio con fecha {{FECHA_MATRIMONIO}}, ante el Registro del Estado Civil y Capacidad de las Personas de {{LUGAR_MATRIMONIO}}, según consta en el Acta N.° {{ACTA_NUM}}, cuya copia se adjunta.
+Las partes contrajeron matrimonio con fecha {{FECHA_MATRIMONIO}}, ante el Registro del Estado Civil y Capacidad de las Personas de {{LUGAR_MATRIMONIO}}, Circunscripción {{CIRCUNSCRIPCION}}, según consta en el Acta N.° {{ACTA_NUM}}, Tomo {{ACTA_TOMO}}, cuya copia se adjunta. El régimen patrimonial aplicable es el de {{REGIMEN_PATRIMONIAL}}. Las partes se encuentran separadas de hecho desde el {{FECHA_SEPARACION}}.
 
 III. HIJOS
 
@@ -352,11 +367,23 @@ IV. PROPUESTA REGULADORA
 
 En cumplimiento del artículo 438 del CCyCN, se acompaña propuesta reguladora de los efectos del divorcio, que contempla:
 
-a) Atribución del hogar conyugal.
-b) Distribución de los bienes de la sociedad conyugal.
-c) Régimen de cuidado personal y comunicación respecto de los hijos menores (si correspondiere).
-d) Cuota alimentaria (si correspondiere).
-e) Compensación económica (art. 441/442 CCyCN), si correspondiere.
+a) Cuidado personal de los hijos menores:
+{{REGIMEN_CUIDADO}}
+
+b) Régimen de comunicación:
+{{REGIMEN_COMUNICACION}}
+
+c) Cuota alimentaria:
+{{CUOTA_ALIMENTARIA}}
+
+d) Distribución de los bienes de la sociedad conyugal:
+{{BIENES}}
+
+e) Deudas comunes:
+{{DEUDAS}}
+
+f) Compensación económica (arts. 441/442 CCyCN):
+{{COMPENSACION}}
 
 V. DERECHO
 

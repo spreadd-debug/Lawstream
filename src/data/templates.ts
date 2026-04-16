@@ -30,6 +30,76 @@ export const MATTER_TEMPLATES: MatterTemplate[] = [
           { name: 'Títulos de propiedad de bienes', required: false },
         ],
         milestone: 'Análisis inicial completo',
+        fichaTitle: 'Instrucción del Caso',
+        fichaFields: [
+          {
+            title: 'Datos del Matrimonio',
+            icon: 'Calendar',
+            fields: [
+              { key: 'registro_civil', label: 'Registro Civil', type: 'text', placeholder: 'Ej: Registro Civil de CABA' },
+              { key: 'registro_civil_circunscripcion', label: 'Circunscripción', type: 'text', placeholder: 'Ej: 7ª' },
+              { key: 'acta_numero', label: 'Acta N°', type: 'text', placeholder: 'Ej: 234' },
+              { key: 'acta_tomo', label: 'Tomo', type: 'text', placeholder: 'Ej: 2B' },
+              { key: 'regimen_patrimonial', label: 'Régimen patrimonial', type: 'select', options: ['Comunidad de ganancias', 'Separación de bienes', 'Sin convención matrimonial'] },
+              { key: 'fecha_separacion_hecho', label: 'Fecha de separación de hecho', type: 'date' },
+            ],
+          },
+          {
+            title: 'Hijos en Común',
+            icon: 'User',
+            fields: [
+              {
+                key: 'hijos',
+                label: 'Datos de cada hijo/a',
+                type: 'repeatable',
+                addLabel: 'Agregar hijo/a',
+                subFields: [
+                  { key: 'nombre', label: 'Nombre completo', type: 'text', placeholder: 'Apellido, Nombre', required: true },
+                  { key: 'dni', label: 'DNI', type: 'text', placeholder: '12.345.678' },
+                  { key: 'fecha_nacimiento', label: 'Fecha de nacimiento', type: 'date', required: true },
+                  { key: 'escolaridad', label: 'Escolaridad (grado/año)', type: 'text', placeholder: 'Ej: 5° grado' },
+                  { key: 'establecimiento', label: 'Establecimiento educativo', type: 'text', placeholder: 'Nombre del colegio' },
+                ],
+              },
+            ],
+          },
+          {
+            title: 'Datos Laborales — Cónyuge 1 (Cliente)',
+            icon: 'Briefcase',
+            fields: [
+              { key: 'conyuge1_nacionalidad', label: 'Nacionalidad', type: 'text', placeholder: 'Argentina' },
+              { key: 'conyuge1_fecha_nacimiento', label: 'Fecha de nacimiento', type: 'date' },
+              { key: 'conyuge1_profesion', label: 'Profesión / Ocupación', type: 'text', placeholder: 'Ej: Ingeniero en sistemas' },
+              { key: 'conyuge1_situacion_laboral', label: 'Situación laboral', type: 'select', options: ['Empleado en relación de dependencia', 'Monotributista', 'Autónomo', 'Desempleado', 'Jubilado/Pensionado', 'Otro'] },
+              { key: 'conyuge1_empleador', label: 'Empleador / Actividad', type: 'text', placeholder: 'Nombre de empresa o actividad' },
+              { key: 'conyuge1_ingreso_mensual', label: 'Ingreso mensual neto', type: 'money' },
+            ],
+          },
+          {
+            title: 'Datos Laborales — Cónyuge 2',
+            icon: 'Briefcase',
+            fields: [
+              { key: 'conyuge2_nacionalidad', label: 'Nacionalidad', type: 'text', placeholder: 'Argentina' },
+              { key: 'conyuge2_fecha_nacimiento', label: 'Fecha de nacimiento', type: 'date' },
+              { key: 'conyuge2_profesion', label: 'Profesión / Ocupación', type: 'text', placeholder: 'Ej: Diseñadora gráfica' },
+              { key: 'conyuge2_situacion_laboral', label: 'Situación laboral', type: 'select', options: ['Empleado en relación de dependencia', 'Monotributista', 'Autónomo', 'Desempleado', 'Jubilado/Pensionado', 'Otro'] },
+              { key: 'conyuge2_empleador', label: 'Empleador / Actividad', type: 'text', placeholder: 'Nombre de empresa o actividad' },
+              { key: 'conyuge2_ingreso_mensual', label: 'Ingreso mensual neto', type: 'money' },
+              { key: 'conyuge2_abogado', label: 'Abogado de la otra parte', type: 'text', placeholder: 'Nombre del letrado' },
+              { key: 'conyuge2_abogado_matricula', label: 'Matrícula (T°/F°/Colegio)', type: 'text', placeholder: 'Ej: T° 89 F° 234 CPACF' },
+            ],
+          },
+          {
+            title: 'Violencia Familiar / Medidas de Protección',
+            icon: 'AlertCircle',
+            fields: [
+              { key: 'medida_tipo_denuncia', label: 'Tipo / Organismo de denuncia', type: 'text', placeholder: 'Ej: OVD (Oficina de Violencia Doméstica)' },
+              { key: 'medida_fecha', label: 'Fecha de denuncia/medida', type: 'date' },
+              { key: 'medida_descripcion', label: 'Medida vigente', type: 'text', placeholder: 'Ej: Prohibición de acercamiento' },
+              { key: 'medida_vigencia_hasta', label: 'Vigencia hasta', type: 'date' },
+            ],
+          },
+        ],
       },
       {
         name: 'Demanda',
@@ -45,6 +115,86 @@ export const MATTER_TEMPLATES: MatterTemplate[] = [
           { name: 'Escrito de demanda', required: true },
         ],
         milestone: 'Demanda presentada',
+        fichaTitle: 'Propuesta Reguladora',
+        fichaFields: [
+          {
+            title: 'Régimen Parental',
+            icon: 'User',
+            fields: [
+              { key: 'tipo_cuidado', label: 'Tipo de cuidado personal', type: 'select', options: ['Compartido con residencia principal en uno', 'Compartido alternado', 'Compartido indistinto', 'Unipersonal a favor del cliente', 'Unipersonal a favor del otro', 'Por determinar'] },
+              { key: 'residencia_principal', label: 'Residencia principal de los hijos', type: 'select', options: ['Domicilio del cónyuge 1 (cliente)', 'Domicilio del cónyuge 2', 'Alternado', 'Por determinar'] },
+              { key: 'regimen_comunicacion', label: 'Régimen de comunicación propuesto', type: 'textarea', placeholder: 'Días, horarios, pernoctes. Ej: Miércoles 17-20hs, fines de semana alternos viernes a domingo 20hs...' },
+              { key: 'regimen_vacaciones', label: 'Régimen de vacaciones', type: 'textarea', placeholder: 'Ej: Mitades de invierno y verano, alternando Navidad y Año Nuevo...' },
+            ],
+          },
+          {
+            title: 'Cuota Alimentaria',
+            icon: 'FileText',
+            fields: [
+              { key: 'cuota_porcentaje', label: 'Porcentaje de ingresos propuesto', type: 'text', placeholder: 'Ej: 25%' },
+              { key: 'cuota_gastos_compartidos', label: 'Gastos compartidos (colegio, obra social, etc.)', type: 'textarea', placeholder: 'Detallar qué gastos se comparten y en qué proporción...' },
+              { key: 'obra_social', label: 'Obra social / Prepaga de los hijos', type: 'text', placeholder: 'Ej: OSDE 310' },
+              { key: 'actividades_extracurriculares', label: 'Actividades extracurriculares', type: 'textarea', placeholder: 'Ej: Fútbol (hijo), Ballet (hija)...' },
+            ],
+          },
+          {
+            title: 'Bienes a Liquidar',
+            icon: 'Building2',
+            fields: [
+              {
+                key: 'bienes',
+                label: 'Detalle de bienes',
+                type: 'repeatable',
+                addLabel: 'Agregar bien',
+                subFields: [
+                  { key: 'tipo', label: 'Tipo de bien', type: 'select', options: ['Inmueble', 'Vehículo', 'Cuenta bancaria', 'Plazo fijo / Inversión', 'Mobiliario / Electrodomésticos', 'Emprendimiento / Negocio', 'Otro'], required: true },
+                  { key: 'descripcion', label: 'Descripción', type: 'text', placeholder: 'Ej: Depto 3 amb. Av. Cabildo 2876, 4°A, CABA', required: true },
+                  { key: 'valor_estimado', label: 'Valor estimado', type: 'text', placeholder: 'Ej: US$ 230.000 o $18.000.000' },
+                  { key: 'titular', label: 'Titular', type: 'select', options: ['Cónyuge 1', 'Cónyuge 2', 'Ambos', 'Tercero'] },
+                  { key: 'observaciones', label: 'Observaciones', type: 'text', placeholder: 'Ej: Hipoteca con saldo US$ 35.000' },
+                ],
+              },
+            ],
+          },
+          {
+            title: 'Deudas',
+            icon: 'AlertCircle',
+            fields: [
+              {
+                key: 'deudas',
+                label: 'Detalle de deudas',
+                type: 'repeatable',
+                addLabel: 'Agregar deuda',
+                subFields: [
+                  { key: 'tipo', label: 'Tipo', type: 'select', options: ['Hipoteca', 'Tarjeta de crédito', 'Préstamo personal', 'Préstamo prendario', 'Otra'], required: true },
+                  { key: 'acreedor', label: 'Acreedor', type: 'text', placeholder: 'Ej: Banco Nación', required: true },
+                  { key: 'monto', label: 'Saldo deudor', type: 'text', placeholder: 'Ej: $1.200.000 o US$ 35.000' },
+                  { key: 'titular', label: 'A nombre de', type: 'select', options: ['Cónyuge 1', 'Cónyuge 2', 'Ambos'] },
+                  { key: 'observaciones', label: 'Observaciones', type: 'text', placeholder: 'Ej: Tomado para refacciones en 2023' },
+                ],
+              },
+            ],
+          },
+          {
+            title: 'Compensación Económica',
+            icon: 'Briefcase',
+            fields: [
+              { key: 'reclama_compensacion', label: '¿Se reclama compensación económica?', type: 'select', options: ['Sí', 'No', 'Por evaluar'] },
+              { key: 'compensacion_fundamento', label: 'Fundamento del reclamo', type: 'textarea', placeholder: 'Ej: Art. 441 CCyCN — desequilibrio patrimonial por dedicación al cuidado de hijos...' },
+              { key: 'compensacion_tipo', label: 'Forma pretendida', type: 'select', options: ['Suma única', 'Renta mensual por tiempo determinado', 'Ambas (principal y subsidiaria)', 'Por determinar'] },
+              { key: 'compensacion_monto', label: 'Monto reclamado', type: 'text', placeholder: 'Ej: $25.000.000 o $600.000/mes' },
+              { key: 'compensacion_plazo', label: 'Plazo (si es renta)', type: 'text', placeholder: 'Ej: 36 meses' },
+            ],
+          },
+          {
+            title: 'Acuerdo entre Partes',
+            icon: 'FileText',
+            fields: [
+              { key: 'nivel_acuerdo', label: 'Nivel de acuerdo', type: 'select', options: ['Acuerdo total', 'Acuerdo parcial', 'Sin acuerdo'] },
+              { key: 'puntos_en_conflicto', label: 'Puntos en conflicto (si hay)', type: 'textarea', placeholder: 'Ej: Discuten compensación económica y división de bienes...' },
+            ],
+          },
+        ],
       },
       {
         name: 'Audiencia',
@@ -2168,10 +2318,12 @@ export function getSubtypesForJurisdiction(rama: string, jurisdiccion: string): 
 export interface WizardFieldDef {
   key: string;
   label: string;
-  type: 'text' | 'date' | 'select' | 'number' | 'money' | 'textarea';
+  type: 'text' | 'date' | 'select' | 'number' | 'money' | 'textarea' | 'repeatable';
   placeholder?: string;
   options?: string[];      // for select type
   required?: boolean;
+  subFields?: WizardFieldDef[];  // for repeatable type — defines fields per item
+  addLabel?: string;             // for repeatable type — button label e.g. "Agregar hijo"
 }
 
 export interface WizardSection {
@@ -2186,7 +2338,7 @@ export const WIZARD_FIELDS_BY_TEMPLATE: Record<string, WizardSection[]> = {
       title: 'Datos del Cónyuge (Cliente)',
       icon: 'User',
       fields: [
-        { key: 'conyuge1_nombre', label: 'Nombre completo', type: 'text', placeholder: 'Nombre del cónyuge cliente', required: true },
+        { key: 'conyuge1_nombre', label: 'Nombre completo', type: 'text', placeholder: 'Apellido, Nombre', required: true },
         { key: 'conyuge1_dni', label: 'DNI', type: 'text', placeholder: '12.345.678' },
         { key: 'conyuge1_domicilio', label: 'Domicilio actual', type: 'text', placeholder: 'Dirección...' },
       ],
@@ -2195,21 +2347,21 @@ export const WIZARD_FIELDS_BY_TEMPLATE: Record<string, WizardSection[]> = {
       title: 'Datos del Otro Cónyuge',
       icon: 'UserPlus',
       fields: [
-        { key: 'conyuge2_nombre', label: 'Nombre completo', type: 'text', placeholder: 'Nombre del otro cónyuge', required: true },
+        { key: 'conyuge2_nombre', label: 'Nombre completo', type: 'text', placeholder: 'Apellido, Nombre', required: true },
         { key: 'conyuge2_dni', label: 'DNI', type: 'text', placeholder: '12.345.678' },
         { key: 'conyuge2_domicilio', label: 'Domicilio actual', type: 'text', placeholder: 'Dirección...' },
-        { key: 'conyuge2_abogado', label: 'Abogado de la otra parte', type: 'text', placeholder: 'Si se conoce...' },
       ],
     },
     {
-      title: 'Datos del Matrimonio',
-      icon: 'Calendar',
+      title: 'Situación',
+      icon: 'FileText',
       fields: [
-        { key: 'fecha_matrimonio', label: 'Fecha de matrimonio', type: 'date', required: true },
-        { key: 'registro_civil', label: 'Registro Civil donde se celebró', type: 'text', placeholder: 'Ej: RC Nº 5 CABA' },
         { key: 'tipo_divorcio', label: 'Tipo de divorcio', type: 'select', options: ['Unilateral', 'De común acuerdo'], required: true },
+        { key: 'fecha_matrimonio', label: 'Fecha de matrimonio (si la sabe)', type: 'date' },
         { key: 'hijos_menores', label: 'Cantidad de hijos menores', type: 'number', placeholder: '0' },
         { key: 'bienes_gananciales', label: '¿Hay bienes gananciales a liquidar?', type: 'select', options: ['Sí', 'No', 'Por determinar'] },
+        { key: 'hay_urgencia', label: '¿Hay urgencia o violencia?', type: 'select', options: ['No', 'Sí — denuncia/medida vigente', 'Sí — sin denuncia aún'] },
+        { key: 'urgencia_detalle', label: 'Detalle de urgencia (si corresponde)', type: 'textarea', placeholder: 'Describir brevemente la situación de urgencia...' },
       ],
     },
   ],

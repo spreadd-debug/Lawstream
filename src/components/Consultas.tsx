@@ -550,6 +550,7 @@ export const Consultas = ({ consultations, profiles = [], onConvertToMatter, onU
       type:              consultation.type || 'Civil',
       description:       consultation.description,
       fromConsultationId: consultation.id,
+      checklistData:     consultation.checklistData,
     });
   };
 
