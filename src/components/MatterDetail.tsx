@@ -27,6 +27,7 @@ import {
   Eye,
   RefreshCw,
   Ban,
+  Send,
 } from 'lucide-react';
 import { Matter, TimelineEvent, Task, LegalDocument, Expediente, MatterMilestone, FlowSnapshot } from '../types';
 import { Badge, Card, Button, Modal, Input, Textarea, Select } from './UI';
@@ -97,6 +98,9 @@ export const MatterDetail = ({
   const [activeTab, setActiveTab] = useState<'flujo' | 'expediente' | 'comunicaciones'>('flujo');
   const [viewingStage, setViewingStage] = useState<string | null>(null);
 
+  // Pre-filled communication message (from "Solicitar datos" button)
+  const [commPrefill, setCommPrefill] = useState<string | undefined>(undefined);
+
   useEffect(() => {
     fetchExpediente(matter.id).then(setExpediente);
   }, [matter.id]);
@@ -113,6 +117,14 @@ export const MatterDetail = ({
     if (!stage) return undefined;
     const def = stage.tasks.find(t => t.task === task.title);
     return def?.satisfiedBy;
+  };
+
+  // Handler: "Solicitar datos" — generates message and switches to comunicaciones tab
+  const handleRequestData = (taskTitle: string, missingFields: { key: string; label: string }[]) => {
+    const listado = missingFields.map(f => `  - ${f.label}`).join('\n');
+    const msg = `Estimado/a ${matter.client},\n\nPara poder avanzar con su trámite "${matter.title}", necesitamos que nos facilite la siguiente información:\n\n${listado}\n\nQuedamos a disposición ante cualquier consulta.\nSaludos cordiales.`;
+    setCommPrefill(msg);
+    setActiveTab('comunicaciones');
   };
 
   // Stage navigation
@@ -514,7 +526,7 @@ export const MatterDetail = ({
           ]).map(tab => (
             <button
               key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
+              onClick={() => { setActiveTab(tab.key); if (tab.key !== 'comunicaciones') setCommPrefill(undefined); }}
               className={cn(
                 "flex items-center gap-2 px-6 py-3.5 text-[11px] font-black uppercase tracking-widest border-b-2 transition-all",
                 activeTab === tab.key
@@ -605,6 +617,7 @@ export const MatterDetail = ({
                       hasFicha={hasStageFicha}
                       onOpenFicha={hasStageFicha ? () => setFichaOpenStage(selectedStage) : undefined}
                       satisfiedBy={getSatisfiedBy(task)}
+                      onRequestData={handleRequestData}
                     />
                   ))}
                 </div>
@@ -620,7 +633,7 @@ export const MatterDetail = ({
                 </div>
                 <div className="grid grid-cols-1 gap-3">
                   {stageNonBlockingPending.map(task => (
-                    <TaskCard key={task.id} task={task} matter={matter} navigate={navigate} onComplete={onCompleteTask} onReopen={onReopenTask} satisfiedBy={getSatisfiedBy(task)} />
+                    <TaskCard key={task.id} task={task} matter={matter} navigate={navigate} onComplete={onCompleteTask} onReopen={onReopenTask} satisfiedBy={getSatisfiedBy(task)} onRequestData={handleRequestData} />
                   ))}
                 </div>
               </section>
@@ -636,7 +649,7 @@ export const MatterDetail = ({
                 </div>
                 <div className="grid grid-cols-1 gap-2">
                   {stageCompletedTasks.map(task => (
-                    <TaskCard key={task.id} task={task} matter={matter} navigate={navigate} onComplete={onCompleteTask} onReopen={onReopenTask} satisfiedBy={getSatisfiedBy(task)} />
+                    <TaskCard key={task.id} task={task} matter={matter} navigate={navigate} onComplete={onCompleteTask} onReopen={onReopenTask} satisfiedBy={getSatisfiedBy(task)} onRequestData={handleRequestData} />
                   ))}
                 </div>
               </section>
@@ -972,6 +985,8 @@ export const MatterDetail = ({
             <CommunicationsLog
               matterId={matter.id}
               currentUser={currentUser}
+              initialContent={commPrefill}
+              initialCanal={commPrefill ? 'WhatsApp' : undefined}
             />
 
             {/* Timeline / Historial de Actividad */}
@@ -1216,7 +1231,8 @@ const TaskCard: React.FC<{
   onOpenFicha?: () => void;
   hasFicha?: boolean;
   satisfiedBy?: { key: string; label: string }[];
-}> = ({ task, matter, navigate, onComplete, onReopen, onOpenFicha, hasFicha, satisfiedBy }) => {
+  onRequestData?: (taskTitle: string, missing: { key: string; label: string }[]) => void;
+}> = ({ task, matter, navigate, onComplete, onReopen, onOpenFicha, hasFicha, satisfiedBy, onRequestData }) => {
   const isCompleted = task.status === 'Completada';
   const caseData = matter.caseData ?? {};
 
@@ -1297,6 +1313,18 @@ const TaskCard: React.FC<{
           >
             <FileText size={12} className="mr-1.5" />
             Completar datos
+          </Button>
+        )}
+        {/* Show "Solicitar datos" button to send a message requesting missing data */}
+        {!isCompleted && satisfaction && !satisfaction.allDone && onRequestData && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-[10px] font-black uppercase tracking-widest rounded-xl opacity-0 group-hover:opacity-100 transition-all border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/5"
+            onClick={(e) => { e.stopPropagation(); onRequestData(task.title, satisfaction.missing); }}
+          >
+            <Send size={12} className="mr-1.5" />
+            Solicitar datos
           </Button>
         )}
         {/* Show "Completar datos" if ficha but no satisfiedBy tracking */}

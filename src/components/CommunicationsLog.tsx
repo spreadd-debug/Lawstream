@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, Badge, Button } from './UI';
 import { Communication, CanalCommunication } from '../types';
 import {
@@ -24,6 +24,9 @@ interface CommunicationsLogProps {
   clientId?: string;
   consultationId?: string;
   currentUser: string;
+  /** Pre-fill the message textarea (e.g. from "Solicitar datos" in TaskCard) */
+  initialContent?: string;
+  initialCanal?: CanalCommunication;
 }
 
 const CANALES: { value: CanalCommunication; label: string; icon: React.ReactNode; color: string; badgeClass: string }[] = [
@@ -72,15 +75,32 @@ export const CommunicationsLog: React.FC<CommunicationsLogProps> = ({
   clientId,
   consultationId,
   currentUser,
+  initialContent,
+  initialCanal,
 }) => {
   const [communications, setCommunications] = useState<Communication[]>([]);
   const [loading, setLoading] = useState(true);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // form state
-  const [canal, setCanal] = useState<CanalCommunication>('WhatsApp');
-  const [contenido, setContenido] = useState('');
+  const [canal, setCanal] = useState<CanalCommunication>(initialCanal ?? 'WhatsApp');
+  const [contenido, setContenido] = useState(initialContent ?? '');
   const [visibleParaCliente, setVisibleParaCliente] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  // React to external pre-fill (e.g. "Solicitar datos" button)
+  useEffect(() => {
+    if (initialContent) {
+      setContenido(initialContent);
+      setVisibleParaCliente(true);
+      // Focus & scroll to textarea
+      setTimeout(() => textareaRef.current?.focus(), 100);
+    }
+  }, [initialContent]);
+
+  useEffect(() => {
+    if (initialCanal) setCanal(initialCanal);
+  }, [initialCanal]);
 
   useEffect(() => {
     const load = async () => {
@@ -165,6 +185,7 @@ export const CommunicationsLog: React.FC<CommunicationsLogProps> = ({
             Contenido
           </span>
           <textarea
+            ref={textareaRef}
             value={contenido}
             onChange={(e) => setContenido(e.target.value)}
             placeholder="Escribir comunicación..."
