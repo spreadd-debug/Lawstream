@@ -38,6 +38,12 @@ export interface Matter {
   currentStage?: string;
   caseData?: Record<string, string>;
   assignedAttorneys?: string[]; // profile IDs from matter_assignments
+  // Jurisdicción procesal del caso ('caba' | 'pba' | 'nacional'). Persistida en
+  // columna top-level `matters.jurisdiccion`. Se setea en el wizard de creación
+  // y es editable desde "Editar Asunto". Puede ser undefined SOLO en casos
+  // legados anteriores a la migración 017 — esos se marcan con banner en
+  // MatterDetail hasta que el usuario la complete.
+  jurisdiccion?: Jurisdiccion;
 }
 
 export type AssignmentRole = 'lead' | 'assigned';
