@@ -599,6 +599,7 @@ export type TipoEvento =
   | 'pericia_designada'
   | 'pericia_presentada'
   | 'notificacion_recibida'
+  | 'autos_para_sentencia'
   | 'sentencia'
   | 'recurso_interpuesto'
   | 'otro';

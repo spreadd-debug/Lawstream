@@ -10,8 +10,9 @@ import {
   calcularVencimientoSync,
   labelDeTipoEvento,
 } from '../lib/plazos';
-import { format, parseISO } from 'date-fns';
-import { Calendar, Clock, AlertTriangle } from 'lucide-react';
+import { format, parseISO, differenceInCalendarDays } from 'date-fns';
+import { es } from 'date-fns/locale';
+import { Calendar, Clock, AlertTriangle, ShieldAlert } from 'lucide-react';
 
 interface EventoFormProps {
   isOpen: boolean;
@@ -37,9 +38,23 @@ export const EventoForm: React.FC<EventoFormProps> = ({
   jurisdiccionDefault = 'nacional',
   onCreated,
 }) => {
-  const { handleCreateEvento } = useAppContext();
+  const { handleCreateEvento, matters } = useAppContext();
 
   const today = format(new Date(), 'yyyy-MM-dd');
+
+  // Datos de medida cautelar del caso — para detectar propuesta inconsistente de la contraparte.
+  const matter = matters.find(m => m.id === matterId);
+  const cd = matter?.caseData ?? {};
+  const medidaVigenciaHasta = cd.medida_vigencia_hasta?.trim();
+  const medidaDescripcion = cd.medida_descripcion?.trim();
+  const medidaVigente = !!(
+    medidaVigenciaHasta &&
+    differenceInCalendarDays(parseISO(medidaVigenciaHasta), new Date()) >= 0
+  );
+  const medidaProhibicion = !!(
+    medidaDescripcion &&
+    /prohib|acercamiento|exclus|restricci/i.test(medidaDescripcion)
+  );
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -117,6 +132,22 @@ export const EventoForm: React.FC<EventoFormProps> = ({
     setPlazos(prev => prev.map((p, i) => i === idx ? { ...p, seleccionado: !p.seleccionado } : p));
 
   const plazosActivos = useMemo(() => plazos.filter(p => p.seleccionado), [plazos]);
+
+  // Regla de consistencia: si el caso tiene medida cautelar vigente (prohibición /
+  // acercamiento / exclusión), advertir cuando una presentación contraria proponga
+  // régimen amplio u ordinario de comunicación con los hijos.
+  const warningRegimenAmplio = useMemo(() => {
+    if (tipo !== 'presentacion_contraria') return false;
+    if (!(medidaVigente || medidaProhibicion)) return false;
+    const texto = `${titulo} ${descripcion}`.toLowerCase();
+    return (
+      /r[eé]gimen\s+amplio/.test(texto) ||
+      /r[eé]gimen\s+ordinario/.test(texto) ||
+      /comunicaci[oó]n\s+ordinaria/.test(texto) ||
+      /visitas\s+habituales/.test(texto) ||
+      /contacto\s+amplio/.test(texto)
+    );
+  }, [tipo, titulo, descripcion, medidaVigente, medidaProhibicion]);
 
   const handleSubmit = async () => {
     if (!titulo.trim()) { setError('El título es obligatorio'); return; }
@@ -226,6 +257,27 @@ export const EventoForm: React.FC<EventoFormProps> = ({
             rows={3}
           />
         </div>
+
+        {warningRegimenAmplio && (
+          <div
+            role="alert"
+            className="flex items-start gap-3 rounded-2xl border border-amber-500/40 bg-amber-500/10 p-3 text-xs"
+          >
+            <ShieldAlert size={16} className="mt-0.5 shrink-0 text-amber-600" />
+            <div className="space-y-1">
+              <p className="font-bold text-amber-700 dark:text-amber-400">
+                Posible inconsistencia detectada
+              </p>
+              <p className="text-foreground/80 leading-relaxed">
+                La contraparte propone régimen de comunicación amplio, pero este caso tiene medida de prohibición de acercamiento
+                {medidaVigenciaHasta && (
+                  <> vigente hasta <strong>{format(parseISO(medidaVigenciaHasta), "d 'de' MMMM yyyy", { locale: es })}</strong></>
+                )}
+                . Verificar antes de contestar.
+              </p>
+            </div>
+          </div>
+        )}
 
         {plazos.length > 0 && (
           <div className="rounded-2xl border border-border/60 bg-muted/30 p-4 space-y-3">

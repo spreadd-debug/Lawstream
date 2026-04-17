@@ -31,7 +31,7 @@ import {
 } from 'lucide-react';
 import { Matter, TimelineEvent, Task, LegalDocument, Expediente, MatterMilestone, FlowSnapshot } from '../types';
 import { Badge, Card, Button, Modal, Input, Textarea, Select } from './UI';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, differenceInCalendarDays } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '../lib/utils';
 import { fetchExpediente } from '../lib/db';
@@ -79,8 +79,30 @@ export const MatterDetail = ({
   currentUser, currentUserRole,
 }: MatterDetailProps) => {
   const navigate = useNavigate();
-  const { clients, plazos: allPlazos } = useAppContext();
+  const { clients, plazos: allPlazos, eventos: allEventos } = useAppContext();
   const clientObj = clients.find(c => c.name === matter.client);
+
+  // Eventos de este asunto, más reciente primero — para detectar "autos para sentencia".
+  const matterEventos = allEventos
+    .filter(e => e.matterId === matter.id)
+    .slice()
+    .sort((a, b) => b.fecha.localeCompare(a.fecha));
+  const ultimoEvento = matterEventos[0];
+  const isAutosParaSentencia = ultimoEvento?.tipo === 'autos_para_sentencia';
+  const diasDesdeAutos = isAutosParaSentencia
+    ? differenceInCalendarDays(new Date(), parseISO(ultimoEvento!.fecha))
+    : 0;
+  const autosNivelAlerta: 'normal' | 'amarillo' | 'rojo' =
+    diasDesdeAutos >= 90 ? 'rojo' : diasDesdeAutos >= 60 ? 'amarillo' : 'normal';
+
+  // Datos de violencia familiar / medida cautelar — sección del formulario Instrucción.
+  const cd = matter.caseData ?? {};
+  const medidaDescripcion = cd.medida_descripcion?.trim();
+  const medidaOrganismo = cd.medida_tipo_denuncia?.trim();
+  const medidaFecha = cd.medida_fecha?.trim();
+  const medidaVigenciaHasta = cd.medida_vigencia_hasta?.trim();
+  const tieneMedida = !!(medidaDescripcion || medidaOrganismo || medidaVigenciaHasta);
+  const medidaVencida = !!(medidaVigenciaHasta && differenceInCalendarDays(parseISO(medidaVigenciaHasta), new Date()) < 0);
 
   // Plazos activos de este asunto, ordenados por vencimiento — más urgentes primero.
   const matterPlazosActivos = allPlazos
@@ -194,6 +216,50 @@ export const MatterDetail = ({
 
   return (
     <div className="max-w-6xl mx-auto space-y-8 pb-20">
+
+      {/* ═══════════════════════ BANNER VIOLENCIA FAMILIAR ═══════════════════════ */}
+      {tieneMedida && (
+        <div
+          role="alert"
+          className={cn(
+            'flex items-start gap-3 p-4 rounded-2xl border shadow-sm',
+            medidaVencida
+              ? 'bg-rose-500/5 border-rose-500/30'
+              : 'bg-rose-500/10 border-rose-500/40'
+          )}
+        >
+          <div className="shrink-0 w-10 h-10 rounded-xl bg-rose-500/20 text-rose-600 flex items-center justify-center">
+            <ShieldAlert size={20} />
+          </div>
+          <div className="flex-1 min-w-0 space-y-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[11px] font-black uppercase tracking-widest text-rose-700 dark:text-rose-300">
+                Caso con medida de protección vigente
+              </span>
+              {medidaVencida && (
+                <Badge variant="warning" className="text-[8px]">Vencida — sugerir renovación</Badge>
+              )}
+            </div>
+            <p className="text-sm font-bold text-foreground">
+              {medidaDescripcion || 'Medida de protección registrada'}
+            </p>
+            <div className="flex items-center gap-3 flex-wrap text-[11px] text-muted-foreground">
+              {medidaOrganismo && <span>Organismo: <strong className="text-foreground/80">{medidaOrganismo}</strong></span>}
+              {medidaFecha && <span>Denuncia: <strong className="text-foreground/80">{format(parseISO(medidaFecha), "d 'de' MMMM yyyy", { locale: es })}</strong></span>}
+              {medidaVigenciaHasta && (
+                <span>
+                  Vigencia hasta:{' '}
+                  <strong className={cn(
+                    medidaVencida ? 'text-amber-600' : 'text-foreground/80'
+                  )}>
+                    {format(parseISO(medidaVigenciaHasta), "d 'de' MMMM yyyy", { locale: es })}
+                  </strong>
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ═══════════════════════ HEADER ═══════════════════════ */}
       <div className="flex flex-col gap-4">
@@ -341,7 +407,69 @@ export const MatterDetail = ({
 
       {/* ═══════════════════ HERO COMPACT ═══════════════════ */}
       <section className="grid grid-cols-1 lg:grid-cols-12 gap-px bg-border border border-border rounded-[2rem] overflow-hidden shadow-xl">
+        {/* Left: Modo "Autos para sentencia" — en espera pasiva */}
+        {isAutosParaSentencia && (
+          <div className="lg:col-span-7 p-8 flex flex-col justify-between relative overflow-hidden bg-gradient-to-br from-slate-700 to-slate-800 text-white">
+            <div className="relative z-10 space-y-5">
+              <div className="flex items-center gap-3">
+                <div className="p-1.5 bg-white/10 rounded-lg backdrop-blur-md border border-white/10">
+                  <Clock size={16} />
+                </div>
+                <span className="text-[10px] font-black uppercase tracking-[0.3em] opacity-80">En espera de sentencia</span>
+              </div>
+
+              <div className="space-y-2">
+                <h2 className="text-2xl md:text-3xl font-black tracking-tight leading-tight">
+                  Caso en espera de sentencia
+                </h2>
+                <p className="text-[11px] font-bold uppercase tracking-widest text-white/60">
+                  Última actividad: {format(parseISO(ultimoEvento!.fecha), "d 'de' MMMM yyyy", { locale: es })}
+                </p>
+                <p className="text-xs text-white/70 pt-2">
+                  Consultar MEV periódicamente para detectar la sentencia.
+                </p>
+              </div>
+
+              {(autosNivelAlerta === 'amarillo' || autosNivelAlerta === 'rojo') && (
+                <div className={cn(
+                  'flex items-start gap-2 p-3 rounded-xl backdrop-blur-md border',
+                  autosNivelAlerta === 'rojo'
+                    ? 'bg-rose-500/20 border-rose-300/40'
+                    : 'bg-amber-500/20 border-amber-300/40'
+                )}>
+                  <AlertCircle size={14} className="mt-0.5 shrink-0" />
+                  <p className="text-[11px] font-bold leading-snug">
+                    {autosNivelAlerta === 'rojo'
+                      ? `Más de ${diasDesdeAutos} días desde autos para sentencia. Considerar presentar pronto despacho.`
+                      : `${diasDesdeAutos} días desde autos para sentencia — hacer seguimiento.`}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="relative z-10 flex items-end justify-between pt-6">
+              <div className="space-y-1">
+                <span className="text-[9px] font-black text-white/40 uppercase tracking-[0.2em]">Días en espera</span>
+                <div className="text-3xl font-black tracking-tighter flex items-center gap-2">
+                  <Calendar size={18} className="opacity-50" />
+                  {diasDesdeAutos} {diasDesdeAutos === 1 ? 'día' : 'días'}
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {matter.priority === 'Alta' && (
+                  <div className="px-2.5 py-1 bg-white/10 backdrop-blur-md border border-white/20 rounded-full text-[9px] font-black uppercase tracking-widest">
+                    Prioridad Alta
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <Clock size={180} className="absolute -bottom-16 -right-16 opacity-5 pointer-events-none" />
+          </div>
+        )}
+
         {/* Left: Health & Next Action */}
+        {!isAutosParaSentencia && (
         <div className={cn(
           "lg:col-span-7 p-8 flex flex-col justify-between relative overflow-hidden",
           flow.health === 'Roto' ? 'bg-rose-600 text-white' :
@@ -483,6 +611,7 @@ export const MatterDetail = ({
 
           <Zap size={180} className="absolute -bottom-16 -right-16 opacity-5 pointer-events-none" />
         </div>
+        )}
 
         {/* Right: Responsable & Status */}
         <div className="lg:col-span-5 p-8 bg-card flex flex-col justify-between space-y-6">

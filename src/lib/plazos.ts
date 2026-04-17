@@ -168,6 +168,7 @@ export const PLAZOS_POR_EVENTO: Record<TipoEvento, PlazoSugerido[]> = {
   notificacion_recibida: [
     { tipo: 'Plazo general de respuesta', dias: 5, diasHabiles: true, descripcion: 'Verificar plazo específico según contenido' },
   ],
+  autos_para_sentencia: [],
   recurso_interpuesto: [
     { tipo: 'Fundar recurso', dias: 5, diasHabiles: true, descripcion: 'Memorial de agravios' },
   ],
@@ -224,6 +225,7 @@ export const TIPOS_EVENTO: TipoEventoDef[] = [
   { tipo: 'pericia_designada',     label: 'Pericia designada',          descripcionCorta: 'Perito aceptó el cargo' },
   { tipo: 'pericia_presentada',    label: 'Pericia presentada',         descripcionCorta: 'Dispara plazo de impugnación' },
   { tipo: 'notificacion_recibida', label: 'Notificación recibida',      descripcionCorta: 'Cédula o ministerio ley' },
+  { tipo: 'autos_para_sentencia',  label: 'Autos para sentencia',       descripcionCorta: 'Causa en espera de sentencia' },
   { tipo: 'recurso_interpuesto',   label: 'Recurso interpuesto',        descripcionCorta: 'Dispara plazo de fundamentación' },
   { tipo: 'otro',                  label: 'Otro',                       descripcionCorta: 'Movimiento no tipificado' },
 ];
