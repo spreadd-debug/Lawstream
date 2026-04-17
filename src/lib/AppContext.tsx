@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { Matter, Client, Consultation, LegalDocument, Task, TimelineEvent, UserProfile, Communication, Expediente, MatterMilestone, EventoExpediente, Plazo } from '../types';
+import { Matter, Client, Consultation, LegalDocument, Task, TimelineEvent, UserProfile, Communication, Expediente, MatterMilestone, EventoExpediente, Plazo, Jurisdiccion } from '../types';
 import { GlobalFilters, defaultFilters } from '../components/FiltersContent';
 import { useAuth } from './auth';
 import * as db from './db';
@@ -7,6 +7,20 @@ import { logAudit } from './db';
 import { generateConsultationTasks, generateExpedienteTasks } from './taskEngine';
 import { findTemplate } from '../data/templates';
 import { instantiateFlow } from './flowEngine';
+import { calcularVencimiento, resetFeriadosCache } from './plazos';
+import { format, parseISO } from 'date-fns';
+
+/** Normaliza el valor de jurisdicción que viene del wizard ('CABA'|'PBA'|'Nacional'
+ *  o variantes) al enum canónico 'caba'|'pba'|'nacional'. Devuelve undefined si
+ *  el input no es reconocible. */
+function normalizeJurisdiccion(raw: string | undefined | null): Jurisdiccion | undefined {
+  if (!raw || typeof raw !== 'string') return undefined;
+  const n = raw.trim().toLowerCase();
+  if (n === 'caba') return 'caba';
+  if (n === 'pba' || n === 'provincia de buenos aires') return 'pba';
+  if (n === 'nacional') return 'nacional';
+  return undefined;
+}
 
 interface AppContextType {
   // Data
@@ -26,6 +40,8 @@ interface AppContextType {
   setIsNewActionOpen: (v: boolean) => void;
   isEditMatterOpen: boolean;
   setIsEditMatterOpen: (v: boolean) => void;
+  editMatterFocusField: 'jurisdiccion' | null;
+  setEditMatterFocusField: (v: 'jurisdiccion' | null) => void;
   isFiltersOpen: boolean;
   setIsFiltersOpen: (v: boolean) => void;
   activeFilters: GlobalFilters;
@@ -112,6 +128,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [isNewActionOpen, setIsNewActionOpen] = useState(false);
   const [isEditMatterOpen, setIsEditMatterOpen] = useState(false);
+  // Campo al que el formulario de Editar Asunto debe saltar al abrirse (ej:
+  // cuando el banner de "jurisdicción faltante" dispara la edición).
+  const [editMatterFocusField, setEditMatterFocusField] = useState<'jurisdiccion' | null>(null);
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const [activeFilters, setActiveFilters] = useState<GlobalFilters>(defaultFilters);
   const [selectedMatterId, setSelectedMatterId] = useState<string | null>(null);
@@ -211,7 +230,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const handleSaveMatterEdit = async (data: any) => {
     if (!selectedMatterId) return;
-    const changes = {
+    const prevMatter = matters.find(m => m.id === selectedMatterId);
+    const newJurisdiccion = data.jurisdiccion !== undefined
+      ? normalizeJurisdiccion(data.jurisdiccion)
+      : prevMatter?.jurisdiccion;
+    const jurisdiccionChanged =
+      data.jurisdiccion !== undefined &&
+      newJurisdiccion !== undefined &&
+      newJurisdiccion !== prevMatter?.jurisdiccion;
+
+    const changes: Partial<Matter> = {
       title:          data.title,
       responsible:    data.responsible,
       priority:       data.priority,
@@ -220,11 +248,45 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       description:    data.description,
       lastActivity:   new Date().toISOString(),
     };
+    if (data.subtype     !== undefined) changes.subtype      = data.subtype || undefined;
+    if (data.expediente  !== undefined) changes.expediente   = data.expediente || undefined;
+    if (newJurisdiccion  !== undefined) changes.jurisdiccion = newJurisdiccion;
+
     setMatters(prev => prev.map(m => m.id === selectedMatterId ? { ...m, ...changes } : m));
     setIsEditMatterOpen(false);
+    setEditMatterFocusField(null);
     try {
       await db.updateMatter(selectedMatterId, changes);
-      audit('editar_asunto', 'matter', selectedMatterId, data.title, changes);
+      audit('editar_asunto', 'matter', selectedMatterId, data.title, changes as Record<string, unknown>);
+
+      // Si cambió la jurisdicción y hay plazos activos, recalcular con el
+      // nuevo calendario de feriados. Los plazos inactivos (cumplidos,
+      // cancelados, vencidos) se dejan como estaban.
+      if (jurisdiccionChanged && newJurisdiccion) {
+        resetFeriadosCache(); // por si cambió la jurisdicción y no la teníamos cacheada
+        const plazosActivos = plazos.filter(
+          p => p.matterId === selectedMatterId && p.estado === 'activo',
+        );
+        for (const p of plazosActivos) {
+          try {
+            const nuevaFecha = await calcularVencimiento({
+              fechaInicio: parseISO(p.fechaInicio),
+              dias: p.dias,
+              diasHabiles: p.diasHabiles,
+              jurisdiccion: newJurisdiccion,
+            });
+            const fechaStr = format(nuevaFecha, 'yyyy-MM-dd');
+            const plazoUpdate: Partial<Plazo> = {
+              jurisdiccion: newJurisdiccion,
+              fechaVencimiento: fechaStr,
+            };
+            await db.updatePlazo(p.id, plazoUpdate);
+            setPlazos(prev => prev.map(pp => pp.id === p.id ? { ...pp, ...plazoUpdate } : pp));
+          } catch (err) {
+            console.error(`Error recalculando plazo ${p.id}:`, err);
+          }
+        }
+      }
     } catch (err) {
       console.error('Error editando asunto:', err);
     }
@@ -324,6 +386,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       flowTemplateId: template?.id,
       currentStage:   template?.etapaInicial,
       caseData:       data.caseData && Object.keys(data.caseData).length > 0 ? data.caseData : undefined,
+      jurisdiccion:   normalizeJurisdiccion(data.jurisdiction),
     };
     const optimistic: Matter = { ...newMatter, id: crypto.randomUUID() };
     setMatters(prev => [optimistic, ...prev]);
@@ -721,6 +784,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       theme, toggleTheme,
       isNewActionOpen, setIsNewActionOpen,
       isEditMatterOpen, setIsEditMatterOpen,
+      editMatterFocusField, setEditMatterFocusField,
       isFiltersOpen, setIsFiltersOpen,
       activeFilters, setActiveFilters,
       selectedMatterId, setSelectedMatterId,

@@ -79,8 +79,13 @@ export const MatterDetail = ({
   currentUser, currentUserRole,
 }: MatterDetailProps) => {
   const navigate = useNavigate();
-  const { clients, plazos: allPlazos, eventos: allEventos } = useAppContext();
+  const { clients, plazos: allPlazos, eventos: allEventos, handleEditMatter, setEditMatterFocusField } = useAppContext();
   const clientObj = clients.find(c => c.name === matter.client);
+
+  // Casos legados anteriores a la migración 017 pueden tener jurisdicción NULL.
+  // El motor de plazos va a fallar apenas se intente registrar un evento, así
+  // que señalizamos de manera permanente hasta que se complete.
+  const jurisdiccionFaltante = !matter.jurisdiccion;
 
   // Eventos de este asunto, más reciente primero — para detectar "autos para sentencia".
   const matterEventos = allEventos
@@ -216,6 +221,37 @@ export const MatterDetail = ({
 
   return (
     <div className="max-w-6xl mx-auto space-y-8 pb-20">
+
+      {/* ═══════════════════════ BANNER JURISDICCIÓN FALTANTE ═══════════════════════ */}
+      {/* Caso legado sin jurisdicción: se ve arriba del stepper para que sea imposible
+          ignorarlo. Convive con el banner de violencia si ambos aplican. */}
+      {jurisdiccionFaltante && (
+        <div
+          role="alert"
+          className="flex items-start gap-3 p-4 rounded-2xl border border-amber-500/40 bg-amber-500/10 shadow-sm"
+        >
+          <div className="shrink-0 w-10 h-10 rounded-xl bg-amber-500/20 text-amber-700 flex items-center justify-center">
+            <AlertCircle size={20} />
+          </div>
+          <div className="flex-1 min-w-0 space-y-1">
+            <span className="text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-300">
+              Jurisdicción sin cargar
+            </span>
+            <p className="text-sm font-bold text-foreground">
+              Este caso no tiene jurisdicción cargada. El cálculo de plazos, la generación de tareas y algunos templates no funcionarán correctamente hasta que la completes.
+            </p>
+          </div>
+          <button
+            onClick={() => {
+              setEditMatterFocusField?.('jurisdiccion');
+              handleEditMatter(matter.id);
+            }}
+            className="shrink-0 px-3 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-black uppercase tracking-widest transition-colors"
+          >
+            Completar jurisdicción
+          </button>
+        </div>
+      )}
 
       {/* ═══════════════════════ BANNER VIOLENCIA FAMILIAR ═══════════════════════ */}
       {tieneMedida && (

@@ -4,16 +4,21 @@ import type { Jurisdiccion, TipoEvento, Plazo, Feriado, Matter } from '../types'
 
 /**
  * Resuelve la jurisdicción procesal ('caba' | 'pba' | 'nacional') a partir del
- * matter. Lee de matter.caseData.jurisdiccion (seteado en el wizard de creación
- * de asunto) y la normaliza.
+ * matter. Lee preferentemente la columna top-level `matter.jurisdiccion`
+ * (agregada en migración 017). Si no está — caso legado — cae al legacy
+ * `matter.caseData.jurisdiccion`.
  *
- * Falla ruidosamente si el matter no tiene jurisdicción seteada: asumir
- * "nacional" por defecto puede llevar a calcular vencimientos con el calendario
- * de feriados equivocado y hacer que el abogado pierda un plazo sin darse
- * cuenta.
+ * Falla ruidosamente si el matter no tiene jurisdicción en ningún lado:
+ * asumir "nacional" por defecto puede llevar a calcular vencimientos con el
+ * calendario de feriados equivocado y hacer que el abogado pierda un plazo
+ * sin darse cuenta.
  */
-export function resolveJurisdiccion(matter: Pick<Matter, 'id' | 'caseData'>): Jurisdiccion {
-  const raw = (matter.caseData as any)?.jurisdiccion;
+export function resolveJurisdiccion(
+  matter: Pick<Matter, 'id' | 'caseData' | 'jurisdiccion'>,
+): Jurisdiccion {
+  const raw =
+    (matter.jurisdiccion as string | undefined) ??
+    (matter.caseData as any)?.jurisdiccion;
   if (!raw || typeof raw !== 'string' || !raw.trim()) {
     throw new Error(
       `El asunto ${matter.id} no tiene jurisdicción definida. ` +
@@ -28,6 +33,18 @@ export function resolveJurisdiccion(matter: Pick<Matter, 'id' | 'caseData'>): Ju
     `Jurisdicción no reconocida en el asunto ${matter.id}: "${raw}". ` +
     `Valores válidos: caba, pba, nacional.`,
   );
+}
+
+/** True si el matter tiene jurisdicción cargada (top-level o legacy caseData). */
+export function hasJurisdiccion(
+  matter: Pick<Matter, 'caseData' | 'jurisdiccion'>,
+): boolean {
+  const raw =
+    (matter.jurisdiccion as string | undefined) ??
+    (matter.caseData as any)?.jurisdiccion;
+  if (!raw || typeof raw !== 'string' || !raw.trim()) return false;
+  const norm = raw.trim().toLowerCase();
+  return norm === 'caba' || norm === 'pba' || norm === 'nacional' || norm === 'provincia de buenos aires';
 }
 
 export interface PlazoConfig {

@@ -99,6 +99,7 @@ export const AppLayout: React.FC = () => {
     matters, consultations, tasks, profiles,
     isNewActionOpen, setIsNewActionOpen,
     isEditMatterOpen, setIsEditMatterOpen,
+    editMatterFocusField, setEditMatterFocusField,
     isFiltersOpen, setIsFiltersOpen,
     activeFilters, setActiveFilters,
     selectedMatterId,
@@ -357,7 +358,7 @@ export const AppLayout: React.FC = () => {
 
       <Drawer
         isOpen={isEditMatterOpen}
-        onClose={() => setIsEditMatterOpen(false)}
+        onClose={() => { setIsEditMatterOpen(false); setEditMatterFocusField(null); }}
         title="Editar Asunto"
         size="lg"
         preventBackdropClose
@@ -365,7 +366,8 @@ export const AppLayout: React.FC = () => {
         <EditMatterForm
           matter={matters.find(m => m.id === selectedMatterId)}
           onSave={handleSaveMatterEdit}
-          onCancel={() => setIsEditMatterOpen(false)}
+          onCancel={() => { setIsEditMatterOpen(false); setEditMatterFocusField(null); }}
+          initialFocus={editMatterFocusField ?? undefined}
         />
       </Drawer>
 
