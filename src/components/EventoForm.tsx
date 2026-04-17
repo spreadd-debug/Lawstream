@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Modal, Button, Input, Select, Textarea } from './UI';
+import { Modal, Button, Input, Textarea } from './UI';
 import { useAppContext } from '../lib/AppContext';
-import type { EventoExpediente, Jurisdiccion, Plazo, TipoEvento } from '../types';
+import type { EventoExpediente, Plazo, TipoEvento } from '../types';
 import {
   PLAZOS_POR_EVENTO,
   TIPOS_EVENTO,
@@ -9,7 +9,9 @@ import {
   getFeriadosSet,
   calcularVencimientoSync,
   labelDeTipoEvento,
+  resolveJurisdiccion,
 } from '../lib/plazos';
+import { detectPropuestaContactoAmplia } from '../lib/consistencia';
 import { format, parseISO, differenceInCalendarDays } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Calendar, Clock, AlertTriangle, ShieldAlert } from 'lucide-react';
@@ -18,7 +20,6 @@ interface EventoFormProps {
   isOpen: boolean;
   onClose: () => void;
   matterId: string;
-  jurisdiccionDefault?: Jurisdiccion;
   onCreated?: (evento: EventoExpediente) => void;
 }
 
@@ -35,15 +36,28 @@ export const EventoForm: React.FC<EventoFormProps> = ({
   isOpen,
   onClose,
   matterId,
-  jurisdiccionDefault = 'nacional',
   onCreated,
 }) => {
   const { handleCreateEvento, matters } = useAppContext();
 
   const today = format(new Date(), 'yyyy-MM-dd');
 
-  // Datos de medida cautelar del caso — para detectar propuesta inconsistente de la contraparte.
   const matter = matters.find(m => m.id === matterId);
+
+  // Jurisdicción del matter — se resuelve una vez y falla ruidosamente si el
+  // caso no la tiene cargada (no asumimos 'nacional' por defecto porque lleva
+  // a calcular plazos con los feriados equivocados).
+  const jurisdiccionResult = useMemo(() => {
+    if (!matter) return { ok: false as const, error: 'Asunto no encontrado' };
+    try {
+      return { ok: true as const, jurisdiccion: resolveJurisdiccion(matter) };
+    } catch (e: any) {
+      return { ok: false as const, error: e?.message || 'No se pudo resolver la jurisdicción del caso' };
+    }
+  }, [matter]);
+  const jurisdiccion = jurisdiccionResult.ok ? jurisdiccionResult.jurisdiccion : null;
+
+  // Datos de medida cautelar del caso — para detectar propuesta inconsistente de la contraparte.
   const cd = matter?.caseData ?? {};
   const medidaVigenciaHasta = cd.medida_vigencia_hasta?.trim();
   const medidaDescripcion = cd.medida_descripcion?.trim();
@@ -63,7 +77,6 @@ export const EventoForm: React.FC<EventoFormProps> = ({
   const [tipo, setTipo] = useState<TipoEvento>('traslado');
   const [titulo, setTitulo] = useState('');
   const [descripcion, setDescripcion] = useState('');
-  const [jurisdiccion, setJurisdiccion] = useState<Jurisdiccion>(jurisdiccionDefault);
   const [plazos, setPlazos] = useState<PlazoSelectionRow[]>([]);
 
   // Reset al abrir
@@ -73,9 +86,8 @@ export const EventoForm: React.FC<EventoFormProps> = ({
     setTipo('traslado');
     setTitulo('');
     setDescripcion('');
-    setJurisdiccion(jurisdiccionDefault);
     setError(null);
-  }, [isOpen, jurisdiccionDefault]);
+  }, [isOpen]);
 
   // Autocompletar título según tipo si está vacío
   useEffect(() => {
@@ -84,6 +96,10 @@ export const EventoForm: React.FC<EventoFormProps> = ({
 
   // Recalcular plazos sugeridos cuando cambia tipo/fecha/jurisdicción
   useEffect(() => {
+    if (!jurisdiccion) {
+      setPlazos([]);
+      return;
+    }
     let cancelled = false;
     (async () => {
       const sugeridos = PLAZOS_POR_EVENTO[tipo] || [];
@@ -115,7 +131,7 @@ export const EventoForm: React.FC<EventoFormProps> = ({
   }, [tipo, fecha, jurisdiccion]);
 
   const updatePlazoDias = async (idx: number, dias: number) => {
-    if (!dias || dias <= 0) return;
+    if (!dias || dias <= 0 || !jurisdiccion) return;
     const row = plazos[idx];
     const venc = await calcularVencimiento({
       fechaInicio: parseISO(fecha),
@@ -139,18 +155,15 @@ export const EventoForm: React.FC<EventoFormProps> = ({
   const warningRegimenAmplio = useMemo(() => {
     if (tipo !== 'presentacion_contraria') return false;
     if (!(medidaVigente || medidaProhibicion)) return false;
-    const texto = `${titulo} ${descripcion}`.toLowerCase();
-    return (
-      /r[eé]gimen\s+amplio/.test(texto) ||
-      /r[eé]gimen\s+ordinario/.test(texto) ||
-      /comunicaci[oó]n\s+ordinaria/.test(texto) ||
-      /visitas\s+habituales/.test(texto) ||
-      /contacto\s+amplio/.test(texto)
-    );
+    return detectPropuestaContactoAmplia(`${titulo} ${descripcion}`);
   }, [tipo, titulo, descripcion, medidaVigente, medidaProhibicion]);
 
   const handleSubmit = async () => {
     if (!titulo.trim()) { setError('El título es obligatorio'); return; }
+    if (!jurisdiccion) {
+      setError(jurisdiccionResult.ok ? 'Jurisdicción no resuelta' : jurisdiccionResult.error);
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -197,13 +210,20 @@ export const EventoForm: React.FC<EventoFormProps> = ({
       footer={
         <>
           <Button variant="ghost" onClick={onClose} disabled={saving}>Cancelar</Button>
-          <Button variant="primary" onClick={handleSubmit} disabled={saving}>
+          <Button variant="primary" onClick={handleSubmit} disabled={saving || !jurisdiccion}>
             {saving ? 'Guardando…' : 'Registrar evento'}
           </Button>
         </>
       }
     >
       <div className="space-y-5">
+        {!jurisdiccionResult.ok && (
+          <div className="flex items-start gap-2 rounded-xl bg-destructive/10 text-destructive p-3 text-xs">
+            <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+            <span>{jurisdiccionResult.error}</span>
+          </div>
+        )}
+
         {error && (
           <div className="flex items-start gap-2 rounded-xl bg-destructive/10 text-destructive p-3 text-xs">
             <AlertTriangle size={14} className="mt-0.5" />
@@ -217,12 +237,10 @@ export const EventoForm: React.FC<EventoFormProps> = ({
             <Input type="date" value={fecha} onChange={e => setFecha(e.target.value)} />
           </div>
           <div>
-            <label className="block text-[10px] font-black uppercase tracking-[0.1em] text-muted-foreground mb-1.5">Jurisdicción</label>
-            <Select
-              value={jurisdiccion}
-              onChange={e => setJurisdiccion(e.target.value as Jurisdiccion)}
-              options={['nacional', 'caba', 'pba']}
-            />
+            <label className="block text-[10px] font-black uppercase tracking-[0.1em] text-muted-foreground mb-1.5">Jurisdicción del caso</label>
+            <div className="h-10 flex items-center px-4 bg-muted/30 border border-border/40 rounded-xl text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+              {jurisdiccion ? jurisdiccion : '—'}
+            </div>
           </div>
         </div>
 

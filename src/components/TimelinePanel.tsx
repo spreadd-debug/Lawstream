@@ -3,7 +3,7 @@ import { Card, Button, Badge } from './UI';
 import { useAppContext } from '../lib/AppContext';
 import { EventoForm } from './EventoForm';
 import { labelDeTipoEvento, urgenciaDePlazo, diasRestantes } from '../lib/plazos';
-import type { EventoExpediente, Jurisdiccion, Matter, Plazo } from '../types';
+import type { EventoExpediente, Matter, Plazo } from '../types';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Plus, Clock, Calendar, CheckCircle2, XCircle, AlertTriangle, Trash2 } from 'lucide-react';
@@ -59,13 +59,6 @@ export const TimelinePanel: React.FC<TimelinePanelProps> = ({ matter }) => {
     () => matterPlazos.filter(p => !p.eventoOrigenId && p.estado === 'activo'),
     [matterPlazos],
   );
-
-  const defaultJurisdiccion = useMemo<Jurisdiccion>(() => {
-    const raw = (matter.caseData as any)?.jurisdiccion;
-    if (raw === 'CABA' || raw === 'caba') return 'caba';
-    if (raw === 'PBA' || raw === 'pba')   return 'pba';
-    return 'nacional';
-  }, [matter]);
 
   return (
     <div className="py-8 space-y-6">
@@ -125,7 +118,6 @@ export const TimelinePanel: React.FC<TimelinePanelProps> = ({ matter }) => {
         isOpen={isEventoFormOpen}
         onClose={() => setIsEventoFormOpen(false)}
         matterId={matter.id}
-        jurisdiccionDefault={defaultJurisdiccion}
       />
     </div>
   );

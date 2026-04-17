@@ -1,6 +1,34 @@
 import { addDays, isWeekend, format, parseISO, differenceInCalendarDays } from 'date-fns';
 import { supabase } from './supabase';
-import type { Jurisdiccion, TipoEvento, Plazo, Feriado } from '../types';
+import type { Jurisdiccion, TipoEvento, Plazo, Feriado, Matter } from '../types';
+
+/**
+ * Resuelve la jurisdicción procesal ('caba' | 'pba' | 'nacional') a partir del
+ * matter. Lee de matter.caseData.jurisdiccion (seteado en el wizard de creación
+ * de asunto) y la normaliza.
+ *
+ * Falla ruidosamente si el matter no tiene jurisdicción seteada: asumir
+ * "nacional" por defecto puede llevar a calcular vencimientos con el calendario
+ * de feriados equivocado y hacer que el abogado pierda un plazo sin darse
+ * cuenta.
+ */
+export function resolveJurisdiccion(matter: Pick<Matter, 'id' | 'caseData'>): Jurisdiccion {
+  const raw = (matter.caseData as any)?.jurisdiccion;
+  if (!raw || typeof raw !== 'string' || !raw.trim()) {
+    throw new Error(
+      `El asunto ${matter.id} no tiene jurisdicción definida. ` +
+      `Editá el caso y cargá la jurisdicción antes de registrar eventos con plazos.`,
+    );
+  }
+  const norm = raw.trim().toLowerCase();
+  if (norm === 'caba') return 'caba';
+  if (norm === 'pba' || norm === 'provincia de buenos aires') return 'pba';
+  if (norm === 'nacional') return 'nacional';
+  throw new Error(
+    `Jurisdicción no reconocida en el asunto ${matter.id}: "${raw}". ` +
+    `Valores válidos: caba, pba, nacional.`,
+  );
+}
 
 export interface PlazoConfig {
   fechaInicio: Date;
