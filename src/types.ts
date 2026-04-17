@@ -560,11 +560,14 @@ export type AuditAction =
   | 'asignar_abogados'
   | 'invitar_usuario' | 'editar_usuario' | 'desactivar_usuario'
   | 'crear_hito' | 'editar_hito'
+  | 'crear_evento' | 'editar_evento' | 'eliminar_evento'
+  | 'crear_plazo' | 'cumplir_plazo' | 'cancelar_plazo'
   | 'login' | 'logout';
 
 export type AuditEntityType =
   | 'matter' | 'client' | 'consultation' | 'task'
-  | 'document' | 'profile' | 'assignment' | 'milestone' | 'session';
+  | 'document' | 'profile' | 'assignment' | 'milestone' | 'session'
+  | 'evento' | 'plazo';
 
 export interface AuditLogEntry {
   id: string;
@@ -576,6 +579,74 @@ export interface AuditLogEntry {
   entityLabel?: string;
   details?: Record<string, unknown>;
   createdAt: string;
+}
+
+// ── TIMELINE DE EVENTOS + PLAZOS PROCESALES ────────────────
+
+export type Jurisdiccion = 'caba' | 'pba' | 'nacional';
+
+export type TipoEvento =
+  | 'traslado'
+  | 'resolucion'
+  | 'oficio_provisto'
+  | 'oficio_diligenciado'
+  | 'proveido'
+  | 'audiencia_fijada'
+  | 'audiencia_celebrada'
+  | 'audiencia_suspendida'
+  | 'presentacion_propia'
+  | 'presentacion_contraria'
+  | 'pericia_designada'
+  | 'pericia_presentada'
+  | 'notificacion_recibida'
+  | 'sentencia'
+  | 'recurso_interpuesto'
+  | 'otro';
+
+export type OrigenEvento = 'manual' | 'scraper_mev' | 'scraper_pjn';
+export type EstadoPlazo = 'activo' | 'cumplido' | 'vencido' | 'cancelado';
+export type TipoFeriado = 'nacional' | 'pba' | 'caba' | 'feria_judicial';
+
+export interface EventoExpediente {
+  id: string;
+  matterId: string;
+  fecha: string;                 // 'YYYY-MM-DD'
+  tipo: TipoEvento;
+  titulo: string;
+  descripcion?: string;
+  origen: OrigenEvento;
+  jurisdiccion?: Jurisdiccion;
+  documentosUrls: string[];
+  metadata?: Record<string, unknown>;
+  createdBy?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Plazo {
+  id: string;
+  matterId: string;
+  eventoOrigenId?: string;
+  tipo: string;
+  descripcion?: string;
+  fechaInicio: string;           // 'YYYY-MM-DD'
+  dias: number;
+  diasHabiles: boolean;
+  jurisdiccion: Jurisdiccion;
+  fechaVencimiento: string;      // 'YYYY-MM-DD'
+  estado: EstadoPlazo;
+  cumplidoAt?: string;
+  tareaId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Feriado {
+  id: string;
+  fecha: string;                 // 'YYYY-MM-DD'
+  tipo: TipoFeriado;
+  descripcion: string;
+  jurisdiccionAplica: 'todas' | Jurisdiccion;
 }
 
 // ── COMUNICACIONES ──────────────────────────────────────────

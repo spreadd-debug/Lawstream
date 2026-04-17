@@ -48,6 +48,8 @@ import { ACTION_ICONS } from '../constants';
 import { CommunicationsLog } from './CommunicationsLog';
 import { ApprovalWorkflow } from './ApprovalWorkflow';
 import { ClientAccountStatement } from './ClientAccountStatement';
+import { TimelinePanel } from './TimelinePanel';
+import { urgenciaDePlazo, diasRestantes } from '../lib/plazos';
 
 interface MatterDetailProps {
   matter: Matter;
@@ -77,8 +79,16 @@ export const MatterDetail = ({
   currentUser, currentUserRole,
 }: MatterDetailProps) => {
   const navigate = useNavigate();
-  const { clients } = useAppContext();
+  const { clients, plazos: allPlazos } = useAppContext();
   const clientObj = clients.find(c => c.name === matter.client);
+
+  // Plazos activos de este asunto, ordenados por vencimiento — más urgentes primero.
+  const matterPlazosActivos = allPlazos
+    .filter(p => p.matterId === matter.id && p.estado === 'activo')
+    .sort((a, b) => a.fechaVencimiento.localeCompare(b.fechaVencimiento));
+  const nextPlazo = matterPlazosActivos[0];
+  const nextPlazoUrg = nextPlazo ? urgenciaDePlazo(nextPlazo) : null;
+  const nextPlazoDias = nextPlazo ? diasRestantes(nextPlazo.fechaVencimiento) : null;
 
   // Modal state
   const [isRequestDocOpen, setIsRequestDocOpen] = useState(false);
@@ -98,7 +108,7 @@ export const MatterDetail = ({
   const [fichaOpenStage, setFichaOpenStage] = useState<string | null>(null);
 
   // New navigation state
-  const [activeTab, setActiveTab] = useState<'flujo' | 'expediente' | 'comunicaciones'>('flujo');
+  const [activeTab, setActiveTab] = useState<'flujo' | 'timeline' | 'expediente' | 'comunicaciones'>('flujo');
   const [viewingStage, setViewingStage] = useState<string | null>(null);
 
   // Pre-filled communication message (from "Solicitar datos" button)
@@ -437,6 +447,28 @@ export const MatterDetail = ({
                   Prioridad Alta
                 </div>
               )}
+              {nextPlazo && (
+                <button
+                  onClick={() => setActiveTab('timeline')}
+                  className={cn(
+                    'px-3 py-1.5 backdrop-blur-md rounded-full text-[9px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 border',
+                    nextPlazoUrg === 'vencido' || nextPlazoUrg === 'critico'
+                      ? 'bg-rose-500/20 border-rose-400/30 hover:bg-rose-500/30'
+                      : nextPlazoUrg === 'proximo'
+                        ? 'bg-amber-500/20 border-amber-300/30 hover:bg-amber-500/30'
+                        : 'bg-white/10 border-white/20 hover:bg-white/20'
+                  )}
+                  title={`${nextPlazo.tipo} — vence ${nextPlazo.fechaVencimiento}`}
+                >
+                  <Clock size={12} />
+                  {matterPlazosActivos.length > 1 ? `${matterPlazosActivos.length} plazos · ` : 'Plazo · '}
+                  {nextPlazoUrg === 'vencido'
+                    ? `Vencido ${Math.abs(nextPlazoDias!)}d`
+                    : nextPlazoDias === 0
+                      ? 'Vence hoy'
+                      : `${nextPlazoDias}d`}
+                </button>
+              )}
               {totalBlockingCount > 0 && nextStageName && (
                 <button
                   onClick={() => setActiveTab('flujo')}
@@ -524,6 +556,7 @@ export const MatterDetail = ({
         <div className="flex border-b border-border">
           {([
             { key: 'flujo' as const, label: 'Flujo', icon: Zap },
+            { key: 'timeline' as const, label: 'Timeline', icon: Clock },
             { key: 'expediente' as const, label: 'Expediente', icon: FileText },
             { key: 'comunicaciones' as const, label: 'Comunicaciones', icon: MessageSquare },
           ]).map(tab => (
@@ -774,6 +807,11 @@ export const MatterDetail = ({
               </div>
             )}
           </div>
+        )}
+
+        {/* ─────────── TAB: TIMELINE ─────────── */}
+        {activeTab === 'timeline' && (
+          <TimelinePanel matter={matter} />
         )}
 
         {/* ─────────── TAB: EXPEDIENTE ─────────── */}

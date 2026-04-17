@@ -20,6 +20,8 @@ import {
   RefreshCw,
   UserCircle,
   ArrowLeft,
+  Calendar,
+  Clock,
 } from 'lucide-react';
 
 // ── Action metadata ────────────────────────────────────────────────
@@ -43,6 +45,12 @@ const ACTION_META: Record<AuditAction, { label: string; icon: React.ElementType;
   desactivar_usuario:      { label: 'Desactivó usuario',        icon: UserCircle,  color: 'text-red-600' },
   crear_hito:              { label: 'Creó hito',                icon: Milestone,   color: 'text-emerald-600' },
   editar_hito:             { label: 'Editó hito',               icon: Milestone,   color: 'text-blue-600' },
+  crear_evento:            { label: 'Registró evento',          icon: Calendar,    color: 'text-emerald-600' },
+  editar_evento:           { label: 'Editó evento',             icon: Calendar,    color: 'text-blue-600' },
+  eliminar_evento:         { label: 'Eliminó evento',           icon: Calendar,    color: 'text-red-600' },
+  crear_plazo:             { label: 'Creó plazo',               icon: Clock,       color: 'text-emerald-600' },
+  cumplir_plazo:           { label: 'Cumplió plazo',            icon: Clock,       color: 'text-emerald-700' },
+  cancelar_plazo:          { label: 'Canceló plazo',            icon: Clock,       color: 'text-amber-600' },
   login:                   { label: 'Inició sesión',            icon: LogIn,       color: 'text-muted-foreground' },
   logout:                  { label: 'Cerró sesión',             icon: LogOut,      color: 'text-muted-foreground' },
 };
@@ -57,6 +65,8 @@ const ENTITY_LABELS: Record<AuditEntityType, string> = {
   assignment: 'Asignaciones',
   milestone: 'Hitos',
   session: 'Sesiones',
+  evento: 'Eventos',
+  plazo: 'Plazos',
 };
 
 // ── Helpers ────────────────────────────────────────────────────────

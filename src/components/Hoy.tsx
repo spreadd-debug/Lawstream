@@ -1,11 +1,13 @@
 import React, { useState, useMemo } from 'react';
 import { Card, Badge, Button, Drawer } from './UI';
-import { Matter, LegalDocument } from '../types';
+import { Matter, LegalDocument, Plazo } from '../types';
 import { AlertCircle, Clock, User, ArrowRight, Calendar, ShieldAlert, Zap, PauseCircle, Filter, ChevronDown, MoreHorizontal, FileWarning, Edit, XCircle, CheckCircle2 } from 'lucide-react';
 import { format, isPast, isToday, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '../lib/utils';
 import { GlobalFilters, isFiltersActive } from './FiltersContent';
+import { useAppContext } from '../lib/AppContext';
+import { urgenciaDePlazo, diasRestantes } from '../lib/plazos';
 
 interface HoyProps {
   matters: Matter[];
@@ -19,8 +21,30 @@ interface HoyProps {
 }
 
 export const Hoy = ({ matters, documents, onSelectMatter, onNewAction, onEditMatter, onCloseMatter, onOpenFilters, activeFilters }: HoyProps) => {
+  const { plazos } = useAppContext();
   const [isActionMenuOpen, setIsActionMenuOpen] = useState(false);
   const [selectedMatterForMenu, setSelectedMatterForMenu] = useState<Matter | null>(null);
+
+  const plazosProximos = useMemo(() => {
+    const active = plazos.filter(p => p.estado === 'activo');
+    const withUrg = active
+      .map(p => ({ plazo: p, urg: urgenciaDePlazo(p), dias: diasRestantes(p.fechaVencimiento) }))
+      .filter(x => x.urg !== 'normal')
+      .sort((a, b) => a.dias - b.dias);
+    return withUrg.slice(0, 8);
+  }, [plazos]);
+
+  const plazosCountByUrg = useMemo(() => {
+    const c = { vencido: 0, critico: 0, proximo: 0 };
+    for (const p of plazos) {
+      if (p.estado !== 'activo') continue;
+      const u = urgenciaDePlazo(p);
+      if (u === 'vencido') c.vencido++;
+      else if (u === 'critico') c.critico++;
+      else if (u === 'proximo') c.proximo++;
+    }
+    return c;
+  }, [plazos]);
 
   const handleOpenMenu = (matter: Matter) => {
     setSelectedMatterForMenu(matter);
@@ -92,6 +116,43 @@ export const Hoy = ({ matters, documents, onSelectMatter, onNewAction, onEditMat
           <StatusCard label="En espera" count={waiting.length} variant="default" icon={User} />
           <StatusCard label="Documentación Crítica" count={criticalDocs.length} variant="error" icon={FileWarning} />
         </div>
+      )}
+
+      {plazosProximos.length > 0 && (
+        <section className="space-y-3">
+          <div className="flex items-center justify-between border-b border-border pb-3">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-rose-500/15 rounded-lg flex items-center justify-center">
+                <Clock size={18} className="text-rose-500" />
+              </div>
+              <div>
+                <h2 className="text-sm font-black text-foreground uppercase tracking-widest">Plazos Próximos</h2>
+                <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">
+                  {plazosCountByUrg.vencido > 0 && <span className="text-destructive">{plazosCountByUrg.vencido} vencido{plazosCountByUrg.vencido !== 1 ? 's' : ''}</span>}
+                  {plazosCountByUrg.vencido > 0 && (plazosCountByUrg.critico + plazosCountByUrg.proximo) > 0 && ' · '}
+                  {plazosCountByUrg.critico > 0 && <span className="text-rose-600">{plazosCountByUrg.critico} crítico{plazosCountByUrg.critico !== 1 ? 's' : ''}</span>}
+                  {plazosCountByUrg.critico > 0 && plazosCountByUrg.proximo > 0 && ' · '}
+                  {plazosCountByUrg.proximo > 0 && <span className="text-amber-600">{plazosCountByUrg.proximo} próximo{plazosCountByUrg.proximo !== 1 ? 's' : ''}</span>}
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="grid gap-2">
+            {plazosProximos.map(({ plazo, urg, dias }) => {
+              const matter = matters.find(m => m.id === plazo.matterId);
+              return (
+                <PlazoQuickItem
+                  key={plazo.id}
+                  plazo={plazo}
+                  matter={matter}
+                  urg={urg}
+                  dias={dias}
+                  onClick={() => onSelectMatter(plazo.matterId)}
+                />
+              );
+            })}
+          </div>
+        </section>
       )}
 
       {/* Work Queue */}
@@ -193,6 +254,47 @@ export const Hoy = ({ matters, documents, onSelectMatter, onNewAction, onEditMat
         </div>
       </Drawer>
     </div>
+  );
+};
+
+interface PlazoQuickItemProps {
+  plazo: Plazo;
+  matter?: Matter;
+  urg: 'vencido' | 'critico' | 'proximo' | 'normal';
+  dias: number;
+  onClick: () => void;
+}
+
+const PlazoQuickItem: React.FC<PlazoQuickItemProps> = ({ plazo, matter, urg, dias, onClick }) => {
+  const tone =
+    urg === 'vencido'  ? { bg: 'border-l-destructive bg-destructive/5',  badge: 'bg-destructive/15 text-destructive' } :
+    urg === 'critico'  ? { bg: 'border-l-rose-500 bg-rose-500/5',        badge: 'bg-rose-500/15 text-rose-600' } :
+                         { bg: 'border-l-amber-500 bg-amber-500/5',      badge: 'bg-amber-500/15 text-amber-600' };
+  const label =
+    urg === 'vencido' ? `Vencido hace ${Math.abs(dias)}d` :
+    dias === 0 ? 'Vence hoy' :
+    `${dias}d restantes`;
+
+  return (
+    <button
+      onClick={onClick}
+      className={cn('w-full flex items-center gap-3 p-3 pl-4 rounded-xl border-l-4 border border-border/40 hover:bg-muted/40 transition-all text-left', tone.bg)}
+    >
+      <Clock size={14} className="text-muted-foreground shrink-0" />
+      <div className="flex-1 min-w-0">
+        <div className="text-xs font-bold text-foreground truncate">{plazo.tipo}</div>
+        <div className="text-[10px] text-muted-foreground truncate">
+          {matter ? `${matter.title} · ${matter.client}` : plazo.descripcion || '—'}
+        </div>
+      </div>
+      <span className={cn('text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-lg shrink-0', tone.badge)}>
+        {label}
+      </span>
+      <span className="text-[10px] text-muted-foreground font-bold tabular-nums shrink-0">
+        {format(parseISO(plazo.fechaVencimiento), 'd MMM', { locale: es })}
+      </span>
+      <ArrowRight size={14} className="text-muted-foreground shrink-0" />
+    </button>
   );
 };
 

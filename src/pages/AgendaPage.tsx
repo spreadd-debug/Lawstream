@@ -4,12 +4,13 @@ import { AgendaView } from '../components/agenda/AgendaView';
 
 export const AgendaPage = () => {
   const navigate = useNavigate();
-  const { matters, consultations } = useAppContext();
+  const { matters, consultations, plazos } = useAppContext();
 
   return (
     <AgendaView
       matters={matters}
       consultations={consultations}
+      plazos={plazos}
       onSelectMatter={(id) => navigate(`/asuntos/${id}`)}
       onSelectConsultation={() => navigate('/consultas')}
     />

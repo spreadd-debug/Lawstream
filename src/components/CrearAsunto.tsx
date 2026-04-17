@@ -65,7 +65,9 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
   const [clientSearch, setClientSearch] = useState('');
   const [selectedClient, setSelectedClient] = useState<any>(null);
   const [titleManuallyEdited, setTitleManuallyEdited] = useState(false);
-  
+  const [addingItem, setAddingItem] = useState<'checklist' | 'docs' | 'milestones' | null>(null);
+  const [newItemName, setNewItemName] = useState('');
+
   const [formData, setFormData] = useState({
     title: '',
     type: '' as any,
@@ -315,32 +317,27 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
     }));
   };
 
-  const handleAddItem = (list: 'checklist' | 'docs' | 'milestones') => {
+  const handleConfirmAddItem = (list: 'checklist' | 'docs' | 'milestones') => {
+    const name = newItemName.trim();
+    if (!name) return;
     if (list === 'checklist') {
-      const task = window.prompt('Nombre de la nueva tarea:');
-      if (task) {
-        setFormData(prev => ({
-          ...prev,
-          checklist: [...prev.checklist, { task, priority: 'recomendado', completed: false }]
-        }));
-      }
+      setFormData(prev => ({
+        ...prev,
+        checklist: [...prev.checklist, { task: name, priority: 'recomendado', completed: false }]
+      }));
     } else if (list === 'docs') {
-      const name = window.prompt('Nombre del nuevo documento:');
-      if (name) {
-        setFormData(prev => ({
-          ...prev,
-          docs: [...prev.docs, { name, required: false, uploaded: false }]
-        }));
-      }
+      setFormData(prev => ({
+        ...prev,
+        docs: [...prev.docs, { name, required: false, uploaded: false }]
+      }));
     } else if (list === 'milestones') {
-      const name = window.prompt('Nombre del nuevo hito:');
-      if (name) {
-        setFormData(prev => ({
-          ...prev,
-          milestones: [...prev.milestones, name]
-        }));
-      }
+      setFormData(prev => ({
+        ...prev,
+        milestones: [...prev.milestones, name]
+      }));
     }
+    setNewItemName('');
+    setAddingItem(null);
   };
 
   // Map visual step to logical step name
@@ -1065,13 +1062,33 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
                             </div>
                           </div>
                         ))}
-                        <button 
-                          onClick={() => handleAddItem('checklist')}
-                          className="w-full p-3 rounded-xl border border-dashed border-border hover:border-primary/50 hover:bg-primary/5 transition-all flex items-center gap-2 text-muted-foreground hover:text-primary"
-                        >
-                          <Plus size={14} />
-                          <span className="text-xs font-bold uppercase tracking-widest">Agregar item</span>
-                        </button>
+                        {addingItem === 'checklist' ? (
+                          <div className="flex gap-2">
+                            <Input
+                              autoFocus
+                              placeholder="Nombre de la nueva tarea..."
+                              className="flex-1 h-10 text-sm"
+                              value={newItemName}
+                              onChange={e => setNewItemName(e.target.value)}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') handleConfirmAddItem('checklist');
+                                if (e.key === 'Escape') { setAddingItem(null); setNewItemName(''); }
+                              }}
+                            />
+                            <Button size="sm" className="h-10" onClick={() => handleConfirmAddItem('checklist')} disabled={!newItemName.trim()}>Agregar</Button>
+                            <Button size="sm" variant="outline" className="h-10" onClick={() => { setAddingItem(null); setNewItemName(''); }}>
+                              <X size={14} />
+                            </Button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => { setAddingItem('checklist'); setNewItemName(''); }}
+                            className="w-full p-3 rounded-xl border border-dashed border-border hover:border-primary/50 hover:bg-primary/5 transition-all flex items-center gap-2 text-muted-foreground hover:text-primary"
+                          >
+                            <Plus size={14} />
+                            <span className="text-xs font-bold uppercase tracking-widest">Agregar item</span>
+                          </button>
+                        )}
                       </div>
                     </div>
 

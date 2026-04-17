@@ -46,6 +46,10 @@ import {
   AuditLogEntry,
   AuditAction,
   AuditEntityType,
+  EventoExpediente,
+  Plazo,
+  Feriado,
+  EstadoPlazo,
 } from '../types';
 
 // ── Profiles ──────────────────────────────────────────────────────
@@ -1843,4 +1847,216 @@ export const fetchAuditLog = async (opts?: {
   const { data, error } = await query;
   if (error) throw error;
   return (data ?? []).map(toAuditEntry);
+};
+
+// ── Eventos de expediente ──────────────────────────────────────
+
+const toEvento = (r: any): EventoExpediente => ({
+  id:             r.id,
+  matterId:       r.matter_id,
+  fecha:          r.fecha,
+  tipo:           r.tipo,
+  titulo:         r.titulo,
+  descripcion:    r.descripcion ?? undefined,
+  origen:         r.origen,
+  jurisdiccion:   r.jurisdiccion ?? undefined,
+  documentosUrls: Array.isArray(r.documentos_urls) ? r.documentos_urls : [],
+  metadata:       r.metadata ?? undefined,
+  createdBy:      r.created_by ?? undefined,
+  createdAt:      r.created_at,
+  updatedAt:      r.updated_at,
+});
+
+const eventoToRow = (e: Partial<EventoExpediente>): Record<string, unknown> => {
+  const row: Record<string, unknown> = {};
+  if (e.matterId       !== undefined) row.matter_id       = e.matterId;
+  if (e.fecha          !== undefined) row.fecha           = e.fecha;
+  if (e.tipo           !== undefined) row.tipo            = e.tipo;
+  if (e.titulo         !== undefined) row.titulo          = e.titulo;
+  if (e.descripcion    !== undefined) row.descripcion     = e.descripcion ?? null;
+  if (e.origen         !== undefined) row.origen          = e.origen;
+  if (e.jurisdiccion   !== undefined) row.jurisdiccion    = e.jurisdiccion ?? null;
+  if (e.documentosUrls !== undefined) row.documentos_urls = e.documentosUrls;
+  if (e.metadata       !== undefined) row.metadata        = e.metadata ?? {};
+  if (e.createdBy      !== undefined) row.created_by      = e.createdBy ?? null;
+  return row;
+};
+
+export const fetchEventosByMatter = async (matterId: string): Promise<EventoExpediente[]> => {
+  const { data, error } = await supabase
+    .from('eventos_expediente')
+    .select('*')
+    .eq('matter_id', matterId)
+    .order('fecha', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(toEvento);
+};
+
+export const fetchAllEventos = async (): Promise<EventoExpediente[]> => {
+  const { data, error } = await supabase
+    .from('eventos_expediente')
+    .select('*')
+    .order('fecha', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(toEvento);
+};
+
+export const createEvento = async (
+  evento: Omit<EventoExpediente, 'id' | 'createdAt' | 'updatedAt'>,
+): Promise<EventoExpediente> => {
+  const { data, error } = await supabase
+    .from('eventos_expediente')
+    .insert(eventoToRow(evento))
+    .select()
+    .single();
+  if (error) throw error;
+  return toEvento(data);
+};
+
+export const updateEvento = async (
+  id: string,
+  changes: Partial<EventoExpediente>,
+): Promise<void> => {
+  const { error } = await supabase
+    .from('eventos_expediente')
+    .update(eventoToRow(changes))
+    .eq('id', id);
+  if (error) throw error;
+};
+
+export const deleteEvento = async (id: string): Promise<void> => {
+  const { error } = await supabase
+    .from('eventos_expediente')
+    .delete()
+    .eq('id', id);
+  if (error) throw error;
+};
+
+// ── Plazos procesales ──────────────────────────────────────────
+
+const toPlazo = (r: any): Plazo => ({
+  id:               r.id,
+  matterId:         r.matter_id,
+  eventoOrigenId:   r.evento_origen_id ?? undefined,
+  tipo:             r.tipo,
+  descripcion:      r.descripcion ?? undefined,
+  fechaInicio:      r.fecha_inicio,
+  dias:             r.dias,
+  diasHabiles:      r.dias_habiles,
+  jurisdiccion:     r.jurisdiccion,
+  fechaVencimiento: r.fecha_vencimiento,
+  estado:           r.estado,
+  cumplidoAt:       r.cumplido_at ?? undefined,
+  tareaId:          r.tarea_id ?? undefined,
+  createdAt:        r.created_at,
+  updatedAt:        r.updated_at,
+});
+
+const plazoToRow = (p: Partial<Plazo>): Record<string, unknown> => {
+  const row: Record<string, unknown> = {};
+  if (p.matterId         !== undefined) row.matter_id         = p.matterId;
+  if (p.eventoOrigenId   !== undefined) row.evento_origen_id  = p.eventoOrigenId ?? null;
+  if (p.tipo             !== undefined) row.tipo              = p.tipo;
+  if (p.descripcion      !== undefined) row.descripcion       = p.descripcion ?? null;
+  if (p.fechaInicio      !== undefined) row.fecha_inicio      = p.fechaInicio;
+  if (p.dias             !== undefined) row.dias              = p.dias;
+  if (p.diasHabiles      !== undefined) row.dias_habiles      = p.diasHabiles;
+  if (p.jurisdiccion     !== undefined) row.jurisdiccion      = p.jurisdiccion;
+  if (p.fechaVencimiento !== undefined) row.fecha_vencimiento = p.fechaVencimiento;
+  if (p.estado           !== undefined) row.estado            = p.estado;
+  if (p.cumplidoAt       !== undefined) row.cumplido_at       = p.cumplidoAt ?? null;
+  if (p.tareaId          !== undefined) row.tarea_id          = p.tareaId ?? null;
+  return row;
+};
+
+export const fetchPlazosByMatter = async (matterId: string): Promise<Plazo[]> => {
+  const { data, error } = await supabase
+    .from('plazos')
+    .select('*')
+    .eq('matter_id', matterId)
+    .order('fecha_vencimiento', { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map(toPlazo);
+};
+
+export const fetchAllPlazos = async (): Promise<Plazo[]> => {
+  const { data, error } = await supabase
+    .from('plazos')
+    .select('*')
+    .order('fecha_vencimiento', { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map(toPlazo);
+};
+
+export const fetchActivePlazos = async (): Promise<Plazo[]> => {
+  const { data, error } = await supabase
+    .from('plazos')
+    .select('*')
+    .eq('estado', 'activo')
+    .order('fecha_vencimiento', { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map(toPlazo);
+};
+
+export const createPlazo = async (
+  plazo: Omit<Plazo, 'id' | 'createdAt' | 'updatedAt'>,
+): Promise<Plazo> => {
+  const { data, error } = await supabase
+    .from('plazos')
+    .insert(plazoToRow(plazo))
+    .select()
+    .single();
+  if (error) throw error;
+  return toPlazo(data);
+};
+
+export const updatePlazo = async (id: string, changes: Partial<Plazo>): Promise<void> => {
+  const { error } = await supabase
+    .from('plazos')
+    .update(plazoToRow(changes))
+    .eq('id', id);
+  if (error) throw error;
+};
+
+export const cumplirPlazo = async (id: string): Promise<void> => {
+  const { error } = await supabase
+    .from('plazos')
+    .update({ estado: 'cumplido' as EstadoPlazo, cumplido_at: new Date().toISOString() })
+    .eq('id', id);
+  if (error) throw error;
+};
+
+export const cancelarPlazo = async (id: string): Promise<void> => {
+  const { error } = await supabase
+    .from('plazos')
+    .update({ estado: 'cancelado' as EstadoPlazo })
+    .eq('id', id);
+  if (error) throw error;
+};
+
+export const deletePlazo = async (id: string): Promise<void> => {
+  const { error } = await supabase
+    .from('plazos')
+    .delete()
+    .eq('id', id);
+  if (error) throw error;
+};
+
+// ── Feriados ───────────────────────────────────────────────────
+
+const toFeriado = (r: any): Feriado => ({
+  id:                 r.id,
+  fecha:              r.fecha,
+  tipo:               r.tipo,
+  descripcion:        r.descripcion,
+  jurisdiccionAplica: r.jurisdiccion_aplica,
+});
+
+export const fetchFeriados = async (): Promise<Feriado[]> => {
+  const { data, error } = await supabase
+    .from('feriados')
+    .select('*')
+    .order('fecha', { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map(toFeriado);
 };

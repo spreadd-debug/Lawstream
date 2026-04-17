@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { Matter, Client, Consultation, LegalDocument, Task, TimelineEvent, UserProfile, Communication, Expediente, MatterMilestone } from '../types';
+import { Matter, Client, Consultation, LegalDocument, Task, TimelineEvent, UserProfile, Communication, Expediente, MatterMilestone, EventoExpediente, Plazo } from '../types';
 import { GlobalFilters, defaultFilters } from '../components/FiltersContent';
 import { useAuth } from './auth';
 import * as db from './db';
@@ -63,6 +63,18 @@ interface AppContextType {
   handleCreateMilestone: (ms: Omit<MatterMilestone, 'id'>) => Promise<void>;
   // Assignments
   handleUpdateAssignments: (matterId: string, profileIds: string[], leadId: string) => Promise<void>;
+  // Eventos de expediente + Plazos procesales
+  eventos: EventoExpediente[];
+  plazos: Plazo[];
+  handleCreateEvento: (
+    evento: Omit<EventoExpediente, 'id' | 'createdAt' | 'updatedAt'>,
+    plazosDerivados?: Array<Omit<Plazo, 'id' | 'eventoOrigenId' | 'createdAt' | 'updatedAt'>>,
+  ) => Promise<EventoExpediente>;
+  handleUpdateEvento: (id: string, changes: Partial<EventoExpediente>) => Promise<void>;
+  handleDeleteEvento: (id: string) => Promise<void>;
+  handleCreatePlazo: (plazo: Omit<Plazo, 'id' | 'createdAt' | 'updatedAt'>) => Promise<Plazo>;
+  handleCumplirPlazo: (id: string) => Promise<void>;
+  handleCancelarPlazo: (id: string) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -85,6 +97,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
   const [expedientes, setExpedientes] = useState<Expediente[]>([]);
   const [milestones, setMilestones] = useState<MatterMilestone[]>([]);
+  const [eventos, setEventos] = useState<EventoExpediente[]>([]);
+  const [plazos, setPlazos] = useState<Plazo[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
@@ -122,8 +136,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       safe(db.fetchProfiles(),         'profiles'),
       safe(db.fetchAllExpedientes(),   'expedientes'),
       safe(db.fetchAllMilestones(),    'milestones'),
+      safe(db.fetchAllEventos(),       'eventos'),
+      safe(db.fetchAllPlazos(),        'plazos'),
     ])
-      .then(([m, c, co, d, t, tl, p, ex, ms]) => {
+      .then(([m, c, co, d, t, tl, p, ex, ms, ev, pl]) => {
         setMatters(m);
         setClients(c);
         setConsultations(co);
@@ -133,6 +149,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setProfiles(p);
         setExpedientes(ex);
         setMilestones(ms);
+        setEventos(ev);
+        setPlazos(pl);
       })
       .finally(() => setIsLoading(false));
   }, [userId]);
@@ -514,6 +532,164 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  // ── Eventos de expediente + Plazos procesales ────────────────
+  const handleCreateEvento = async (
+    evento: Omit<EventoExpediente, 'id' | 'createdAt' | 'updatedAt'>,
+    plazosDerivados?: Array<Omit<Plazo, 'id' | 'eventoOrigenId' | 'createdAt' | 'updatedAt'>>,
+  ): Promise<EventoExpediente> => {
+    const now = new Date().toISOString();
+    const optimistic: EventoExpediente = {
+      ...evento,
+      id: crypto.randomUUID(),
+      createdAt: now,
+      updatedAt: now,
+    };
+    setEventos(prev => [optimistic, ...prev]);
+
+    let saved: EventoExpediente;
+    try {
+      saved = await db.createEvento(evento);
+      setEventos(prev => prev.map(e => e.id === optimistic.id ? saved : e));
+      audit('crear_evento', 'evento', saved.id, saved.titulo, { tipo: saved.tipo, matterId: saved.matterId });
+    } catch (err) {
+      console.error('Error creando evento:', err);
+      setEventos(prev => prev.filter(e => e.id !== optimistic.id));
+      throw err;
+    }
+
+    // Timeline event mirror — aparece en el feed general del asunto.
+    try {
+      const tlEvent: Omit<TimelineEvent, 'id'> = {
+        matterId:    saved.matterId,
+        type:        'status_change',
+        title:       saved.titulo,
+        description: saved.descripcion,
+        user:        authProfile?.fullName || 'Sistema',
+        date:        saved.fecha,
+      };
+      const savedTl = await db.createTimelineEvent(tlEvent);
+      setTimeline(prev => [savedTl, ...prev]);
+    } catch (err) {
+      console.error('Error espejando evento en timeline:', err);
+    }
+
+    // Plazos derivados — cada uno genera una tarea transversal no bloqueante.
+    if (plazosDerivados?.length) {
+      for (const p of plazosDerivados) {
+        try {
+          // 1) Tarea primero para tener tarea_id antes de insertar el plazo
+          const tarea = await db.createTask({
+            matterId:   saved.matterId,
+            title:      `${p.tipo} — vence ${p.fechaVencimiento}`,
+            dueDate:    p.fechaVencimiento,
+            status:     'Pendiente',
+            priority:   'Alta',
+            bloqueante: false,
+            etapa:      'transversal',
+            generadaAutomaticamente: true,
+          } as Omit<Task, 'id'>);
+          setTasks(prev => [tarea, ...prev]);
+
+          // 2) Plazo con referencia al evento y a la tarea
+          const plazo = await db.createPlazo({
+            ...p,
+            eventoOrigenId: saved.id,
+            tareaId:        tarea.id,
+          });
+          setPlazos(prev => [plazo, ...prev]);
+          audit('crear_plazo', 'plazo', plazo.id, plazo.tipo, { matterId: plazo.matterId, vence: plazo.fechaVencimiento });
+        } catch (err) {
+          console.error('Error creando plazo derivado:', err);
+        }
+      }
+    }
+
+    return saved;
+  };
+
+  const handleUpdateEvento = async (id: string, changes: Partial<EventoExpediente>) => {
+    setEventos(prev => prev.map(e => e.id === id ? { ...e, ...changes, updatedAt: new Date().toISOString() } : e));
+    try {
+      await db.updateEvento(id, changes);
+      const e = eventos.find(e => e.id === id);
+      audit('editar_evento', 'evento', id, e?.titulo, changes as Record<string, unknown>);
+    } catch (err) {
+      console.error('Error actualizando evento:', err);
+    }
+  };
+
+  const handleDeleteEvento = async (id: string) => {
+    const prev = eventos;
+    const e = eventos.find(e => e.id === id);
+    setEventos(curr => curr.filter(x => x.id !== id));
+    // Los plazos caen por CASCADE en DB; reflejamos en memoria.
+    setPlazos(curr => curr.filter(p => p.eventoOrigenId !== id));
+    try {
+      await db.deleteEvento(id);
+      audit('eliminar_evento', 'evento', id, e?.titulo);
+    } catch (err) {
+      console.error('Error eliminando evento:', err);
+      setEventos(prev);
+    }
+  };
+
+  const handleCreatePlazo = async (plazo: Omit<Plazo, 'id' | 'createdAt' | 'updatedAt'>): Promise<Plazo> => {
+    // Tarea transversal asociada para que el plazo aparezca en WorkQueue.
+    let tareaId: string | undefined;
+    try {
+      const tarea = await db.createTask({
+        matterId:   plazo.matterId,
+        title:      `${plazo.tipo} — vence ${plazo.fechaVencimiento}`,
+        dueDate:    plazo.fechaVencimiento,
+        status:     'Pendiente',
+        priority:   'Alta',
+        bloqueante: false,
+        etapa:      'transversal',
+        generadaAutomaticamente: true,
+      } as Omit<Task, 'id'>);
+      setTasks(prev => [tarea, ...prev]);
+      tareaId = tarea.id;
+    } catch (err) {
+      console.error('Error creando tarea para plazo:', err);
+    }
+
+    const saved = await db.createPlazo({ ...plazo, tareaId });
+    setPlazos(prev => [saved, ...prev]);
+    audit('crear_plazo', 'plazo', saved.id, saved.tipo, { matterId: saved.matterId, vence: saved.fechaVencimiento });
+    return saved;
+  };
+
+  const handleCumplirPlazo = async (id: string) => {
+    const p = plazos.find(p => p.id === id);
+    const now = new Date().toISOString();
+    setPlazos(prev => prev.map(x => x.id === id ? { ...x, estado: 'cumplido', cumplidoAt: now } : x));
+    try {
+      await db.cumplirPlazo(id);
+      audit('cumplir_plazo', 'plazo', id, p?.tipo);
+    } catch (err) {
+      console.error('Error marcando plazo cumplido:', err);
+    }
+    // Completar tarea asociada, si existe.
+    if (p?.tareaId) {
+      try {
+        await handleCompleteTask(p.tareaId, authProfile?.fullName || 'Sistema');
+      } catch (err) {
+        console.error('Error completando tarea del plazo:', err);
+      }
+    }
+  };
+
+  const handleCancelarPlazo = async (id: string) => {
+    const p = plazos.find(p => p.id === id);
+    setPlazos(prev => prev.map(x => x.id === id ? { ...x, estado: 'cancelado' } : x));
+    try {
+      await db.cancelarPlazo(id);
+      audit('cancelar_plazo', 'plazo', id, p?.tipo);
+    } catch (err) {
+      console.error('Error cancelando plazo:', err);
+    }
+  };
+
   const handleUpdateAssignments = async (matterId: string, profileIds: string[], leadId: string) => {
     // Optimistic update
     setMatters(prev => prev.map(m =>
@@ -560,6 +736,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       expedientes, handleRefreshExpedientes,
       milestones, handleUpdateMilestone, handleCreateMilestone,
       handleUpdateAssignments,
+      eventos, plazos,
+      handleCreateEvento, handleUpdateEvento, handleDeleteEvento,
+      handleCreatePlazo, handleCumplirPlazo, handleCancelarPlazo,
     }}>
       {children}
     </AppContext.Provider>

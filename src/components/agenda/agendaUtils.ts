@@ -7,7 +7,7 @@ import {
 import { parseISO, isSameDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { format } from 'date-fns';
-import type { Matter, Consultation } from '../../types';
+import type { Matter, Consultation, Plazo } from '../../types';
 
 // ── Category types ───────────────────────────────────────────────
 
@@ -41,9 +41,10 @@ export interface AgendaEvent {
   subtitle: string;
   date: Date;
   category: AgendaEventCategory;
-  source: 'matter' | 'consultation';
+  source: 'matter' | 'consultation' | 'plazo';
   matterId?: string;
   consultation?: Consultation;
+  plazo?: Plazo;
 }
 
 // ── Categorization logic ─────────────────────────────────────────
@@ -60,7 +61,11 @@ export function categorizeMatterEvent(nextActionType?: string): AgendaEventCateg
 
 // ── Build unified event list ─────────────────────────────────────
 
-export function buildAgendaEvents(matters: Matter[], consultations: Consultation[]): AgendaEvent[] {
+export function buildAgendaEvents(
+  matters: Matter[],
+  consultations: Consultation[],
+  plazos: Plazo[] = [],
+): AgendaEvent[] {
   const matterEvents: AgendaEvent[] = matters
     .filter(m => m.nextActionDate)
     .map(m => ({
@@ -85,7 +90,23 @@ export function buildAgendaEvents(matters: Matter[], consultations: Consultation
       consultation: c,
     }));
 
-  return [...matterEvents, ...consultationEvents];
+  const plazoEvents: AgendaEvent[] = plazos
+    .filter(p => p.estado === 'activo')
+    .map(p => {
+      const matter = matters.find(m => m.id === p.matterId);
+      return {
+        id: `plazo-${p.id}`,
+        title: `Plazo: ${p.tipo}`,
+        subtitle: matter ? `${matter.title} · ${matter.client}` : p.descripcion ?? '',
+        date: parseISO(p.fechaVencimiento),
+        category: 'vencimiento' as const,
+        source: 'plazo' as const,
+        matterId: p.matterId,
+        plazo: p,
+      };
+    });
+
+  return [...matterEvents, ...consultationEvents, ...plazoEvents];
 }
 
 // ── Helpers ──────────────────────────────────────────────────────

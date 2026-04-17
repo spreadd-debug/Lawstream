@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { List, CalendarDays } from 'lucide-react';
 import { cn } from '../../lib/utils';
-import type { Matter, Consultation } from '../../types';
+import type { Matter, Consultation, Plazo } from '../../types';
 import {
   AgendaEventCategory,
   AGENDA_CATEGORIES,
@@ -14,6 +14,7 @@ import { AgendaCalendarGrid } from './AgendaCalendarGrid';
 interface AgendaViewProps {
   matters: Matter[];
   consultations: Consultation[];
+  plazos?: Plazo[];
   onSelectMatter: (id: string) => void;
   onSelectConsultation?: (c: Consultation) => void;
 }
@@ -21,6 +22,7 @@ interface AgendaViewProps {
 export const AgendaView: React.FC<AgendaViewProps> = ({
   matters,
   consultations,
+  plazos = [],
   onSelectMatter,
   onSelectConsultation,
 }) => {
@@ -33,8 +35,8 @@ export const AgendaView: React.FC<AgendaViewProps> = ({
 
   // Build + filter events
   const allEvents = useMemo(
-    () => buildAgendaEvents(matters, consultations),
-    [matters, consultations]
+    () => buildAgendaEvents(matters, consultations, plazos),
+    [matters, consultations, plazos]
   );
   const filteredEvents = useMemo(
     () => allEvents.filter(e => activeCategories.has(e.category)),
@@ -51,7 +53,7 @@ export const AgendaView: React.FC<AgendaViewProps> = ({
   };
 
   const handleSelectEvent = useCallback((event: AgendaEvent) => {
-    if (event.source === 'matter' && event.matterId) {
+    if ((event.source === 'matter' || event.source === 'plazo') && event.matterId) {
       onSelectMatter(event.matterId);
     } else if (event.source === 'consultation' && event.consultation) {
       onSelectConsultation?.(event.consultation);
