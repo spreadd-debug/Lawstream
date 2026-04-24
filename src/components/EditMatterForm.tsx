@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Label, Input, Textarea, Button, Badge } from './UI';
-import { Matter, Jurisdiccion } from '../types';
+import { Matter, Jurisdiccion, TipoProceso } from '../types';
 import { supabase } from '../lib/supabase';
 import { cn } from '../lib/utils';
-import { Check, MapPin, FileText, AlertTriangle } from 'lucide-react';
+import { Check, MapPin, FileText, AlertTriangle, Scale } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { useAppContext } from '../lib/AppContext';
 
@@ -23,6 +23,14 @@ const JURISDICCION_OPTIONS: { value: Jurisdiccion; label: string; hint: string }
   { value: 'caba',     label: 'CABA',                       hint: 'Ciudad Autónoma de Buenos Aires' },
   { value: 'pba',      label: 'Provincia de Buenos Aires',  hint: 'Fuero provincial' },
   { value: 'nacional', label: 'Nacional',                   hint: 'Justicia Federal / Nacional' },
+];
+
+/** Opciones de tipo de proceso. "Sumario" solo está habilitado si la
+ *  jurisdicción = 'pba' (el sumario fue derogado en Nación en 2002). */
+const TIPO_PROCESO_OPTIONS: { value: TipoProceso; label: string; hint: string; onlyPBA?: boolean }[] = [
+  { value: 'ordinario',  label: 'Ordinario',  hint: 'Juicio ordinario civil (default — 99% de los casos)' },
+  { value: 'sumario',    label: 'Sumario',    hint: 'Exclusivo de Provincia de Buenos Aires', onlyPBA: true },
+  { value: 'sumarisimo', label: 'Sumarísimo', hint: 'Plazos más cortos — CPCCN 498 / CPCC PBA 496' },
 ];
 
 export const EditMatterForm = ({ matter, onSave, onCancel, initialFocus }: EditMatterFormProps) => {
@@ -53,6 +61,7 @@ export const EditMatterForm = ({ matter, onSave, onCancel, initialFocus }: EditM
     nextActionDate: matter?.nextActionDate || '',
     description:    matter?.description    || '',
     jurisdiccion:   (matter?.jurisdiccion as Jurisdiccion | undefined) ?? '',
+    tipoProceso:    (matter?.tipoProceso as TipoProceso | undefined) ?? 'ordinario',
     subtype:        matter?.subtype        || '',
     expediente:     matter?.expediente     || '',
   });
@@ -68,6 +77,17 @@ export const EditMatterForm = ({ matter, onSave, onCancel, initialFocus }: EditM
     formData.jurisdiccion !== '' &&
     formData.jurisdiccion !== originalJurisdiccion;
   const jurisdiccionMissing = !formData.jurisdiccion;
+
+  const originalTipoProceso = matter?.tipoProceso ?? 'ordinario';
+  const tipoProcesoChanged = formData.tipoProceso !== originalTipoProceso;
+
+  // Si el usuario cambia la jurisdicción y el tipo de proceso actual es
+  // "sumario" pero la nueva jurisdicción no es PBA, forzar a "ordinario".
+  useEffect(() => {
+    if (formData.jurisdiccion && formData.jurisdiccion !== 'pba' && formData.tipoProceso === 'sumario') {
+      setFormData(fd => ({ ...fd, tipoProceso: 'ordinario' }));
+    }
+  }, [formData.jurisdiccion]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const toggleAttorney = (id: string) => {
     if (!isSocio) return;
@@ -98,6 +118,15 @@ export const EditMatterForm = ({ matter, onSave, onCancel, initialFocus }: EditM
         `Cambiar la jurisdicción recalculará los ${activePlazosCount} plazo${activePlazosCount === 1 ? '' : 's'} ` +
         `pendiente${activePlazosCount === 1 ? '' : 's'} con el nuevo calendario de feriados y feria judicial. ` +
         `¿Confirmás el cambio?`,
+      );
+      if (!ok) return;
+    }
+    if (tipoProcesoChanged && activePlazosCount > 0) {
+      const ok = window.confirm(
+        `Cambiar el tipo de proceso puede modificar los días base de los ${activePlazosCount} ` +
+        `plazo${activePlazosCount === 1 ? '' : 's'} pendiente${activePlazosCount === 1 ? '' : 's'} ` +
+        `(por ejemplo, en juicio sumarísimo una expresión de agravios pasa de 10 a 3 días). ` +
+        `Los plazos se recalcularán automáticamente. ¿Confirmás el cambio?`,
       );
       if (!ok) return;
     }
@@ -276,6 +305,45 @@ export const EditMatterForm = ({ matter, onSave, onCancel, initialFocus }: EditM
               placeholder="Ej: divorcio_unilateral"
             />
           </div>
+        </div>
+
+        {/* Tipo de proceso — determina qué set de plazos aplica. */}
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <Scale size={14} className="text-amber-600" />
+            <Label>Tipo de proceso</Label>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {TIPO_PROCESO_OPTIONS.map(tp => {
+              const disabled = tp.onlyPBA && formData.jurisdiccion !== 'pba';
+              return (
+                <button
+                  key={tp.value}
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => setFormData({ ...formData, tipoProceso: tp.value })}
+                  title={disabled ? 'El juicio sumario sólo existe en la Provincia de Buenos Aires' : tp.hint}
+                  className={cn(
+                    "px-4 py-2.5 rounded-xl border-2 text-sm font-bold transition-all duration-200",
+                    disabled
+                      ? "border-border/30 bg-muted/20 text-muted-foreground/40 cursor-not-allowed opacity-50"
+                      : formData.tipoProceso === tp.value
+                        ? "border-amber-500 bg-amber-500/10 text-amber-700 shadow-sm"
+                        : "border-border/50 bg-card/50 text-muted-foreground hover:border-amber-500/30 hover:text-foreground"
+                  )}
+                >
+                  {tp.label}
+                  {!disabled && formData.tipoProceso === tp.value && <Check size={14} className="inline ml-2 text-amber-500" />}
+                </button>
+              );
+            })}
+          </div>
+          {tipoProcesoChanged && activePlazosCount > 0 && (
+            <p className="text-[11px] text-amber-600 font-semibold flex items-center gap-1.5">
+              <AlertTriangle size={12} />
+              Al guardar, los {activePlazosCount} plazo{activePlazosCount === 1 ? '' : 's'} activo{activePlazosCount === 1 ? '' : 's'} se recalculará{activePlazosCount === 1 ? '' : 'n'} con los días del nuevo tipo de proceso.
+            </p>
+          )}
         </div>
       </div>
 

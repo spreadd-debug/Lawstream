@@ -145,6 +145,7 @@ const toMatter = (r: any): Matter => ({
   currentStage:     r.current_stage    ?? undefined,
   caseData:         r.case_data        ?? undefined,
   jurisdiccion:     r.jurisdiccion     ?? undefined,
+  tipoProceso:      r.tipo_proceso     ?? undefined,
 });
 
 const toClient = (r: any): Client => ({
@@ -246,6 +247,7 @@ const matterToRow = (m: Partial<Matter>) => ({
   ...(m.currentStage     !== undefined && { current_stage:    m.currentStage }),
   ...(m.caseData         !== undefined && { case_data:        m.caseData }),
   ...(m.jurisdiccion     !== undefined && { jurisdiccion:     m.jurisdiccion }),
+  ...(m.tipoProceso      !== undefined && { tipo_proceso:     m.tipoProceso }),
 });
 
 const clientToRow = (c: Partial<Client>) => ({

@@ -44,6 +44,11 @@ export interface Matter {
   // legados anteriores a la migración 017 — esos se marcan con banner en
   // MatterDetail hasta que el usuario la complete.
   jurisdiccion?: Jurisdiccion;
+  // Tipo de proceso ('ordinario' | 'sumario' | 'sumarisimo'). Determina los
+  // plazos aplicables. Persistida en `matters.tipo_proceso` (migración 018).
+  // Default en backfill: 'ordinario'. Se puede cambiar desde "Editar Asunto" y
+  // eso recalcula automáticamente los plazos activos del caso.
+  tipoProceso?: TipoProceso;
 }
 
 export type AssignmentRole = 'lead' | 'assigned';
@@ -590,6 +595,16 @@ export interface AuditLogEntry {
 // ── TIMELINE DE EVENTOS + PLAZOS PROCESALES ────────────────
 
 export type Jurisdiccion = 'caba' | 'pba' | 'nacional';
+
+/**
+ * Tipo de proceso procesal del caso. Determina qué set de plazos aplica.
+ *  - 'ordinario'  → juicio ordinario civil (default, 99% de los casos).
+ *  - 'sumario'    → juicio sumario, EXCLUSIVO de Provincia de Buenos Aires
+ *                    (art. 484 CPCC PBA). Derogado en Nación por Ley 25.488.
+ *  - 'sumarisimo' → juicio sumarísimo, ambas jurisdicciones
+ *                    (art. 498 CPCCN / art. 496 CPCC PBA). Plazos más cortos.
+ */
+export type TipoProceso = 'ordinario' | 'sumario' | 'sumarisimo';
 
 export type TipoEvento =
   | 'traslado'
