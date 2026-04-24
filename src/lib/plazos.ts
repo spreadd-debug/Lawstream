@@ -197,9 +197,11 @@ export const PLAZOS_POR_EVENTO: Record<TipoEvento, PlazoSugerido[]> = {
     { tipo: 'Apelar sentencia', dias: 5, diasHabiles: true, descripcion: 'Art. 244 CPCCN — plazo de apelación' },
   ],
   proveido: [],
+  ofrecimiento_prueba: [],
   audiencia_fijada: [],
   audiencia_celebrada: [],
   audiencia_suspendida: [],
+  audiencia_testimonial: [],
   presentacion_propia: [],
   presentacion_contraria: [
     { tipo: 'Contestar presentación de la contraria', dias: 5, diasHabiles: true, descripcion: 'Traslado simple' },
@@ -207,16 +209,31 @@ export const PLAZOS_POR_EVENTO: Record<TipoEvento, PlazoSugerido[]> = {
   pericia_designada: [
     { tipo: 'Proponer puntos de pericia', dias: 5, diasHabiles: true, descripcion: 'Antes de la aceptación del perito' },
   ],
+  aceptacion_perito: [],
   pericia_presentada: [
     { tipo: 'Impugnar pericia', dias: 5, diasHabiles: true, descripcion: 'Art. 473 CPCCN' },
   ],
+  pedido_explicaciones: [],
+  contestacion_explicaciones: [],
   notificacion_recibida: [
     { tipo: 'Plazo general de respuesta', dias: 5, diasHabiles: true, descripcion: 'Verificar plazo específico según contenido' },
   ],
+  autos_para_alegar: [
+    { tipo: 'Presentar alegato', dias: 6, diasHabiles: true, descripcion: 'Art. 482 CPCCN — plazo común' },
+  ],
   autos_para_sentencia: [],
+  regulacion_honorarios: [
+    { tipo: 'Apelar regulación', dias: 5, diasHabiles: true, descripcion: 'Art. 244 CPCCN' },
+  ],
   recurso_interpuesto: [
     { tipo: 'Fundar recurso', dias: 5, diasHabiles: true, descripcion: 'Memorial de agravios' },
   ],
+  expresion_agravios: [
+    { tipo: 'Contestar agravios', dias: 10, diasHabiles: true, descripcion: 'Art. 259 CPCCN — traslado libre' },
+  ],
+  contestacion_agravios: [],
+  elevacion_camara: [],
+  cambio_representacion: [],
   otro: [],
 };
 
@@ -256,23 +273,34 @@ export interface TipoEventoDef {
 }
 
 export const TIPOS_EVENTO: TipoEventoDef[] = [
-  { tipo: 'traslado',              label: 'Traslado',                   descripcionCorta: 'Dispara plazo de contestación' },
-  { tipo: 'resolucion',            label: 'Resolución',                 descripcionCorta: 'Dispara plazo de recurso' },
-  { tipo: 'sentencia',             label: 'Sentencia',                  descripcionCorta: 'Dispara plazo de apelación' },
-  { tipo: 'proveido',              label: 'Proveído',                   descripcionCorta: 'Provisión genérica' },
-  { tipo: 'oficio_provisto',       label: 'Oficio provisto',            descripcionCorta: 'Oficio salió del juzgado' },
-  { tipo: 'oficio_diligenciado',   label: 'Oficio diligenciado',        descripcionCorta: 'Oficio respondido' },
-  { tipo: 'audiencia_fijada',      label: 'Audiencia fijada',           descripcionCorta: 'Recordatorio, sin plazo automático' },
-  { tipo: 'audiencia_celebrada',   label: 'Audiencia celebrada',        descripcionCorta: 'Se realizó la audiencia' },
-  { tipo: 'audiencia_suspendida',  label: 'Audiencia suspendida',       descripcionCorta: 'Queda a nueva fecha' },
-  { tipo: 'presentacion_propia',   label: 'Presentación propia',        descripcionCorta: 'Escrito que presentamos' },
-  { tipo: 'presentacion_contraria',label: 'Presentación contraria',     descripcionCorta: 'Escrito de la contraparte' },
-  { tipo: 'pericia_designada',     label: 'Pericia designada',          descripcionCorta: 'Perito aceptó el cargo' },
-  { tipo: 'pericia_presentada',    label: 'Pericia presentada',         descripcionCorta: 'Dispara plazo de impugnación' },
-  { tipo: 'notificacion_recibida', label: 'Notificación recibida',      descripcionCorta: 'Cédula o ministerio ley' },
-  { tipo: 'autos_para_sentencia',  label: 'Autos para sentencia',       descripcionCorta: 'Causa en espera de sentencia' },
-  { tipo: 'recurso_interpuesto',   label: 'Recurso interpuesto',        descripcionCorta: 'Dispara plazo de fundamentación' },
-  { tipo: 'otro',                  label: 'Otro',                       descripcionCorta: 'Movimiento no tipificado' },
+  { tipo: 'traslado',                  label: 'Traslado',                     descripcionCorta: 'Dispara plazo de contestación' },
+  { tipo: 'resolucion',                label: 'Resolución',                   descripcionCorta: 'Dispara plazo de recurso' },
+  { tipo: 'oficio_provisto',           label: 'Oficio provisto',              descripcionCorta: 'Oficio salió del juzgado' },
+  { tipo: 'oficio_diligenciado',       label: 'Oficio diligenciado',          descripcionCorta: 'Oficio respondido' },
+  { tipo: 'proveido',                  label: 'Proveído',                     descripcionCorta: 'Provisión genérica' },
+  { tipo: 'ofrecimiento_prueba',       label: 'Ofrecimiento de prueba',       descripcionCorta: 'Se ofrece la prueba de la parte' },
+  { tipo: 'audiencia_fijada',          label: 'Audiencia fijada',             descripcionCorta: 'Recordatorio, sin plazo automático' },
+  { tipo: 'audiencia_celebrada',       label: 'Audiencia celebrada',          descripcionCorta: 'Se realizó la audiencia' },
+  { tipo: 'audiencia_suspendida',      label: 'Audiencia suspendida',         descripcionCorta: 'Queda a nueva fecha' },
+  { tipo: 'audiencia_testimonial',     label: 'Audiencia testimonial',        descripcionCorta: 'Audiencia de testigos' },
+  { tipo: 'presentacion_propia',       label: 'Presentación propia',          descripcionCorta: 'Escrito que presentamos' },
+  { tipo: 'presentacion_contraria',    label: 'Presentación contraria',       descripcionCorta: 'Escrito de la contraparte' },
+  { tipo: 'pericia_designada',         label: 'Pericia designada',            descripcionCorta: 'Juzgado designa perito' },
+  { tipo: 'aceptacion_perito',         label: 'Aceptación de perito',         descripcionCorta: 'Perito aceptó el cargo' },
+  { tipo: 'pericia_presentada',        label: 'Pericia presentada',           descripcionCorta: 'Dispara plazo de impugnación' },
+  { tipo: 'pedido_explicaciones',      label: 'Pedido de explicaciones',      descripcionCorta: 'Se piden explicaciones al perito' },
+  { tipo: 'contestacion_explicaciones',label: 'Contestación de explicaciones',descripcionCorta: 'Perito contesta las explicaciones' },
+  { tipo: 'notificacion_recibida',     label: 'Notificación recibida',        descripcionCorta: 'Cédula o ministerio ley' },
+  { tipo: 'autos_para_alegar',         label: 'Autos para alegar',            descripcionCorta: 'Dispara plazo de alegatos' },
+  { tipo: 'autos_para_sentencia',      label: 'Autos para sentencia',         descripcionCorta: 'Causa en espera de sentencia' },
+  { tipo: 'sentencia',                 label: 'Sentencia',                    descripcionCorta: 'Dispara plazo de apelación' },
+  { tipo: 'regulacion_honorarios',     label: 'Regulación de honorarios',     descripcionCorta: 'Dispara plazo de apelación de regulación' },
+  { tipo: 'recurso_interpuesto',       label: 'Recurso interpuesto',          descripcionCorta: 'Dispara plazo de fundamentación' },
+  { tipo: 'expresion_agravios',        label: 'Expresión de agravios',        descripcionCorta: 'Se funda la apelación' },
+  { tipo: 'contestacion_agravios',     label: 'Contestación de agravios',     descripcionCorta: 'Se contestan los agravios' },
+  { tipo: 'elevacion_camara',          label: 'Elevación a Cámara',           descripcionCorta: 'El expediente sube a Cámara' },
+  { tipo: 'cambio_representacion',     label: 'Cambio de representación',     descripcionCorta: 'Renuncia o cesión de patrocinio' },
+  { tipo: 'otro',                      label: 'Otro',                         descripcionCorta: 'Movimiento no tipificado' },
 ];
 
 export function labelDeTipoEvento(tipo: TipoEvento): string {
