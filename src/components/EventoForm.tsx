@@ -1,14 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Modal, Button, Input, Textarea } from './UI';
 import { useAppContext } from '../lib/AppContext';
-import type { EventoExpediente, Plazo, TipoEvento } from '../types';
+import type { EventoExpediente, Plazo, TipoEvento, TipoProceso } from '../types';
 import {
-  PLAZOS_POR_EVENTO,
+  getPlazosSugeridosPara,
   TIPOS_EVENTO,
   calcularVencimiento,
   getFeriadosSet,
   calcularVencimientoSync,
   labelDeTipoEvento,
+  labelTipoProceso,
   resolveJurisdiccion,
 } from '../lib/plazos';
 import { detectPropuestaContactoAmplia } from '../lib/consistencia';
@@ -57,6 +58,10 @@ export const EventoForm: React.FC<EventoFormProps> = ({
   }, [matter]);
   const jurisdiccion = jurisdiccionResult.ok ? jurisdiccionResult.jurisdiccion : null;
 
+  // Tipo de proceso del caso — afecta los DÍAS base de algunos plazos
+  // (sumarísimo acorta, sumario PBA difiere). Default 'ordinario'.
+  const tipoProceso: TipoProceso = (matter?.tipoProceso as TipoProceso | undefined) ?? 'ordinario';
+
   // Datos de medida cautelar del caso — para detectar propuesta inconsistente de la contraparte.
   const cd = matter?.caseData ?? {};
   const medidaVigenciaHasta = cd.medida_vigencia_hasta?.trim();
@@ -102,7 +107,7 @@ export const EventoForm: React.FC<EventoFormProps> = ({
     }
     let cancelled = false;
     (async () => {
-      const sugeridos = PLAZOS_POR_EVENTO[tipo] || [];
+      const sugeridos = getPlazosSugeridosPara(tipo, jurisdiccion, tipoProceso);
       if (sugeridos.length === 0) {
         setPlazos([]);
         return;
@@ -128,7 +133,7 @@ export const EventoForm: React.FC<EventoFormProps> = ({
       if (!cancelled) setPlazos(rows);
     })();
     return () => { cancelled = true; };
-  }, [tipo, fecha, jurisdiccion]);
+  }, [tipo, fecha, jurisdiccion, tipoProceso]);
 
   const updatePlazoDias = async (idx: number, dias: number) => {
     if (!dias || dias <= 0 || !jurisdiccion) return;
@@ -299,9 +304,16 @@ export const EventoForm: React.FC<EventoFormProps> = ({
 
         {plazos.length > 0 && (
           <div className="rounded-2xl border border-border/60 bg-muted/30 p-4 space-y-3">
-            <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.1em] text-muted-foreground">
-              <Clock size={12} />
-              Plazos sugeridos — {plazosActivos.length} activo{plazosActivos.length !== 1 ? 's' : ''}
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.1em] text-muted-foreground">
+                <Clock size={12} />
+                Plazos sugeridos — {plazosActivos.length} activo{plazosActivos.length !== 1 ? 's' : ''}
+              </div>
+              {tipoProceso !== 'ordinario' && jurisdiccion && (
+                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 bg-amber-500/10 px-2 py-1 rounded-md">
+                  {labelTipoProceso(tipoProceso)} {jurisdiccion.toUpperCase()}
+                </span>
+              )}
             </div>
             <div className="space-y-2">
               {plazos.map((p, i) => (

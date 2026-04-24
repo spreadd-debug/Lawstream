@@ -26,7 +26,8 @@ import {
   Phone,
   Building2,
   MapPin,
-  Trash2
+  Trash2,
+  Scale
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -73,6 +74,7 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
     type: '' as any,
     subtype: '',
     jurisdiction: '',
+    tipoProceso: 'ordinario' as 'ordinario' | 'sumario' | 'sumarisimo',
     via: '',
     etapaInicial: '',
     expediente: '',
@@ -616,7 +618,16 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
                   ].map(j => (
                     <button
                       key={j.value}
-                      onClick={() => { setFormData({...formData, jurisdiction: j.value, subtype: '', title: '', caseData: {}, checklist: [], docs: [], milestones: [], blockers: [], selectedTemplateId: ''}); setTitleManuallyEdited(false); }}
+                      onClick={() => {
+                        // Si el usuario había seleccionado "Sumario" y ahora elige
+                        // una jurisdicción que no es PBA, lo volvemos a "Ordinario"
+                        // (el sumario solo existe en PBA).
+                        const resetTipoProceso = (j.value !== 'PBA' && formData.tipoProceso === 'sumario')
+                          ? 'ordinario' as const
+                          : formData.tipoProceso;
+                        setFormData({...formData, jurisdiction: j.value, tipoProceso: resetTipoProceso, subtype: '', title: '', caseData: {}, checklist: [], docs: [], milestones: [], blockers: [], selectedTemplateId: ''});
+                        setTitleManuallyEdited(false);
+                      }}
                       title={j.hint}
                       className={cn(
                         "px-4 py-2.5 rounded-xl border-2 text-sm font-bold transition-all duration-200",
@@ -636,6 +647,56 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
                     Seleccioná la jurisdicción del caso para continuar
                   </p>
                 )}
+              </motion.div>
+            )}
+
+            {/* Tipo de proceso — no obligatorio, default 'ordinario'.
+                "Sumario" está disponible SOLO cuando jurisdicción = PBA
+                (en Nación quedó derogado por Ley 25.488 de 2002). */}
+            {formData.type && formData.jurisdiction && (
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.2 }}
+                className="space-y-3"
+              >
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-lg bg-amber-500/10 flex items-center justify-center">
+                    <Scale size={13} className="text-amber-600" />
+                  </div>
+                  <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">
+                    Tipo de proceso
+                  </Label>
+                  <span className="text-[10px] text-muted-foreground font-normal">(opcional — default ordinario)</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { value: 'ordinario',  label: 'Ordinario',  hint: 'Juicio ordinario civil (99% de los casos)' },
+                    { value: 'sumario',    label: 'Sumario',    hint: 'Exclusivo de Provincia de Buenos Aires',           onlyPBA: true },
+                    { value: 'sumarisimo', label: 'Sumarísimo', hint: 'Plazos más cortos — CPCCN 498 / CPCC PBA 496' },
+                  ].map(tp => {
+                    const disabled = tp.onlyPBA && formData.jurisdiction !== 'PBA';
+                    return (
+                      <button
+                        key={tp.value}
+                        disabled={disabled}
+                        onClick={() => setFormData({...formData, tipoProceso: tp.value as typeof formData.tipoProceso })}
+                        title={disabled ? 'El juicio sumario sólo existe en la Provincia de Buenos Aires' : tp.hint}
+                        className={cn(
+                          "px-4 py-2.5 rounded-xl border-2 text-sm font-bold transition-all duration-200",
+                          disabled
+                            ? "border-border/30 bg-muted/20 text-muted-foreground/40 cursor-not-allowed opacity-50"
+                            : formData.tipoProceso === tp.value
+                              ? "border-amber-500 bg-amber-500/10 text-amber-700 shadow-sm"
+                              : "border-border/50 bg-card/50 text-muted-foreground hover:border-amber-500/30 hover:text-foreground"
+                        )}
+                      >
+                        {tp.label}
+                        {!disabled && formData.tipoProceso === tp.value && <Check size={14} className="inline ml-2 text-amber-500" />}
+                      </button>
+                    );
+                  })}
+                </div>
               </motion.div>
             )}
 

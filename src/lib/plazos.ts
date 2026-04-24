@@ -1,6 +1,6 @@
 import { addDays, isWeekend, format, parseISO, differenceInCalendarDays } from 'date-fns';
 import { supabase } from './supabase';
-import type { Jurisdiccion, TipoEvento, Plazo, Feriado, Matter } from '../types';
+import type { Jurisdiccion, TipoEvento, TipoProceso, Plazo, Feriado, Matter } from '../types';
 
 /**
  * Resuelve la jurisdicción procesal ('caba' | 'pba' | 'nacional') a partir del
@@ -178,68 +178,167 @@ export async function getFeriadosSet(jurisdiccion: Jurisdiccion): Promise<Set<st
 // ─────────────────────────────────────────────────────────────────
 // Tabla de plazos procesales típicos
 // ─────────────────────────────────────────────────────────────────
-// Cuando el abogado elige un tipo de evento, se sugieren los plazos
-// que éste dispara. El valor es configurable por el estudio en el futuro.
+//
+// DISEÑO: cada entrada tiene un `default` (juicio ordinario, cualquier
+// jurisdicción) y opcionalmente overrides por tipo de proceso (sumarísimo)
+// o por combinación jurisdicción+proceso (caso único del sumario PBA).
+//
+// VERIFICACIÓN de equivalencia CABA vs PBA en ordinario civil (2026-04-24):
+//   CPCCN y CPCC PBA coinciden en todos los plazos procesales comunes — PBA
+//   replicó los días del código nacional. Las diferencias REALES aparecen
+//   solo por tipo de proceso (sumarísimo: plazos más cortos) o por existencia
+//   de un tipo de proceso propio (sumario: exclusivo PBA).
+//
+//   Fuentes consultadas:
+//    • CPCCN arts. 150, 239, 244, 246, 259, 260, 338, 346, 473, 482, 498.
+//    • CPCC PBA (Ley 7425) arts. 150, 238, 244, 246, 254, 260, 337, 344,
+//      473, 480, 484 (sumario), 496 (sumarísimo).
+//
+// PRECEDENCIA al resolver: porJurisdiccionYProceso > porTipoProceso > default.
 
-export const PLAZOS_POR_EVENTO: Record<TipoEvento, PlazoSugerido[]> = {
-  traslado: [
-    { tipo: 'Contestar traslado', dias: 15, diasHabiles: true, descripcion: 'Art. 150 CPCCN / 354 CPCC PBA' },
-  ],
-  oficio_provisto: [
-    { tipo: 'Diligenciar oficio', dias: 10, diasHabiles: true, descripcion: 'Plazo ordinario de diligenciamiento' },
-  ],
-  oficio_diligenciado: [],
-  resolucion: [
-    { tipo: 'Interponer recurso de reposición', dias: 3, diasHabiles: true, descripcion: 'Art. 239 CPCCN' },
-    { tipo: 'Interponer recurso de apelación',  dias: 5, diasHabiles: true, descripcion: 'Art. 244 CPCCN' },
-  ],
-  sentencia: [
-    { tipo: 'Apelar sentencia', dias: 5, diasHabiles: true, descripcion: 'Art. 244 CPCCN — plazo de apelación' },
-  ],
-  proveido: [],
-  ofrecimiento_prueba: [],
-  audiencia_fijada: [],
-  audiencia_celebrada: [],
-  audiencia_suspendida: [],
-  audiencia_testimonial: [],
-  presentacion_propia: [],
-  presentacion_contraria: [
-    { tipo: 'Contestar presentación de la contraria', dias: 5, diasHabiles: true, descripcion: 'Traslado simple' },
-  ],
-  pericia_designada: [
-    { tipo: 'Proponer puntos de pericia', dias: 5, diasHabiles: true, descripcion: 'Antes de la aceptación del perito' },
-  ],
-  aceptacion_perito: [],
-  pericia_presentada: [
-    { tipo: 'Impugnar pericia', dias: 5, diasHabiles: true, descripcion: 'Art. 473 CPCCN' },
-  ],
-  pedido_explicaciones: [],
-  contestacion_explicaciones: [],
-  notificacion_recibida: [
-    { tipo: 'Plazo general de respuesta', dias: 5, diasHabiles: true, descripcion: 'Verificar plazo específico según contenido' },
-  ],
-  autos_para_alegar: [
-    { tipo: 'Presentar alegato', dias: 6, diasHabiles: true, descripcion: 'Art. 482 CPCCN — plazo común' },
-  ],
-  autos_para_sentencia: [],
-  regulacion_honorarios: [
-    { tipo: 'Apelar regulación', dias: 5, diasHabiles: true, descripcion: 'Art. 244 CPCCN' },
-  ],
-  recurso_interpuesto: [
-    { tipo: 'Fundar recurso', dias: 5, diasHabiles: true, descripcion: 'Memorial de agravios' },
-  ],
-  expresion_agravios: [
-    { tipo: 'Contestar agravios', dias: 10, diasHabiles: true, descripcion: 'Art. 259 CPCCN — traslado libre' },
-  ],
-  contestacion_agravios: [],
-  elevacion_camara: [],
-  cambio_representacion: [],
-  otro: [],
+export interface PlazosConVariantes {
+  /** Plazos por defecto (juicio ordinario, cualquier jurisdicción). */
+  default: PlazoSugerido[];
+  /** Overrides por tipo de proceso. Aplica en todas las jurisdicciones. */
+  porTipoProceso?: Partial<Record<TipoProceso, PlazoSugerido[]>>;
+  /** Overrides combinados jurisdicción+proceso. Precedencia más alta.
+   *  Actualmente el único caso real es 'pba:sumario' — el juicio sumario
+   *  existe solo en PBA. */
+  porJurisdiccionYProceso?: Partial<Record<`${Jurisdiccion}:${TipoProceso}`, PlazoSugerido[]>>;
+}
+
+export const PLAZOS_POR_EVENTO: Record<TipoEvento, PlazosConVariantes> = {
+  traslado: {
+    default: [
+      { tipo: 'Contestar traslado', dias: 15, diasHabiles: true, descripcion: 'Art. 338 CPCCN / 337 CPCC PBA — juicio ordinario' },
+    ],
+    porTipoProceso: {
+      sumarisimo: [
+        { tipo: 'Contestar traslado', dias: 5, diasHabiles: true, descripcion: 'Art. 498 CPCCN / 496 CPCC PBA — sumarísimo' },
+      ],
+    },
+    porJurisdiccionYProceso: {
+      'pba:sumario': [
+        { tipo: 'Contestar traslado', dias: 10, diasHabiles: true, descripcion: 'Art. 484 CPCC PBA — juicio sumario (solo PBA)' },
+      ],
+    },
+  },
+  oficio_provisto: {
+    default: [
+      { tipo: 'Diligenciar oficio', dias: 10, diasHabiles: true, descripcion: 'Plazo ordinario de diligenciamiento' },
+    ],
+  },
+  oficio_diligenciado: { default: [] },
+  resolucion: {
+    default: [
+      { tipo: 'Interponer recurso de reposición', dias: 3, diasHabiles: true, descripcion: 'Art. 239 CPCCN / 238 CPCC PBA' },
+      { tipo: 'Interponer recurso de apelación',  dias: 5, diasHabiles: true, descripcion: 'Art. 244 CPCCN / CPCC PBA' },
+    ],
+  },
+  sentencia: {
+    default: [
+      { tipo: 'Apelar sentencia', dias: 5, diasHabiles: true, descripcion: 'Art. 244 CPCCN / CPCC PBA — plazo de apelación' },
+    ],
+  },
+  proveido: { default: [] },
+  ofrecimiento_prueba: { default: [] },
+  audiencia_fijada: { default: [] },
+  audiencia_celebrada: { default: [] },
+  audiencia_suspendida: { default: [] },
+  audiencia_testimonial: { default: [] },
+  presentacion_propia: { default: [] },
+  presentacion_contraria: {
+    default: [
+      { tipo: 'Contestar presentación de la contraria', dias: 5, diasHabiles: true, descripcion: 'Traslado simple' },
+    ],
+  },
+  pericia_designada: {
+    default: [
+      { tipo: 'Proponer puntos de pericia', dias: 5, diasHabiles: true, descripcion: 'Antes de la aceptación del perito' },
+    ],
+  },
+  aceptacion_perito: { default: [] },
+  pericia_presentada: {
+    default: [
+      { tipo: 'Impugnar pericia', dias: 5, diasHabiles: true, descripcion: 'Art. 473 CPCCN / CPCC PBA' },
+    ],
+  },
+  pedido_explicaciones: { default: [] },
+  contestacion_explicaciones: { default: [] },
+  notificacion_recibida: {
+    default: [
+      { tipo: 'Plazo general de respuesta', dias: 5, diasHabiles: true, descripcion: 'Verificar plazo específico según contenido' },
+    ],
+  },
+  autos_para_alegar: {
+    default: [
+      { tipo: 'Presentar alegato', dias: 6, diasHabiles: true, descripcion: 'Art. 482 CPCCN / 480 CPCC PBA — plazo común' },
+    ],
+  },
+  autos_para_sentencia: { default: [] },
+  regulacion_honorarios: {
+    default: [
+      { tipo: 'Apelar regulación', dias: 5, diasHabiles: true, descripcion: 'Art. 244 CPCCN / ley 27.423 art. 22 — PBA ley 14.967 art. 57' },
+    ],
+  },
+  recurso_interpuesto: {
+    default: [
+      { tipo: 'Fundar recurso', dias: 5, diasHabiles: true, descripcion: 'Memorial de agravios — art. 246 CPCCN / CPCC PBA (recurso en relación)' },
+    ],
+    porTipoProceso: {
+      sumarisimo: [
+        { tipo: 'Fundar recurso', dias: 3, diasHabiles: true, descripcion: 'Art. 498 CPCCN / 496 CPCC PBA — sumarísimo' },
+      ],
+    },
+  },
+  expresion_agravios: {
+    default: [
+      { tipo: 'Contestar agravios', dias: 10, diasHabiles: true, descripcion: 'Art. 259 CPCCN / 254 CPCC PBA — traslado libre' },
+    ],
+    porTipoProceso: {
+      sumarisimo: [
+        { tipo: 'Contestar agravios', dias: 3, diasHabiles: true, descripcion: 'Art. 498 CPCCN / 496 CPCC PBA — sumarísimo' },
+      ],
+    },
+    porJurisdiccionYProceso: {
+      'pba:sumario': [
+        { tipo: 'Contestar agravios', dias: 5, diasHabiles: true, descripcion: 'CPCC PBA — juicio sumario' },
+      ],
+    },
+  },
+  contestacion_agravios: { default: [] },
+  elevacion_camara: { default: [] },
+  cambio_representacion: { default: [] },
+  otro: { default: [] },
 };
 
-/** Sugeridos sin efectos secundarios — útil para previsualizaciones UI. */
-export function getPlazosSugeridosPara(tipo: TipoEvento): PlazoSugerido[] {
-  return PLAZOS_POR_EVENTO[tipo] || [];
+/**
+ * Devuelve los plazos sugeridos para un tipo de evento, considerando la
+ * jurisdicción y el tipo de proceso del caso. Aplica precedencia:
+ *   porJurisdiccionYProceso > porTipoProceso > default.
+ *
+ * Si `tipoProceso` no se pasa, asume 'ordinario' (el caso dominante).
+ */
+export function getPlazosSugeridosPara(
+  tipo: TipoEvento,
+  jurisdiccion: Jurisdiccion,
+  tipoProceso: TipoProceso = 'ordinario',
+): PlazoSugerido[] {
+  const entry = PLAZOS_POR_EVENTO[tipo];
+  if (!entry) return [];
+  const keyCombinada = `${jurisdiccion}:${tipoProceso}` as const;
+  return (
+    entry.porJurisdiccionYProceso?.[keyCombinada] ??
+    entry.porTipoProceso?.[tipoProceso] ??
+    entry.default
+  );
+}
+
+/** Label legible del tipo de proceso — para hints y banners de UI. */
+export function labelTipoProceso(tipo: TipoProceso): string {
+  if (tipo === 'ordinario') return 'juicio ordinario';
+  if (tipo === 'sumario') return 'juicio sumario';
+  return 'juicio sumarísimo';
 }
 
 // ─────────────────────────────────────────────────────────────────

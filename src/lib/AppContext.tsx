@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { Matter, Client, Consultation, LegalDocument, Task, TimelineEvent, UserProfile, Communication, Expediente, MatterMilestone, EventoExpediente, Plazo, Jurisdiccion } from '../types';
+import { Matter, Client, Consultation, LegalDocument, Task, TimelineEvent, UserProfile, Communication, Expediente, MatterMilestone, EventoExpediente, Plazo, Jurisdiccion, TipoProceso, TipoEvento } from '../types';
 import { GlobalFilters, defaultFilters } from '../components/FiltersContent';
 import { useAuth } from './auth';
 import * as db from './db';
@@ -7,7 +7,7 @@ import { logAudit } from './db';
 import { generateConsultationTasks, generateExpedienteTasks } from './taskEngine';
 import { findTemplate } from '../data/templates';
 import { instantiateFlow } from './flowEngine';
-import { calcularVencimiento, resetFeriadosCache } from './plazos';
+import { calcularVencimiento, resetFeriadosCache, getPlazosSugeridosPara } from './plazos';
 import { format, parseISO } from 'date-fns';
 
 /** Normaliza el valor de jurisdicción que viene del wizard ('CABA'|'PBA'|'Nacional'
@@ -19,6 +19,16 @@ function normalizeJurisdiccion(raw: string | undefined | null): Jurisdiccion | u
   if (n === 'caba') return 'caba';
   if (n === 'pba' || n === 'provincia de buenos aires') return 'pba';
   if (n === 'nacional') return 'nacional';
+  return undefined;
+}
+
+/** Normaliza el valor de tipo de proceso al enum canónico. */
+function normalizeTipoProceso(raw: string | undefined | null): TipoProceso | undefined {
+  if (!raw || typeof raw !== 'string') return undefined;
+  const n = raw.trim().toLowerCase();
+  if (n === 'ordinario')  return 'ordinario';
+  if (n === 'sumario')    return 'sumario';
+  if (n === 'sumarisimo' || n === 'sumarísimo') return 'sumarisimo';
   return undefined;
 }
 
@@ -231,6 +241,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const handleSaveMatterEdit = async (data: any) => {
     if (!selectedMatterId) return;
     const prevMatter = matters.find(m => m.id === selectedMatterId);
+
     const newJurisdiccion = data.jurisdiccion !== undefined
       ? normalizeJurisdiccion(data.jurisdiccion)
       : prevMatter?.jurisdiccion;
@@ -238,6 +249,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       data.jurisdiccion !== undefined &&
       newJurisdiccion !== undefined &&
       newJurisdiccion !== prevMatter?.jurisdiccion;
+
+    const newTipoProceso = data.tipoProceso !== undefined
+      ? normalizeTipoProceso(data.tipoProceso)
+      : prevMatter?.tipoProceso;
+    const tipoProcesoChanged =
+      data.tipoProceso !== undefined &&
+      newTipoProceso !== undefined &&
+      newTipoProceso !== prevMatter?.tipoProceso;
 
     const changes: Partial<Matter> = {
       title:          data.title,
@@ -248,9 +267,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       description:    data.description,
       lastActivity:   new Date().toISOString(),
     };
-    if (data.subtype     !== undefined) changes.subtype      = data.subtype || undefined;
-    if (data.expediente  !== undefined) changes.expediente   = data.expediente || undefined;
-    if (newJurisdiccion  !== undefined) changes.jurisdiccion = newJurisdiccion;
+    if (data.subtype      !== undefined) changes.subtype      = data.subtype || undefined;
+    if (data.expediente   !== undefined) changes.expediente   = data.expediente || undefined;
+    if (newJurisdiccion   !== undefined) changes.jurisdiccion = newJurisdiccion;
+    if (newTipoProceso    !== undefined) changes.tipoProceso  = newTipoProceso;
 
     setMatters(prev => prev.map(m => m.id === selectedMatterId ? { ...m, ...changes } : m));
     setIsEditMatterOpen(false);
@@ -259,26 +279,49 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       await db.updateMatter(selectedMatterId, changes);
       audit('editar_asunto', 'matter', selectedMatterId, data.title, changes as Record<string, unknown>);
 
-      // Si cambió la jurisdicción y hay plazos activos, recalcular con el
-      // nuevo calendario de feriados. Los plazos inactivos (cumplidos,
-      // cancelados, vencidos) se dejan como estaban.
-      if (jurisdiccionChanged && newJurisdiccion) {
-        resetFeriadosCache(); // por si cambió la jurisdicción y no la teníamos cacheada
+      // Recalcular plazos activos si cambió jurisdicción o tipo de proceso:
+      //  - jurisdicción afecta el calendario (feriados) → cambia fechaVencimiento.
+      //  - tipo de proceso afecta los DÍAS base → puede cambiar `dias` y luego fechaVencimiento.
+      // Los plazos inactivos (cumplidos, cancelados, vencidos) no se tocan.
+      if ((jurisdiccionChanged || tipoProcesoChanged) && newJurisdiccion) {
+        resetFeriadosCache();
         const plazosActivos = plazos.filter(
           p => p.matterId === selectedMatterId && p.estado === 'activo',
         );
         for (const p of plazosActivos) {
           try {
+            let nuevosDias = p.dias;
+            let nuevosDiasHabiles = p.diasHabiles;
+
+            // Si cambió el tipo de proceso, intentar buscar los nuevos plazos
+            // sugeridos para el evento de origen y aplicar los días correctos.
+            if (tipoProcesoChanged && newTipoProceso && p.eventoOrigenId) {
+              const evento = eventos.find(e => e.id === p.eventoOrigenId);
+              if (evento) {
+                const sugeridos = getPlazosSugeridosPara(
+                  evento.tipo as TipoEvento,
+                  newJurisdiccion,
+                  newTipoProceso,
+                );
+                const match = sugeridos.find(s => s.tipo === p.tipo);
+                if (match) {
+                  nuevosDias = match.dias;
+                  nuevosDiasHabiles = match.diasHabiles;
+                }
+              }
+            }
+
             const nuevaFecha = await calcularVencimiento({
               fechaInicio: parseISO(p.fechaInicio),
-              dias: p.dias,
-              diasHabiles: p.diasHabiles,
+              dias: nuevosDias,
+              diasHabiles: nuevosDiasHabiles,
               jurisdiccion: newJurisdiccion,
             });
-            const fechaStr = format(nuevaFecha, 'yyyy-MM-dd');
             const plazoUpdate: Partial<Plazo> = {
-              jurisdiccion: newJurisdiccion,
-              fechaVencimiento: fechaStr,
+              jurisdiccion:     newJurisdiccion,
+              dias:             nuevosDias,
+              diasHabiles:      nuevosDiasHabiles,
+              fechaVencimiento: format(nuevaFecha, 'yyyy-MM-dd'),
             };
             await db.updatePlazo(p.id, plazoUpdate);
             setPlazos(prev => prev.map(pp => pp.id === p.id ? { ...pp, ...plazoUpdate } : pp));
@@ -387,6 +430,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       currentStage:   template?.etapaInicial,
       caseData:       data.caseData && Object.keys(data.caseData).length > 0 ? data.caseData : undefined,
       jurisdiccion:   normalizeJurisdiccion(data.jurisdiction),
+      tipoProceso:    normalizeTipoProceso(data.tipoProceso) ?? 'ordinario',
     };
     const optimistic: Matter = { ...newMatter, id: crypto.randomUUID() };
     setMatters(prev => [optimistic, ...prev]);
