@@ -640,6 +640,31 @@ export type OrigenEvento = 'manual' | 'scraper_mev' | 'scraper_pjn';
 export type EstadoPlazo = 'activo' | 'cumplido' | 'vencido' | 'cancelado';
 export type TipoFeriado = 'nacional' | 'pba' | 'caba' | 'feria_judicial';
 
+// ── HILOS DE PRUEBA ────────────────────────────────────────
+// Un hilo agrupa eventos de la etapa probatoria por línea de
+// producción (pericia X, testimonial Y, oficio Z) para poder
+// seguirlos sin que se mezclen en el timeline.
+
+export type TipoHilo = 'pericial' | 'testimonial' | 'informativa' | 'documental' | 'confesional' | 'otra';
+export type OfrecidoPorHilo = 'propio' | 'contraria';
+export type EstadoHilo = 'ofrecido' | 'admitido' | 'rechazado' | 'en_produccion' | 'producido' | 'desistido';
+
+export interface HiloPrueba {
+  id: string;
+  matterId: string;
+  nombre: string;
+  tipo: TipoHilo;
+  ofrecidoPor: OfrecidoPorHilo;
+  estado: EstadoHilo;
+  fechaOfrecido?: string;        // 'YYYY-MM-DD'
+  fechaResolucion?: string;
+  fechaProducido?: string;
+  descripcion?: string;
+  createdBy?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface EventoExpediente {
   id: string;
   matterId: string;
@@ -651,6 +676,8 @@ export interface EventoExpediente {
   jurisdiccion?: Jurisdiccion;
   documentosUrls: string[];
   metadata?: Record<string, unknown>;
+  /** Hilo de prueba al que pertenece este evento (opcional). */
+  hiloId?: string;
   createdBy?: string;
   createdAt: string;
   updatedAt: string;

@@ -39,7 +39,11 @@ export const EventoForm: React.FC<EventoFormProps> = ({
   matterId,
   onCreated,
 }) => {
-  const { handleCreateEvento, matters } = useAppContext();
+  const { handleCreateEvento, matters, hilos } = useAppContext();
+  const hilosDelMatter = useMemo(
+    () => hilos.filter(h => h.matterId === matterId && h.estado !== 'rechazado' && h.estado !== 'desistido'),
+    [hilos, matterId],
+  );
 
   const today = format(new Date(), 'yyyy-MM-dd');
 
@@ -82,6 +86,7 @@ export const EventoForm: React.FC<EventoFormProps> = ({
   const [tipo, setTipo] = useState<TipoEvento>('traslado');
   const [titulo, setTitulo] = useState('');
   const [descripcion, setDescripcion] = useState('');
+  const [hiloId, setHiloId] = useState<string>('');
   const [plazos, setPlazos] = useState<PlazoSelectionRow[]>([]);
 
   // Reset al abrir
@@ -91,6 +96,7 @@ export const EventoForm: React.FC<EventoFormProps> = ({
     setTipo('traslado');
     setTitulo('');
     setDescripcion('');
+    setHiloId('');
     setError(null);
   }, [isOpen]);
 
@@ -195,6 +201,7 @@ export const EventoForm: React.FC<EventoFormProps> = ({
           origen: 'manual',
           jurisdiccion,
           documentosUrls: [],
+          hiloId: hiloId || undefined,
         },
         plazosDerivados,
       );
@@ -280,6 +287,27 @@ export const EventoForm: React.FC<EventoFormProps> = ({
             rows={3}
           />
         </div>
+
+        {hilosDelMatter.length > 0 && (
+          <div>
+            <label className="block text-[10px] font-black uppercase tracking-[0.1em] text-muted-foreground mb-1.5">
+              Hilo de prueba (opcional)
+            </label>
+            <select
+              value={hiloId}
+              onChange={e => setHiloId(e.target.value)}
+              className="w-full px-4 py-2 bg-muted/50 border border-border/50 rounded-xl text-sm focus:bg-card focus:ring-2 focus:ring-primary/20 focus:border-primary/30 transition-all outline-none"
+            >
+              <option value="">— Sin hilo (evento general) —</option>
+              {hilosDelMatter.map(h => (
+                <option key={h.id} value={h.id}>{h.nombre} ({h.tipo})</option>
+              ))}
+            </select>
+            <p className="text-[10px] text-muted-foreground mt-1">
+              Si este movimiento corresponde a una pericia, testimonial u oficio específico, asociálo al hilo para verlos juntos.
+            </p>
+          </div>
+        )}
 
         {warningRegimenAmplio && (
           <div

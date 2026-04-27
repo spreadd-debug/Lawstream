@@ -28,6 +28,7 @@ import {
   RefreshCw,
   Ban,
   Send,
+  Layers,
 } from 'lucide-react';
 import { Matter, TimelineEvent, Task, LegalDocument, Expediente, MatterMilestone, FlowSnapshot } from '../types';
 import { Badge, Card, Button, Modal, Input, Textarea, Select } from './UI';
@@ -49,6 +50,7 @@ import { CommunicationsLog } from './CommunicationsLog';
 import { ApprovalWorkflow } from './ApprovalWorkflow';
 import { ClientAccountStatement } from './ClientAccountStatement';
 import { TimelinePanel } from './TimelinePanel';
+import { HilosPanel } from './HilosPanel';
 import { urgenciaDePlazo, diasRestantes } from '../lib/plazos';
 
 interface MatterDetailProps {
@@ -135,7 +137,7 @@ export const MatterDetail = ({
   const [fichaOpenStage, setFichaOpenStage] = useState<string | null>(null);
 
   // New navigation state
-  const [activeTab, setActiveTab] = useState<'flujo' | 'timeline' | 'expediente' | 'comunicaciones'>('flujo');
+  const [activeTab, setActiveTab] = useState<'flujo' | 'timeline' | 'hilos' | 'expediente' | 'comunicaciones'>('flujo');
   const [viewingStage, setViewingStage] = useState<string | null>(null);
 
   // Pre-filled communication message (from "Solicitar datos" button)
@@ -722,6 +724,7 @@ export const MatterDetail = ({
           {([
             { key: 'flujo' as const, label: 'Flujo', icon: Zap },
             { key: 'timeline' as const, label: 'Timeline', icon: Clock },
+            { key: 'hilos' as const, label: 'Hilos de prueba', icon: Layers },
             { key: 'expediente' as const, label: 'Expediente', icon: FileText },
             { key: 'comunicaciones' as const, label: 'Comunicaciones', icon: MessageSquare },
           ]).map(tab => (
@@ -977,6 +980,13 @@ export const MatterDetail = ({
         {/* ─────────── TAB: TIMELINE ─────────── */}
         {activeTab === 'timeline' && (
           <TimelinePanel matter={matter} />
+        )}
+
+        {/* ─────────── TAB: HILOS DE PRUEBA ─────────── */}
+        {activeTab === 'hilos' && (
+          <div className="py-8">
+            <HilosPanel matterId={matter.id} />
+          </div>
         )}
 
         {/* ─────────── TAB: EXPEDIENTE ─────────── */}
