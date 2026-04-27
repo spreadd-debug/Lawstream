@@ -237,7 +237,8 @@ export const PLAZOS_POR_EVENTO: Record<TipoEvento, PlazosConVariantes> = {
   },
   sentencia: {
     default: [
-      { tipo: 'Apelar sentencia', dias: 5, diasHabiles: true, descripcion: 'Art. 244 CPCCN / CPCC PBA — plazo de apelación' },
+      { tipo: 'Apelar sentencia',     dias: 5, diasHabiles: true, descripcion: 'Art. 244 CPCCN / CPCC PBA — plazo de apelación' },
+      { tipo: 'Pedir aclaratoria',    dias: 3, diasHabiles: true, descripcion: 'Art. 166 inc. 2 CPCCN / 166 CPCC PBA — corrección de errores materiales o aclaración' },
     ],
   },
   proveido: { default: [] },
@@ -260,7 +261,8 @@ export const PLAZOS_POR_EVENTO: Record<TipoEvento, PlazosConVariantes> = {
   aceptacion_perito: { default: [] },
   pericia_presentada: {
     default: [
-      { tipo: 'Impugnar pericia', dias: 5, diasHabiles: true, descripcion: 'Art. 473 CPCCN / CPCC PBA' },
+      { tipo: 'Impugnar pericia',          dias: 5, diasHabiles: true, descripcion: 'Art. 473 CPCCN / CPCC PBA — observar/impugnar el dictamen' },
+      { tipo: 'Pedir explicaciones',       dias: 5, diasHabiles: true, descripcion: 'Art. 473 CPCCN / CPCC PBA — solicitar al juez que el perito amplíe o aclare' },
     ],
   },
   pedido_explicaciones: { default: [] },
