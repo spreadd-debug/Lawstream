@@ -288,7 +288,32 @@ export const MATTER_TEMPLATES: MatterTemplate[] = [
         ],
         milestone: 'Audiencia celebrada',
       },
-      // ── ETAPA 4: SENTENCIA ───────────────────────────────────
+      // ── ETAPA 4: PRUEBA ──────────────────────────────────────
+      // Solo aplica en divorcio UNILATERAL con puntos en disputa
+      // (régimen de comunicación, bienes gananciales, compensación
+      // económica, alimentos definitivos). En bilateral con convenio
+      // homologado se salta directo a sentencia.
+      {
+        name: 'Prueba',
+        tasks: [
+          { task: 'Ofrecer prueba (testimonial, pericial, informativa, documental)', priority: 'crítico', bloqueante: true, condition: { key: 'tipo_divorcio', equals: 'Unilateral' } },
+          { task: 'Verificar resolución que abre la causa a prueba',                priority: 'crítico', condition: { key: 'tipo_divorcio', equals: 'Unilateral' } },
+          { task: 'Producir prueba pericial (designación, aceptación, dictamen)',   priority: 'crítico', condition: { key: 'tipo_divorcio', equals: 'Unilateral' } },
+          { task: 'Producir prueba testimonial (audiencias de testigos)',           priority: 'recomendado', condition: { key: 'tipo_divorcio', equals: 'Unilateral' } },
+          { task: 'Diligenciar oficios informativos',                                priority: 'recomendado', condition: { key: 'tipo_divorcio', equals: 'Unilateral' } },
+          { task: 'Confeccionar pliego de posiciones (si hay absolución)',          priority: 'opcional', condition: { key: 'tipo_divorcio', equals: 'Unilateral' } },
+          { task: 'Presentar alegato (al cerrarse el período probatorio)',          priority: 'crítico', condition: { key: 'tipo_divorcio', equals: 'Unilateral' } },
+        ],
+        documents: [
+          { name: 'Escrito de ofrecimiento de prueba',  required: false },
+          { name: 'Pliego de pericia',                  required: false },
+          { name: 'Informe pericial',                   required: false },
+          { name: 'Pliego de posiciones',               required: false },
+          { name: 'Alegato',                            required: false },
+        ],
+        milestone: 'Etapa probatoria cerrada',
+      },
+      // ── ETAPA 5: SENTENCIA ───────────────────────────────────
       {
         name: 'Sentencia',
         tasks: [
@@ -306,7 +331,7 @@ export const MATTER_TEMPLATES: MatterTemplate[] = [
         ],
         milestone: 'Sentencia firme e inscripta',
       },
-      // ── ETAPA 5: EJECUCIÓN ───────────────────────────────────
+      // ── ETAPA 6: EJECUCIÓN ───────────────────────────────────
       {
         name: 'Ejecución',
         tasks: [
@@ -334,7 +359,7 @@ export const MATTER_TEMPLATES: MatterTemplate[] = [
       { name: 'Partidas de nacimiento hijos', required: true },
       { name: 'Títulos de propiedad', required: false },
     ],
-    hitosProyectados: ['Instrucción completa', 'Demanda presentada', 'Audiencia celebrada', 'Sentencia firme', 'Divorcio ejecutado'],
+    hitosProyectados: ['Instrucción completa', 'Demanda presentada', 'Audiencia celebrada', 'Etapa probatoria cerrada', 'Sentencia firme', 'Divorcio ejecutado'],
     bloqueantesTipicos: ['Falta acta de matrimonio actualizada', 'Contraparte no notificada', 'Convenio sin firma de ambos'],
     proximaAccionSugerida: 'Solicitar acta de matrimonio actualizada al Registro Civil',
     fechaSeguimientoSugeridaDays: 5,
@@ -653,7 +678,31 @@ export const MATTER_TEMPLATES: MatterTemplate[] = [
         ],
         milestone: 'Audiencia ante Juez celebrada',
       },
-      // ── ETAPA 5: SENTENCIA ───────────────────────────────────
+      // ── ETAPA 5: PRUEBA ──────────────────────────────────────
+      // Solo aplica en divorcio UNILATERAL con puntos en disputa.
+      // En bilateral con convenio homologado por el Consejero o el Juez
+      // se salta directo a sentencia.
+      {
+        name: 'Prueba',
+        tasks: [
+          { task: 'Ofrecer prueba (testimonial, pericial, informativa, documental)', priority: 'crítico', bloqueante: true, condition: { key: 'tipo_divorcio', equals: 'Unilateral' } },
+          { task: 'Verificar resolución que abre la causa a prueba',                priority: 'crítico', condition: { key: 'tipo_divorcio', equals: 'Unilateral' } },
+          { task: 'Producir prueba pericial (designación, aceptación, dictamen)',   priority: 'crítico', condition: { key: 'tipo_divorcio', equals: 'Unilateral' } },
+          { task: 'Producir prueba testimonial (audiencias de testigos)',           priority: 'recomendado', condition: { key: 'tipo_divorcio', equals: 'Unilateral' } },
+          { task: 'Diligenciar oficios informativos',                                priority: 'recomendado', condition: { key: 'tipo_divorcio', equals: 'Unilateral' } },
+          { task: 'Confeccionar pliego de posiciones (si hay absolución)',          priority: 'opcional', condition: { key: 'tipo_divorcio', equals: 'Unilateral' } },
+          { task: 'Presentar alegato (al cerrarse el período probatorio)',          priority: 'crítico', condition: { key: 'tipo_divorcio', equals: 'Unilateral' } },
+        ],
+        documents: [
+          { name: 'Escrito de ofrecimiento de prueba',  required: false },
+          { name: 'Pliego de pericia',                  required: false },
+          { name: 'Informe pericial',                   required: false },
+          { name: 'Pliego de posiciones',               required: false },
+          { name: 'Alegato',                            required: false },
+        ],
+        milestone: 'Etapa probatoria cerrada',
+      },
+      // ── ETAPA 6: SENTENCIA ───────────────────────────────────
       {
         name: 'Sentencia',
         tasks: [
@@ -670,7 +719,7 @@ export const MATTER_TEMPLATES: MatterTemplate[] = [
         ],
         milestone: 'Sentencia firme e inscripta',
       },
-      // ── ETAPA 6: EJECUCIÓN ───────────────────────────────────
+      // ── ETAPA 7: EJECUCIÓN ───────────────────────────────────
       {
         name: 'Ejecución',
         tasks: [
@@ -698,7 +747,7 @@ export const MATTER_TEMPLATES: MatterTemplate[] = [
       { name: 'Partidas de nacimiento hijos', required: true },
       { name: 'Títulos de propiedad', required: false },
     ],
-    hitosProyectados: ['Instrucción completa', 'Demanda presentada', 'Consejero de Familia', 'Audiencia celebrada', 'Sentencia firme', 'Divorcio ejecutado'],
+    hitosProyectados: ['Instrucción completa', 'Demanda presentada', 'Consejero de Familia', 'Audiencia celebrada', 'Etapa probatoria cerrada', 'Sentencia firme', 'Divorcio ejecutado'],
     bloqueantesTipicos: ['Falta acta de matrimonio actualizada', 'Contraparte no notificada', 'Convenio sin firma de ambos', 'Incomparecencia ante Consejero'],
     proximaAccionSugerida: 'Solicitar acta de matrimonio actualizada al Registro Civil',
     fechaSeguimientoSugeridaDays: 5,
