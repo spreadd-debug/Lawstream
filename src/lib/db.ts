@@ -50,6 +50,7 @@ import {
   Plazo,
   Feriado,
   EstadoPlazo,
+  HiloPrueba,
 } from '../types';
 
 // ── Profiles ──────────────────────────────────────────────────────
@@ -1866,6 +1867,7 @@ const toEvento = (r: any): EventoExpediente => ({
   jurisdiccion:   r.jurisdiccion ?? undefined,
   documentosUrls: Array.isArray(r.documentos_urls) ? r.documentos_urls : [],
   metadata:       r.metadata ?? undefined,
+  hiloId:         r.hilo_id ?? undefined,
   createdBy:      r.created_by ?? undefined,
   createdAt:      r.created_at,
   updatedAt:      r.updated_at,
@@ -1882,6 +1884,7 @@ const eventoToRow = (e: Partial<EventoExpediente>): Record<string, unknown> => {
   if (e.jurisdiccion   !== undefined) row.jurisdiccion    = e.jurisdiccion ?? null;
   if (e.documentosUrls !== undefined) row.documentos_urls = e.documentosUrls;
   if (e.metadata       !== undefined) row.metadata        = e.metadata ?? {};
+  if (e.hiloId         !== undefined) row.hilo_id         = e.hiloId ?? null;
   if (e.createdBy      !== undefined) row.created_by      = e.createdBy ?? null;
   return row;
 };
@@ -2063,4 +2066,84 @@ export const fetchFeriados = async (): Promise<Feriado[]> => {
     .order('fecha', { ascending: true });
   if (error) throw error;
   return (data ?? []).map(toFeriado);
+};
+
+// ── Hilos de prueba ────────────────────────────────────────────
+
+const toHilo = (r: any): HiloPrueba => ({
+  id:              r.id,
+  matterId:        r.matter_id,
+  nombre:          r.nombre,
+  tipo:            r.tipo,
+  ofrecidoPor:     r.ofrecido_por,
+  estado:          r.estado,
+  fechaOfrecido:   r.fecha_ofrecido   ?? undefined,
+  fechaResolucion: r.fecha_resolucion ?? undefined,
+  fechaProducido:  r.fecha_producido  ?? undefined,
+  descripcion:     r.descripcion      ?? undefined,
+  createdBy:       r.created_by       ?? undefined,
+  createdAt:       r.created_at,
+  updatedAt:       r.updated_at,
+});
+
+const hiloToRow = (h: Partial<HiloPrueba>): Record<string, unknown> => {
+  const row: Record<string, unknown> = {};
+  if (h.matterId        !== undefined) row.matter_id        = h.matterId;
+  if (h.nombre          !== undefined) row.nombre           = h.nombre;
+  if (h.tipo            !== undefined) row.tipo             = h.tipo;
+  if (h.ofrecidoPor     !== undefined) row.ofrecido_por     = h.ofrecidoPor;
+  if (h.estado          !== undefined) row.estado           = h.estado;
+  if (h.fechaOfrecido   !== undefined) row.fecha_ofrecido   = h.fechaOfrecido   ?? null;
+  if (h.fechaResolucion !== undefined) row.fecha_resolucion = h.fechaResolucion ?? null;
+  if (h.fechaProducido  !== undefined) row.fecha_producido  = h.fechaProducido  ?? null;
+  if (h.descripcion     !== undefined) row.descripcion      = h.descripcion     ?? null;
+  if (h.createdBy       !== undefined) row.created_by       = h.createdBy       ?? null;
+  return row;
+};
+
+export const fetchHilos = async (): Promise<HiloPrueba[]> => {
+  const { data, error } = await supabase
+    .from('hilos_prueba')
+    .select('*')
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map(toHilo);
+};
+
+export const fetchHilosByMatter = async (matterId: string): Promise<HiloPrueba[]> => {
+  const { data, error } = await supabase
+    .from('hilos_prueba')
+    .select('*')
+    .eq('matter_id', matterId)
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map(toHilo);
+};
+
+export const createHilo = async (
+  hilo: Omit<HiloPrueba, 'id' | 'createdAt' | 'updatedAt'>,
+): Promise<HiloPrueba> => {
+  const { data, error } = await supabase
+    .from('hilos_prueba')
+    .insert(hiloToRow(hilo))
+    .select()
+    .single();
+  if (error) throw error;
+  return toHilo(data);
+};
+
+export const updateHilo = async (id: string, changes: Partial<HiloPrueba>): Promise<void> => {
+  const { error } = await supabase
+    .from('hilos_prueba')
+    .update(hiloToRow(changes))
+    .eq('id', id);
+  if (error) throw error;
+};
+
+export const deleteHilo = async (id: string): Promise<void> => {
+  const { error } = await supabase
+    .from('hilos_prueba')
+    .delete()
+    .eq('id', id);
+  if (error) throw error;
 };

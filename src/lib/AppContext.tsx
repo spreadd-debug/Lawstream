@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { Matter, Client, Consultation, LegalDocument, Task, TimelineEvent, UserProfile, Communication, Expediente, MatterMilestone, EventoExpediente, Plazo, Jurisdiccion, TipoProceso, TipoEvento } from '../types';
+import { Matter, Client, Consultation, LegalDocument, Task, TimelineEvent, UserProfile, Communication, Expediente, MatterMilestone, EventoExpediente, Plazo, Jurisdiccion, TipoProceso, TipoEvento, HiloPrueba } from '../types';
 import { GlobalFilters, defaultFilters } from '../components/FiltersContent';
 import { useAuth } from './auth';
 import * as db from './db';
@@ -101,6 +101,11 @@ interface AppContextType {
   handleCreatePlazo: (plazo: Omit<Plazo, 'id' | 'createdAt' | 'updatedAt'>) => Promise<Plazo>;
   handleCumplirPlazo: (id: string) => Promise<void>;
   handleCancelarPlazo: (id: string) => Promise<void>;
+  // Hilos de prueba
+  hilos: HiloPrueba[];
+  handleCreateHilo: (hilo: Omit<HiloPrueba, 'id' | 'createdAt' | 'updatedAt'>) => Promise<HiloPrueba>;
+  handleUpdateHilo: (id: string, changes: Partial<HiloPrueba>) => Promise<void>;
+  handleDeleteHilo: (id: string) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -124,6 +129,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [expedientes, setExpedientes] = useState<Expediente[]>([]);
   const [milestones, setMilestones] = useState<MatterMilestone[]>([]);
   const [eventos, setEventos] = useState<EventoExpediente[]>([]);
+  const [hilos, setHilos] = useState<HiloPrueba[]>([]);
   const [plazos, setPlazos] = useState<Plazo[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -167,8 +173,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       safe(db.fetchAllMilestones(),    'milestones'),
       safe(db.fetchAllEventos(),       'eventos'),
       safe(db.fetchAllPlazos(),        'plazos'),
+      safe(db.fetchHilos(),            'hilos'),
     ])
-      .then(([m, c, co, d, t, tl, p, ex, ms, ev, pl]) => {
+      .then(([m, c, co, d, t, tl, p, ex, ms, ev, pl, hi]) => {
         setMatters(m);
         setClients(c);
         setConsultations(co);
@@ -180,6 +187,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setMilestones(ms);
         setEventos(ev);
         setPlazos(pl);
+        setHilos(hi);
       })
       .finally(() => setIsLoading(false));
   }, [userId]);
@@ -797,6 +805,49 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  // ── Hilos de prueba ────────────────────────────────────────────
+
+  const handleCreateHilo = async (
+    hilo: Omit<HiloPrueba, 'id' | 'createdAt' | 'updatedAt'>,
+  ): Promise<HiloPrueba> => {
+    const optimistic: HiloPrueba = {
+      ...hilo,
+      id: crypto.randomUUID(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    setHilos(prev => [...prev, optimistic]);
+    try {
+      const saved = await db.createHilo(hilo);
+      setHilos(prev => prev.map(h => h.id === optimistic.id ? saved : h));
+      return saved;
+    } catch (err) {
+      console.error('Error creando hilo de prueba:', err);
+      setHilos(prev => prev.filter(h => h.id !== optimistic.id));
+      throw err;
+    }
+  };
+
+  const handleUpdateHilo = async (id: string, changes: Partial<HiloPrueba>): Promise<void> => {
+    setHilos(prev => prev.map(h => h.id === id ? { ...h, ...changes, updatedAt: new Date().toISOString() } : h));
+    try {
+      await db.updateHilo(id, changes);
+    } catch (err) {
+      console.error('Error actualizando hilo:', err);
+    }
+  };
+
+  const handleDeleteHilo = async (id: string): Promise<void> => {
+    const prev = hilos;
+    setHilos(curr => curr.filter(h => h.id !== id));
+    try {
+      await db.deleteHilo(id);
+    } catch (err) {
+      console.error('Error eliminando hilo:', err);
+      setHilos(prev);
+    }
+  };
+
   const handleUpdateAssignments = async (matterId: string, profileIds: string[], leadId: string) => {
     // Optimistic update
     setMatters(prev => prev.map(m =>
@@ -847,6 +898,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       eventos, plazos,
       handleCreateEvento, handleUpdateEvento, handleDeleteEvento,
       handleCreatePlazo, handleCumplirPlazo, handleCancelarPlazo,
+      hilos, handleCreateHilo, handleUpdateHilo, handleDeleteHilo,
     }}>
       {children}
     </AppContext.Provider>
