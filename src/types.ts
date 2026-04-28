@@ -814,6 +814,35 @@ export interface CuotaCompensacion {
   updatedAt: string;
 }
 
+// ── LETRADOS DE LA PARTE / CONTRAPARTE ─────────────────────
+// Datos estructurados con historial. Reemplaza los strings sueltos en
+// matter.caseData (conyuge2_abogado, etc.) que se sobrescribían al
+// cambiar de letrado.
+
+export type RolLetrado = 'contraparte' | 'tercero' | 'fiscalia' | 'defensoria' | 'otra';
+export type EstadoLetrado = 'vigente' | 'renunciante' | 'cesado' | 'sustituido';
+
+export interface LetradoParte {
+  id: string;
+  matterId: string;
+  nombre: string;
+  matricula?: string;
+  colegio?: string;
+  email?: string;
+  telefono?: string;
+  domicilioLegal?: string;
+  domicilioElectronico?: string;
+  representaA: RolLetrado;
+  estado: EstadoLetrado;
+  fechaDesignacion?: string;
+  fechaCese?: string;
+  motivoCese?: string;
+  notas?: string;
+  createdBy?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // ── COMUNICACIONES ──────────────────────────────────────────
 
 export type CanalCommunication = 'WhatsApp' | 'Email' | 'Teléfono' | 'Presencial' | 'Interno';

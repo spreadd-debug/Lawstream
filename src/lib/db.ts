@@ -54,6 +54,7 @@ import {
   Perito,
   CompensacionEconomica,
   CuotaCompensacion,
+  LetradoParte,
 } from '../types';
 
 // ── Profiles ──────────────────────────────────────────────────────
@@ -2367,6 +2368,86 @@ export const updateCuota = async (id: string, changes: Partial<CuotaCompensacion
   const { error } = await supabase
     .from('cuotas_compensacion')
     .update(cuotaToRow(changes))
+    .eq('id', id);
+  if (error) throw error;
+};
+
+// ── Letrados de la parte / contraparte ─────────────────────────
+
+const toLetrado = (r: any): LetradoParte => ({
+  id:                   r.id,
+  matterId:             r.matter_id,
+  nombre:               r.nombre,
+  matricula:            r.matricula            ?? undefined,
+  colegio:              r.colegio              ?? undefined,
+  email:                r.email                ?? undefined,
+  telefono:             r.telefono             ?? undefined,
+  domicilioLegal:       r.domicilio_legal      ?? undefined,
+  domicilioElectronico: r.domicilio_electronico ?? undefined,
+  representaA:          r.representa_a,
+  estado:               r.estado,
+  fechaDesignacion:     r.fecha_designacion    ?? undefined,
+  fechaCese:            r.fecha_cese           ?? undefined,
+  motivoCese:           r.motivo_cese          ?? undefined,
+  notas:                r.notas                ?? undefined,
+  createdBy:            r.created_by           ?? undefined,
+  createdAt:            r.created_at,
+  updatedAt:            r.updated_at,
+});
+
+const letradoToRow = (l: Partial<LetradoParte>): Record<string, unknown> => {
+  const row: Record<string, unknown> = {};
+  if (l.matterId             !== undefined) row.matter_id              = l.matterId;
+  if (l.nombre               !== undefined) row.nombre                 = l.nombre;
+  if (l.matricula            !== undefined) row.matricula              = l.matricula            ?? null;
+  if (l.colegio              !== undefined) row.colegio                = l.colegio              ?? null;
+  if (l.email                !== undefined) row.email                  = l.email                ?? null;
+  if (l.telefono             !== undefined) row.telefono               = l.telefono             ?? null;
+  if (l.domicilioLegal       !== undefined) row.domicilio_legal        = l.domicilioLegal       ?? null;
+  if (l.domicilioElectronico !== undefined) row.domicilio_electronico  = l.domicilioElectronico ?? null;
+  if (l.representaA          !== undefined) row.representa_a           = l.representaA;
+  if (l.estado               !== undefined) row.estado                 = l.estado;
+  if (l.fechaDesignacion     !== undefined) row.fecha_designacion      = l.fechaDesignacion     ?? null;
+  if (l.fechaCese            !== undefined) row.fecha_cese             = l.fechaCese            ?? null;
+  if (l.motivoCese           !== undefined) row.motivo_cese            = l.motivoCese           ?? null;
+  if (l.notas                !== undefined) row.notas                  = l.notas                ?? null;
+  if (l.createdBy            !== undefined) row.created_by             = l.createdBy            ?? null;
+  return row;
+};
+
+export const fetchLetrados = async (): Promise<LetradoParte[]> => {
+  const { data, error } = await supabase
+    .from('letrados_parte')
+    .select('*')
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map(toLetrado);
+};
+
+export const createLetrado = async (
+  l: Omit<LetradoParte, 'id' | 'createdAt' | 'updatedAt'>,
+): Promise<LetradoParte> => {
+  const { data, error } = await supabase
+    .from('letrados_parte')
+    .insert(letradoToRow(l))
+    .select()
+    .single();
+  if (error) throw error;
+  return toLetrado(data);
+};
+
+export const updateLetrado = async (id: string, changes: Partial<LetradoParte>): Promise<void> => {
+  const { error } = await supabase
+    .from('letrados_parte')
+    .update(letradoToRow(changes))
+    .eq('id', id);
+  if (error) throw error;
+};
+
+export const deleteLetrado = async (id: string): Promise<void> => {
+  const { error } = await supabase
+    .from('letrados_parte')
+    .delete()
     .eq('id', id);
   if (error) throw error;
 };

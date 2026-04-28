@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { Matter, Client, Consultation, LegalDocument, Task, TimelineEvent, UserProfile, Communication, Expediente, MatterMilestone, EventoExpediente, Plazo, Jurisdiccion, TipoProceso, TipoEvento, HiloPrueba, Perito, CompensacionEconomica, CuotaCompensacion, FrecuenciaCuota } from '../types';
+import { Matter, Client, Consultation, LegalDocument, Task, TimelineEvent, UserProfile, Communication, Expediente, MatterMilestone, EventoExpediente, Plazo, Jurisdiccion, TipoProceso, TipoEvento, HiloPrueba, Perito, CompensacionEconomica, CuotaCompensacion, FrecuenciaCuota, LetradoParte } from '../types';
 import { GlobalFilters, defaultFilters } from '../components/FiltersContent';
 import { useAuth } from './auth';
 import * as db from './db';
@@ -134,6 +134,17 @@ interface AppContextType {
   handleDeleteCompensacion: (id: string) => Promise<void>;
   handleMarcarCuotaPagada: (cuotaId: string, fechaPago: string, montoPagado: number, comprobanteUrl?: string) => Promise<void>;
   handleUpdateCuota: (cuotaId: string, changes: Partial<CuotaCompensacion>) => Promise<void>;
+  // Letrados de la parte / contraparte
+  letrados: LetradoParte[];
+  handleCreateLetrado: (l: Omit<LetradoParte, 'id' | 'createdAt' | 'updatedAt'>) => Promise<LetradoParte>;
+  handleUpdateLetrado: (id: string, changes: Partial<LetradoParte>) => Promise<void>;
+  handleDeleteLetrado: (id: string) => Promise<void>;
+  handleSustituirLetrado: (
+    letradoId: string,
+    nuevoLetrado: Omit<LetradoParte, 'id' | 'createdAt' | 'updatedAt'>,
+    fechaCese: string,
+    motivoCese?: string,
+  ) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -161,6 +172,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [peritos, setPeritos] = useState<Perito[]>([]);
   const [compensaciones, setCompensaciones] = useState<CompensacionEconomica[]>([]);
   const [cuotasCompensacion, setCuotasCompensacion] = useState<CuotaCompensacion[]>([]);
+  const [letrados, setLetrados] = useState<LetradoParte[]>([]);
   const [plazos, setPlazos] = useState<Plazo[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -208,8 +220,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       safe(db.fetchPeritos(),          'peritos'),
       safe(db.fetchCompensaciones(),   'compensaciones'),
       safe(db.fetchCuotasCompensacion(), 'cuotas_compensacion'),
+      safe(db.fetchLetrados(),         'letrados'),
     ])
-      .then(([m, c, co, d, t, tl, p, ex, ms, ev, pl, hi, pe, comps, cuotas]) => {
+      .then(([m, c, co, d, t, tl, p, ex, ms, ev, pl, hi, pe, comps, cuotas, letr]) => {
         setMatters(m);
         setClients(c);
         setConsultations(co);
@@ -225,6 +238,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setPeritos(pe);
         setCompensaciones(comps);
         setCuotasCompensacion(cuotas);
+        setLetrados(letr);
       })
       .finally(() => setIsLoading(false));
   }, [userId]);
@@ -1159,6 +1173,74 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  // ── Letrados de la parte / contraparte ─────────────────────────
+
+  const handleCreateLetrado = async (
+    l: Omit<LetradoParte, 'id' | 'createdAt' | 'updatedAt'>,
+  ): Promise<LetradoParte> => {
+    const optimistic: LetradoParte = {
+      ...l,
+      id: crypto.randomUUID(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    setLetrados(prev => [...prev, optimistic]);
+    try {
+      const saved = await db.createLetrado(l);
+      setLetrados(prev => prev.map(x => x.id === optimistic.id ? saved : x));
+      return saved;
+    } catch (err) {
+      console.error('Error creando letrado:', err);
+      setLetrados(prev => prev.filter(x => x.id !== optimistic.id));
+      throw err;
+    }
+  };
+
+  const handleUpdateLetrado = async (id: string, changes: Partial<LetradoParte>): Promise<void> => {
+    setLetrados(prev => prev.map(x => x.id === id ? { ...x, ...changes, updatedAt: new Date().toISOString() } : x));
+    try {
+      await db.updateLetrado(id, changes);
+    } catch (err) {
+      console.error('Error actualizando letrado:', err);
+    }
+  };
+
+  const handleDeleteLetrado = async (id: string): Promise<void> => {
+    const prev = letrados;
+    setLetrados(curr => curr.filter(x => x.id !== id));
+    try {
+      await db.deleteLetrado(id);
+    } catch (err) {
+      console.error('Error eliminando letrado:', err);
+      setLetrados(prev);
+    }
+  };
+
+  /**
+   * Sustituye un letrado por otro: marca al actual como 'sustituido'
+   * con la fecha de cese y crea uno nuevo 'vigente'. Operación
+   * compuesta — preserva el histórico del letrado anterior.
+   */
+  const handleSustituirLetrado = async (
+    letradoId: string,
+    nuevoLetrado: Omit<LetradoParte, 'id' | 'createdAt' | 'updatedAt'>,
+    fechaCese: string,
+    motivoCese?: string,
+  ): Promise<void> => {
+    // 1. Marcar al actual como sustituido
+    await handleUpdateLetrado(letradoId, {
+      estado: 'sustituido',
+      fechaCese,
+      motivoCese: motivoCese?.trim() || undefined,
+    });
+    // 2. Crear el nuevo (forzando estado vigente y fechaDesignacion = fechaCese)
+    await handleCreateLetrado({
+      ...nuevoLetrado,
+      estado: 'vigente',
+      fechaDesignacion: nuevoLetrado.fechaDesignacion || fechaCese,
+    });
+  };
+
   const handleUpdateAssignments = async (matterId: string, profileIds: string[], leadId: string) => {
     // Optimistic update
     setMatters(prev => prev.map(m =>
@@ -1215,6 +1297,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       compensaciones, cuotasCompensacion,
       handleCreateCompensacion, handleUpdateCompensacion, handleDeleteCompensacion,
       handleMarcarCuotaPagada, handleUpdateCuota,
+      letrados, handleCreateLetrado, handleUpdateLetrado, handleDeleteLetrado,
+      handleSustituirLetrado,
     }}>
       {children}
     </AppContext.Provider>
