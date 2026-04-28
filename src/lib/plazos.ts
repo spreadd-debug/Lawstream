@@ -175,6 +175,37 @@ export async function getFeriadosSet(jurisdiccion: Jurisdiccion): Promise<Set<st
   return feriadosCache?.get(jurisdiccion) || new Set();
 }
 
+/**
+ * Cuenta los días hábiles entre `desde` (exclusivo) y `hasta` (inclusivo),
+ * salteando fines de semana y feriados/feria de la jurisdicción.
+ *
+ * Útil al SUSPENDER un plazo: necesitamos saber cuántos días hábiles ya
+ * transcurrieron entre la fechaInicio del plazo y la fecha de suspensión,
+ * para preservar ese conteo y reanudar correctamente.
+ *
+ * Convención: igual que `calcularVencimiento`, no se cuenta el día `desde`
+ * (es el día del evento, día 0). Se empieza a contar desde `desde + 1`.
+ */
+export async function diasHabilesEntre(
+  desde: Date,
+  hasta: Date,
+  jurisdiccion: Jurisdiccion,
+): Promise<number> {
+  await loadFeriadosCache();
+  const feriadosSet = feriadosCache?.get(jurisdiccion) || new Set<string>();
+  if (hasta <= desde) return 0;
+
+  let count = 0;
+  let cursor = addDays(desde, 1);
+  while (cursor <= hasta) {
+    if (!isWeekend(cursor) && !feriadosSet.has(format(cursor, 'yyyy-MM-dd'))) {
+      count++;
+    }
+    cursor = addDays(cursor, 1);
+  }
+  return count;
+}
+
 // ─────────────────────────────────────────────────────────────────
 // Tabla de plazos procesales típicos
 // ─────────────────────────────────────────────────────────────────

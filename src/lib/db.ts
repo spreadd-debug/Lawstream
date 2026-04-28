@@ -1955,7 +1955,12 @@ const toPlazo = (r: any): Plazo => ({
   fechaVencimiento: r.fecha_vencimiento,
   estado:           r.estado,
   cumplidoAt:       r.cumplido_at ?? undefined,
-  tareaId:          r.tarea_id ?? undefined,
+  tareaId:          r.tarea_id    ?? undefined,
+  suspendidoDesde:                r.suspendido_desde                  ?? undefined,
+  motivoSuspension:               r.motivo_suspension                 ?? undefined,
+  diasTranscurridosAlSuspender:   r.dias_transcurridos_al_suspender   ?? undefined,
+  fechaReanudacion:               r.fecha_reanudacion                 ?? undefined,
+  reanudadoAt:                    r.reanudado_at                      ?? undefined,
   createdAt:        r.created_at,
   updatedAt:        r.updated_at,
 });
@@ -1974,6 +1979,11 @@ const plazoToRow = (p: Partial<Plazo>): Record<string, unknown> => {
   if (p.estado           !== undefined) row.estado            = p.estado;
   if (p.cumplidoAt       !== undefined) row.cumplido_at       = p.cumplidoAt ?? null;
   if (p.tareaId          !== undefined) row.tarea_id          = p.tareaId ?? null;
+  if (p.suspendidoDesde              !== undefined) row.suspendido_desde                = p.suspendidoDesde              ?? null;
+  if (p.motivoSuspension             !== undefined) row.motivo_suspension               = p.motivoSuspension             ?? null;
+  if (p.diasTranscurridosAlSuspender !== undefined) row.dias_transcurridos_al_suspender = p.diasTranscurridosAlSuspender ?? null;
+  if (p.fechaReanudacion             !== undefined) row.fecha_reanudacion               = p.fechaReanudacion             ?? null;
+  if (p.reanudadoAt                  !== undefined) row.reanudado_at                    = p.reanudadoAt                  ?? null;
   return row;
 };
 
