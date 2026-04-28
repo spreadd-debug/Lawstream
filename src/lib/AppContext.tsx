@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { Matter, Client, Consultation, LegalDocument, Task, TimelineEvent, UserProfile, Communication, Expediente, MatterMilestone, EventoExpediente, Plazo, Jurisdiccion, TipoProceso, TipoEvento, HiloPrueba } from '../types';
+import { Matter, Client, Consultation, LegalDocument, Task, TimelineEvent, UserProfile, Communication, Expediente, MatterMilestone, EventoExpediente, Plazo, Jurisdiccion, TipoProceso, TipoEvento, HiloPrueba, Perito } from '../types';
 import { GlobalFilters, defaultFilters } from '../components/FiltersContent';
 import { useAuth } from './auth';
 import * as db from './db';
@@ -106,6 +106,11 @@ interface AppContextType {
   handleCreateHilo: (hilo: Omit<HiloPrueba, 'id' | 'createdAt' | 'updatedAt'>) => Promise<HiloPrueba>;
   handleUpdateHilo: (id: string, changes: Partial<HiloPrueba>) => Promise<void>;
   handleDeleteHilo: (id: string) => Promise<void>;
+  // Peritos
+  peritos: Perito[];
+  handleCreatePerito: (perito: Omit<Perito, 'id' | 'createdAt' | 'updatedAt'>) => Promise<Perito>;
+  handleUpdatePerito: (id: string, changes: Partial<Perito>) => Promise<void>;
+  handleDeletePerito: (id: string) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -130,6 +135,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [milestones, setMilestones] = useState<MatterMilestone[]>([]);
   const [eventos, setEventos] = useState<EventoExpediente[]>([]);
   const [hilos, setHilos] = useState<HiloPrueba[]>([]);
+  const [peritos, setPeritos] = useState<Perito[]>([]);
   const [plazos, setPlazos] = useState<Plazo[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -174,8 +180,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       safe(db.fetchAllEventos(),       'eventos'),
       safe(db.fetchAllPlazos(),        'plazos'),
       safe(db.fetchHilos(),            'hilos'),
+      safe(db.fetchPeritos(),          'peritos'),
     ])
-      .then(([m, c, co, d, t, tl, p, ex, ms, ev, pl, hi]) => {
+      .then(([m, c, co, d, t, tl, p, ex, ms, ev, pl, hi, pe]) => {
         setMatters(m);
         setClients(c);
         setConsultations(co);
@@ -188,6 +195,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setEventos(ev);
         setPlazos(pl);
         setHilos(hi);
+        setPeritos(pe);
       })
       .finally(() => setIsLoading(false));
   }, [userId]);
@@ -848,6 +856,49 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  // ── Peritos ────────────────────────────────────────────────────
+
+  const handleCreatePerito = async (
+    perito: Omit<Perito, 'id' | 'createdAt' | 'updatedAt'>,
+  ): Promise<Perito> => {
+    const optimistic: Perito = {
+      ...perito,
+      id: crypto.randomUUID(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    setPeritos(prev => [...prev, optimistic]);
+    try {
+      const saved = await db.createPerito(perito);
+      setPeritos(prev => prev.map(p => p.id === optimistic.id ? saved : p));
+      return saved;
+    } catch (err) {
+      console.error('Error creando perito:', err);
+      setPeritos(prev => prev.filter(p => p.id !== optimistic.id));
+      throw err;
+    }
+  };
+
+  const handleUpdatePerito = async (id: string, changes: Partial<Perito>): Promise<void> => {
+    setPeritos(prev => prev.map(p => p.id === id ? { ...p, ...changes, updatedAt: new Date().toISOString() } : p));
+    try {
+      await db.updatePerito(id, changes);
+    } catch (err) {
+      console.error('Error actualizando perito:', err);
+    }
+  };
+
+  const handleDeletePerito = async (id: string): Promise<void> => {
+    const prev = peritos;
+    setPeritos(curr => curr.filter(p => p.id !== id));
+    try {
+      await db.deletePerito(id);
+    } catch (err) {
+      console.error('Error eliminando perito:', err);
+      setPeritos(prev);
+    }
+  };
+
   const handleUpdateAssignments = async (matterId: string, profileIds: string[], leadId: string) => {
     // Optimistic update
     setMatters(prev => prev.map(m =>
@@ -899,6 +950,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       handleCreateEvento, handleUpdateEvento, handleDeleteEvento,
       handleCreatePlazo, handleCumplirPlazo, handleCancelarPlazo,
       hilos, handleCreateHilo, handleUpdateHilo, handleDeleteHilo,
+      peritos, handleCreatePerito, handleUpdatePerito, handleDeletePerito,
     }}>
       {children}
     </AppContext.Provider>

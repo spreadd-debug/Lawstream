@@ -51,6 +51,7 @@ import {
   Feriado,
   EstadoPlazo,
   HiloPrueba,
+  Perito,
 } from '../types';
 
 // ── Profiles ──────────────────────────────────────────────────────
@@ -2143,6 +2144,82 @@ export const updateHilo = async (id: string, changes: Partial<HiloPrueba>): Prom
 export const deleteHilo = async (id: string): Promise<void> => {
   const { error } = await supabase
     .from('hilos_prueba')
+    .delete()
+    .eq('id', id);
+  if (error) throw error;
+};
+
+// ── Peritos ────────────────────────────────────────────────────
+
+const toPerito = (r: any): Perito => ({
+  id:             r.id,
+  matterId:       r.matter_id,
+  hiloId:         r.hilo_id        ?? undefined,
+  nombre:         r.nombre,
+  especialidad:   r.especialidad,
+  matricula:      r.matricula      ?? undefined,
+  email:          r.email          ?? undefined,
+  telefono:       r.telefono       ?? undefined,
+  estado:         r.estado,
+  fechaDesignado: r.fecha_designado ?? undefined,
+  fechaAceptado:  r.fecha_aceptado  ?? undefined,
+  fechaInforme:   r.fecha_informe   ?? undefined,
+  notas:          r.notas           ?? undefined,
+  createdBy:      r.created_by      ?? undefined,
+  createdAt:      r.created_at,
+  updatedAt:      r.updated_at,
+});
+
+const peritoToRow = (p: Partial<Perito>): Record<string, unknown> => {
+  const row: Record<string, unknown> = {};
+  if (p.matterId        !== undefined) row.matter_id        = p.matterId;
+  if (p.hiloId          !== undefined) row.hilo_id          = p.hiloId          ?? null;
+  if (p.nombre          !== undefined) row.nombre           = p.nombre;
+  if (p.especialidad    !== undefined) row.especialidad     = p.especialidad;
+  if (p.matricula       !== undefined) row.matricula        = p.matricula       ?? null;
+  if (p.email           !== undefined) row.email            = p.email           ?? null;
+  if (p.telefono        !== undefined) row.telefono         = p.telefono        ?? null;
+  if (p.estado          !== undefined) row.estado           = p.estado;
+  if (p.fechaDesignado  !== undefined) row.fecha_designado  = p.fechaDesignado  ?? null;
+  if (p.fechaAceptado   !== undefined) row.fecha_aceptado   = p.fechaAceptado   ?? null;
+  if (p.fechaInforme    !== undefined) row.fecha_informe    = p.fechaInforme    ?? null;
+  if (p.notas           !== undefined) row.notas            = p.notas           ?? null;
+  if (p.createdBy       !== undefined) row.created_by       = p.createdBy       ?? null;
+  return row;
+};
+
+export const fetchPeritos = async (): Promise<Perito[]> => {
+  const { data, error } = await supabase
+    .from('peritos')
+    .select('*')
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map(toPerito);
+};
+
+export const createPerito = async (
+  perito: Omit<Perito, 'id' | 'createdAt' | 'updatedAt'>,
+): Promise<Perito> => {
+  const { data, error } = await supabase
+    .from('peritos')
+    .insert(peritoToRow(perito))
+    .select()
+    .single();
+  if (error) throw error;
+  return toPerito(data);
+};
+
+export const updatePerito = async (id: string, changes: Partial<Perito>): Promise<void> => {
+  const { error } = await supabase
+    .from('peritos')
+    .update(peritoToRow(changes))
+    .eq('id', id);
+  if (error) throw error;
+};
+
+export const deletePerito = async (id: string): Promise<void> => {
+  const { error } = await supabase
+    .from('peritos')
     .delete()
     .eq('id', id);
   if (error) throw error;
