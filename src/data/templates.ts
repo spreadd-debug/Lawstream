@@ -314,35 +314,108 @@ export const MATTER_TEMPLATES: MatterTemplate[] = [
         milestone: 'Etapa probatoria cerrada',
       },
       // ── ETAPA 5: SENTENCIA ───────────────────────────────────
+      // Al recibir la sentencia, el abogado completa la ficha indicando
+      // qué resolvió el juez y qué tramitaciones quedan para ejecución.
+      // Esos flags activan tareas específicas en la etapa siguiente (GAP 18).
       {
         name: 'Sentencia',
         tasks: [
           { task: 'Verificar dictado de sentencia de divorcio', priority: 'crítico', bloqueante: true },
           { task: 'Verificar homologación del convenio regulador', priority: 'crítico', bloqueante: true, condition: { key: 'tipo_divorcio', equals: 'De común acuerdo' } },
-          { task: 'Solicitar inscripción en Registro Civil', priority: 'crítico', bloqueante: true },
-          { task: 'Librar oficio al Registro Civil', priority: 'crítico', bloqueante: true },
-          // Unilateral: cuestiones no resueltas quedan pendientes
-          { task: 'Evaluar cuestiones pendientes post-sentencia (bienes, compensación)', priority: 'recomendado', condition: { key: 'tipo_divorcio', equals: 'Unilateral' } },
+          { task: 'Notificarse de la sentencia', priority: 'crítico', bloqueante: true },
+          { task: 'Pedir testimonio de la sentencia (firme)', priority: 'crítico' },
+          { task: 'Completar ficha de Sentencia (qué resolvió el juez y qué queda por ejecutar)', priority: 'crítico', bloqueante: true },
         ],
         documents: [
           { name: 'Sentencia de divorcio', required: true },
-          { name: 'Oficio al Registro Civil', required: true },
+          { name: 'Testimonio de sentencia firme', required: true },
           { name: 'Convenio regulador homologado', required: false },
         ],
-        milestone: 'Sentencia firme e inscripta',
+        milestone: 'Sentencia dictada',
+        fichaTitle: 'Resumen de la Sentencia',
+        fichaFields: [
+          {
+            title: 'Resultado de la sentencia',
+            icon: 'FileText',
+            fields: [
+              { key: 'sentencia_fecha', label: 'Fecha de la sentencia', type: 'date' },
+              { key: 'sentencia_firme', label: '¿Sentencia firme?', type: 'select', options: ['Sí', 'No', 'Parcialmente firme (apelación abierta)'] },
+              { key: 'sentencia_costas', label: 'Costas', type: 'select', options: ['Por su orden', 'A la contraria', 'Al cliente', 'Distribuidas', 'No corresponde'] },
+              { key: 'sentencia_compensacion_otorgada', label: 'Compensación económica', type: 'select', options: ['Otorgada', 'Rechazada', 'No reclamada'] },
+            ],
+          },
+          {
+            title: 'Trámites pendientes para ejecución',
+            icon: 'Building2',
+            fields: [
+              { key: 'ejec_inmuebles', label: 'Inmuebles a transferir / inscribir', type: 'select', options: ['No aplica', 'Sí — uno', 'Sí — varios'] },
+              { key: 'ejec_automotores', label: 'Automotores a transferir (Form 08)', type: 'select', options: ['No aplica', 'Sí — uno', 'Sí — varios'] },
+              { key: 'ejec_cuentas', label: 'Cuentas bancarias conjuntas a dividir', type: 'select', options: ['No aplica', 'Sí'] },
+              { key: 'ejec_sociedad', label: 'Sociedad comercial a liquidar', type: 'select', options: ['No aplica', 'Sí'] },
+              { key: 'ejec_atribucion_vivienda', label: 'Atribución de vivienda con plazo', type: 'select', options: ['No aplica', 'Sí'] },
+              { key: 'ejec_compensacion_a_cobrar', label: '¿Hay compensación a cobrar/pagar?', type: 'select', options: ['No aplica', 'Sí — el cliente cobra', 'Sí — el cliente paga'] },
+              { key: 'ejec_honorarios_a_ejecutar', label: '¿Hay honorarios regulados a ejecutar a la contraria?', type: 'select', options: ['No aplica', 'Sí'] },
+            ],
+          },
+        ],
       },
       // ── ETAPA 6: EJECUCIÓN ───────────────────────────────────
+      // Checklist DETALLADO condicional según los flags cargados en la
+      // ficha de Sentencia (GAP 18). Un divorcio simple sin patrimonio
+      // sólo verá las tareas básicas (Registro Civil + archivo). Los
+      // casos con patrimonio van desplegando tareas según corresponda.
       {
         name: 'Ejecución',
         tasks: [
-          { task: 'Verificar inscripción de sentencia en Registro Civil', priority: 'crítico', bloqueante: true },
-          { task: 'Inscribir transferencia de bienes en registros correspondientes', priority: 'recomendado' },
-          { task: 'Ejecutar liquidación de sociedad conyugal', priority: 'recomendado' },
-          { task: 'Archivar expediente', priority: 'opcional' },
+          // ─── INSCRIPCIÓN REGISTRO CIVIL (siempre) ───
+          { task: 'Librar oficio al Registro Civil para inscribir la sentencia', priority: 'crítico', bloqueante: true },
+          { task: 'Diligenciar oficio en Registro Civil', priority: 'crítico', bloqueante: true },
+          { task: 'Verificar inscripción marginal en el acta de matrimonio', priority: 'crítico', bloqueante: true },
+          { task: 'Pedir nueva acta de matrimonio con la marginal', priority: 'recomendado' },
+
+          // ─── INMUEBLES ───
+          { task: 'Identificar inmuebles a transferir e individualizar matrículas', priority: 'crítico', bloqueante: true, condition: { key: 'ejec_inmuebles', notEquals: 'No aplica' } },
+          { task: 'Tramitar escritura de adjudicación / partición ante escribano', priority: 'crítico', bloqueante: true, condition: { key: 'ejec_inmuebles', notEquals: 'No aplica' } },
+          { task: 'Librar oficio al Registro de la Propiedad Inmueble (RPI)', priority: 'crítico', bloqueante: true, condition: { key: 'ejec_inmuebles', notEquals: 'No aplica' } },
+          { task: 'Verificar inscripción en RPI', priority: 'crítico', condition: { key: 'ejec_inmuebles', notEquals: 'No aplica' } },
+
+          // ─── ATRIBUCIÓN DE VIVIENDA con plazo ───
+          { task: 'Anotar plazo de atribución de vivienda en el seguimiento', priority: 'crítico', bloqueante: true, condition: { key: 'ejec_atribucion_vivienda', equals: 'Sí' } },
+          { task: 'Inscribir gravamen / anotación de atribución en RPI (art. 444 CCyCN)', priority: 'recomendado', condition: { key: 'ejec_atribucion_vivienda', equals: 'Sí' } },
+
+          // ─── AUTOMOTORES ───
+          { task: 'Tramitar Formulario 08 ante el Registro Automotor (DNRPA)', priority: 'crítico', bloqueante: true, condition: { key: 'ejec_automotores', notEquals: 'No aplica' } },
+          { task: 'Verificar transferencia inscripta en DNRPA', priority: 'crítico', condition: { key: 'ejec_automotores', notEquals: 'No aplica' } },
+
+          // ─── CUENTAS BANCARIAS ───
+          { task: 'Librar oficio al banco para informar saldos y movimientos', priority: 'crítico', bloqueante: true, condition: { key: 'ejec_cuentas', equals: 'Sí' } },
+          { task: 'Acordar y ejecutar la división de cuentas conjuntas', priority: 'crítico', bloqueante: true, condition: { key: 'ejec_cuentas', equals: 'Sí' } },
+          { task: 'Cierre o transferencia de titularidad de cuentas', priority: 'recomendado', condition: { key: 'ejec_cuentas', equals: 'Sí' } },
+
+          // ─── SOCIEDAD COMERCIAL ───
+          { task: 'Determinar valuación de la participación societaria (balance / pericia)', priority: 'crítico', bloqueante: true, condition: { key: 'ejec_sociedad', equals: 'Sí' } },
+          { task: 'Acordar adjudicación / cesión de cuotas o acciones', priority: 'crítico', bloqueante: true, condition: { key: 'ejec_sociedad', equals: 'Sí' } },
+          { task: 'Inscripción de cesión ante IGJ / Registro Público de Comercio', priority: 'crítico', condition: { key: 'ejec_sociedad', equals: 'Sí' } },
+
+          // ─── COMPENSACIÓN ECONÓMICA ───
+          { task: 'Iniciar tracking de cuotas de compensación (módulo Cobranzas)', priority: 'crítico', bloqueante: true, condition: { key: 'ejec_compensacion_a_cobrar', notEquals: 'No aplica' } },
+          { task: 'Configurar calendario de pagos y alertas de mora', priority: 'recomendado', condition: { key: 'ejec_compensacion_a_cobrar', notEquals: 'No aplica' } },
+
+          // ─── HONORARIOS REGULADOS ───
+          { task: 'Notificar la regulación de honorarios a la contraria', priority: 'crítico', bloqueante: true, condition: { key: 'ejec_honorarios_a_ejecutar', equals: 'Sí' } },
+          { task: 'Esperar firmeza de la regulación (5 días apelación)', priority: 'crítico', condition: { key: 'ejec_honorarios_a_ejecutar', equals: 'Sí' } },
+          { task: 'Iniciar ejecución de honorarios (módulo Cobranzas)', priority: 'crítico', condition: { key: 'ejec_honorarios_a_ejecutar', equals: 'Sí' } },
+
+          // ─── CIERRE ───
+          { task: 'Confirmar todos los trámites de ejecución completados', priority: 'crítico', bloqueante: true },
+          { task: 'Archivar expediente y actualizar estado del caso', priority: 'recomendado' },
         ],
         documents: [
           { name: 'Constancia de inscripción Registro Civil', required: true },
           { name: 'Escrituras de transferencia de bienes', required: false },
+          { name: 'Formulario 08 (DNRPA)', required: false },
+          { name: 'Constancia de cierre de cuentas bancarias', required: false },
+          { name: 'Inscripción de cesión ante IGJ', required: false },
         ],
         milestone: 'Divorcio ejecutado',
       },
@@ -703,34 +776,105 @@ export const MATTER_TEMPLATES: MatterTemplate[] = [
         milestone: 'Etapa probatoria cerrada',
       },
       // ── ETAPA 6: SENTENCIA ───────────────────────────────────
+      // Idem CABA: ficha que dispara las tareas de la etapa Ejecución (GAP 18).
       {
         name: 'Sentencia',
         tasks: [
           { task: 'Verificar dictado de sentencia de divorcio', priority: 'crítico', bloqueante: true },
           { task: 'Verificar homologación del convenio regulador', priority: 'crítico', bloqueante: true, condition: { key: 'tipo_divorcio', equals: 'De común acuerdo' } },
-          { task: 'Solicitar inscripción en Registro Civil (Dirección de Registro PBA)', priority: 'crítico', bloqueante: true },
-          { task: 'Librar oficio al Registro Civil', priority: 'crítico', bloqueante: true },
-          { task: 'Evaluar cuestiones pendientes post-sentencia (bienes, compensación)', priority: 'recomendado', condition: { key: 'tipo_divorcio', equals: 'Unilateral' } },
+          { task: 'Notificarse de la sentencia', priority: 'crítico', bloqueante: true },
+          { task: 'Pedir testimonio de la sentencia (firme)', priority: 'crítico' },
+          { task: 'Completar ficha de Sentencia (qué resolvió el juez y qué queda por ejecutar)', priority: 'crítico', bloqueante: true },
         ],
         documents: [
           { name: 'Sentencia de divorcio', required: true },
-          { name: 'Oficio al Registro Civil', required: true },
+          { name: 'Testimonio de sentencia firme', required: true },
           { name: 'Convenio regulador homologado', required: false },
         ],
-        milestone: 'Sentencia firme e inscripta',
+        milestone: 'Sentencia dictada',
+        fichaTitle: 'Resumen de la Sentencia',
+        fichaFields: [
+          {
+            title: 'Resultado de la sentencia',
+            icon: 'FileText',
+            fields: [
+              { key: 'sentencia_fecha', label: 'Fecha de la sentencia', type: 'date' },
+              { key: 'sentencia_firme', label: '¿Sentencia firme?', type: 'select', options: ['Sí', 'No', 'Parcialmente firme (apelación abierta)'] },
+              { key: 'sentencia_costas', label: 'Costas', type: 'select', options: ['Por su orden', 'A la contraria', 'Al cliente', 'Distribuidas', 'No corresponde'] },
+              { key: 'sentencia_compensacion_otorgada', label: 'Compensación económica', type: 'select', options: ['Otorgada', 'Rechazada', 'No reclamada'] },
+            ],
+          },
+          {
+            title: 'Trámites pendientes para ejecución',
+            icon: 'Building2',
+            fields: [
+              { key: 'ejec_inmuebles', label: 'Inmuebles a transferir / inscribir', type: 'select', options: ['No aplica', 'Sí — uno', 'Sí — varios'] },
+              { key: 'ejec_automotores', label: 'Automotores a transferir (Form 08)', type: 'select', options: ['No aplica', 'Sí — uno', 'Sí — varios'] },
+              { key: 'ejec_cuentas', label: 'Cuentas bancarias conjuntas a dividir', type: 'select', options: ['No aplica', 'Sí'] },
+              { key: 'ejec_sociedad', label: 'Sociedad comercial a liquidar', type: 'select', options: ['No aplica', 'Sí'] },
+              { key: 'ejec_atribucion_vivienda', label: 'Atribución de vivienda con plazo', type: 'select', options: ['No aplica', 'Sí'] },
+              { key: 'ejec_compensacion_a_cobrar', label: '¿Hay compensación a cobrar/pagar?', type: 'select', options: ['No aplica', 'Sí — el cliente cobra', 'Sí — el cliente paga'] },
+              { key: 'ejec_honorarios_a_ejecutar', label: '¿Hay honorarios regulados a ejecutar a la contraria?', type: 'select', options: ['No aplica', 'Sí'] },
+            ],
+          },
+        ],
       },
       // ── ETAPA 7: EJECUCIÓN ───────────────────────────────────
+      // Mismo checklist condicional que CABA (GAP 18). En PBA el oficio
+      // va a la Dirección Provincial del Registro de las Personas y los
+      // inmuebles se inscriben en el Registro de la Propiedad PBA.
       {
         name: 'Ejecución',
         tasks: [
-          { task: 'Verificar inscripción de sentencia en Registro Civil', priority: 'crítico', bloqueante: true },
-          { task: 'Inscribir transferencia de bienes en registros correspondientes', priority: 'recomendado' },
-          { task: 'Ejecutar liquidación de sociedad conyugal', priority: 'recomendado' },
-          { task: 'Archivar expediente', priority: 'opcional' },
+          // ─── INSCRIPCIÓN REGISTRO CIVIL (siempre) ───
+          { task: 'Librar oficio a la Dirección Provincial del Registro de las Personas (PBA)', priority: 'crítico', bloqueante: true },
+          { task: 'Diligenciar oficio en el Registro Civil PBA', priority: 'crítico', bloqueante: true },
+          { task: 'Verificar inscripción marginal en el acta de matrimonio', priority: 'crítico', bloqueante: true },
+          { task: 'Pedir nueva acta de matrimonio con la marginal', priority: 'recomendado' },
+
+          // ─── INMUEBLES ───
+          { task: 'Identificar inmuebles a transferir e individualizar matrículas', priority: 'crítico', bloqueante: true, condition: { key: 'ejec_inmuebles', notEquals: 'No aplica' } },
+          { task: 'Tramitar escritura de adjudicación / partición ante escribano', priority: 'crítico', bloqueante: true, condition: { key: 'ejec_inmuebles', notEquals: 'No aplica' } },
+          { task: 'Librar oficio al Registro de la Propiedad Inmueble PBA (RPP-PBA)', priority: 'crítico', bloqueante: true, condition: { key: 'ejec_inmuebles', notEquals: 'No aplica' } },
+          { task: 'Verificar inscripción en RPP-PBA', priority: 'crítico', condition: { key: 'ejec_inmuebles', notEquals: 'No aplica' } },
+
+          // ─── ATRIBUCIÓN DE VIVIENDA con plazo ───
+          { task: 'Anotar plazo de atribución de vivienda en el seguimiento', priority: 'crítico', bloqueante: true, condition: { key: 'ejec_atribucion_vivienda', equals: 'Sí' } },
+          { task: 'Inscribir gravamen / anotación de atribución en RPP-PBA (art. 444 CCyCN)', priority: 'recomendado', condition: { key: 'ejec_atribucion_vivienda', equals: 'Sí' } },
+
+          // ─── AUTOMOTORES ───
+          { task: 'Tramitar Formulario 08 ante el Registro Automotor (DNRPA)', priority: 'crítico', bloqueante: true, condition: { key: 'ejec_automotores', notEquals: 'No aplica' } },
+          { task: 'Verificar transferencia inscripta en DNRPA', priority: 'crítico', condition: { key: 'ejec_automotores', notEquals: 'No aplica' } },
+
+          // ─── CUENTAS BANCARIAS ───
+          { task: 'Librar oficio al banco para informar saldos y movimientos', priority: 'crítico', bloqueante: true, condition: { key: 'ejec_cuentas', equals: 'Sí' } },
+          { task: 'Acordar y ejecutar la división de cuentas conjuntas', priority: 'crítico', bloqueante: true, condition: { key: 'ejec_cuentas', equals: 'Sí' } },
+          { task: 'Cierre o transferencia de titularidad de cuentas', priority: 'recomendado', condition: { key: 'ejec_cuentas', equals: 'Sí' } },
+
+          // ─── SOCIEDAD COMERCIAL ───
+          { task: 'Determinar valuación de la participación societaria (balance / pericia)', priority: 'crítico', bloqueante: true, condition: { key: 'ejec_sociedad', equals: 'Sí' } },
+          { task: 'Acordar adjudicación / cesión de cuotas o acciones', priority: 'crítico', bloqueante: true, condition: { key: 'ejec_sociedad', equals: 'Sí' } },
+          { task: 'Inscripción de cesión ante DPPJ PBA / Registro Público de Comercio', priority: 'crítico', condition: { key: 'ejec_sociedad', equals: 'Sí' } },
+
+          // ─── COMPENSACIÓN ECONÓMICA ───
+          { task: 'Iniciar tracking de cuotas de compensación (módulo Cobranzas)', priority: 'crítico', bloqueante: true, condition: { key: 'ejec_compensacion_a_cobrar', notEquals: 'No aplica' } },
+          { task: 'Configurar calendario de pagos y alertas de mora', priority: 'recomendado', condition: { key: 'ejec_compensacion_a_cobrar', notEquals: 'No aplica' } },
+
+          // ─── HONORARIOS REGULADOS ───
+          { task: 'Notificar la regulación de honorarios a la contraria', priority: 'crítico', bloqueante: true, condition: { key: 'ejec_honorarios_a_ejecutar', equals: 'Sí' } },
+          { task: 'Esperar firmeza de la regulación (5 días apelación)', priority: 'crítico', condition: { key: 'ejec_honorarios_a_ejecutar', equals: 'Sí' } },
+          { task: 'Iniciar ejecución de honorarios (módulo Cobranzas)', priority: 'crítico', condition: { key: 'ejec_honorarios_a_ejecutar', equals: 'Sí' } },
+
+          // ─── CIERRE ───
+          { task: 'Confirmar todos los trámites de ejecución completados', priority: 'crítico', bloqueante: true },
+          { task: 'Archivar expediente y actualizar estado del caso', priority: 'recomendado' },
         ],
         documents: [
           { name: 'Constancia de inscripción Registro Civil', required: true },
           { name: 'Escrituras de transferencia de bienes', required: false },
+          { name: 'Formulario 08 (DNRPA)', required: false },
+          { name: 'Constancia de cierre de cuentas bancarias', required: false },
+          { name: 'Inscripción de cesión ante DPPJ PBA', required: false },
         ],
         milestone: 'Divorcio ejecutado',
       },
