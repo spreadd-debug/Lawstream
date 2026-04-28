@@ -53,6 +53,7 @@ import { TimelinePanel } from './TimelinePanel';
 import { HilosPanel } from './HilosPanel';
 import { PeritosPanel } from './PeritosPanel';
 import { CompensacionPanel } from './CompensacionPanel';
+import { LetradosPanel } from './LetradosPanel';
 import { urgenciaDePlazo, diasRestantes } from '../lib/plazos';
 
 interface MatterDetailProps {
@@ -1004,6 +1005,11 @@ export const MatterDetail = ({
         {/* ─────────── TAB: EXPEDIENTE ─────────── */}
         {activeTab === 'expediente' && (
           <div className="py-8 space-y-10">
+            {/* Letrados de la parte / contraparte */}
+            <section>
+              <LetradosPanel matterId={matter.id} />
+            </section>
+
             {/* Datos del Asunto */}
             <section className="space-y-4">
               <h3 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em]">Datos del Asunto</h3>
