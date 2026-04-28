@@ -1219,7 +1219,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   /**
    * Sustituye un letrado por otro: marca al actual como 'sustituido'
    * con la fecha de cese y crea uno nuevo 'vigente'. Operación
-   * compuesta — preserva el histórico del letrado anterior.
+   * compuesta — preserva el histórico del letrado anterior y registra
+   * el cambio como evento de timeline (tipo 'cambio_representacion').
    */
   const handleSustituirLetrado = async (
     letradoId: string,
@@ -1227,6 +1228,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     fechaCese: string,
     motivoCese?: string,
   ): Promise<void> => {
+    const anterior = letrados.find(l => l.id === letradoId);
     // 1. Marcar al actual como sustituido
     await handleUpdateLetrado(letradoId, {
       estado: 'sustituido',
@@ -1239,6 +1241,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       estado: 'vigente',
       fechaDesignacion: nuevoLetrado.fechaDesignacion || fechaCese,
     });
+    // 3. Registrar el cambio en el Timeline como evento procesal.
+    //    No bloquea la sustitución si falla (ej. matter sin jurisdicción).
+    if (anterior) {
+      const matter = matters.find(m => m.id === nuevoLetrado.matterId);
+      const jur = matter?.jurisdiccion;
+      const rolLabel =
+        nuevoLetrado.representaA === 'contraparte' ? 'la contraparte' :
+        nuevoLetrado.representaA === 'tercero'     ? 'un tercero' :
+        nuevoLetrado.representaA === 'fiscalia'    ? 'la fiscalía' :
+        nuevoLetrado.representaA === 'defensoria'  ? 'la defensoría' :
+                                                     'la otra parte';
+      const partesAnterior = [anterior.nombre, anterior.matricula].filter(Boolean).join(' — ');
+      const partesNuevo    = [nuevoLetrado.nombre, nuevoLetrado.matricula].filter(Boolean).join(' — ');
+      const titulo = `Cambio de representación de ${rolLabel}: ${anterior.nombre} → ${nuevoLetrado.nombre}`;
+      const descripcionLineas: string[] = [
+        `Sale: ${partesAnterior}.`,
+        `Asume: ${partesNuevo}.`,
+      ];
+      if (motivoCese?.trim()) descripcionLineas.push(`Motivo: ${motivoCese.trim()}.`);
+      try {
+        await handleCreateEvento({
+          matterId:       nuevoLetrado.matterId,
+          fecha:          fechaCese,
+          tipo:           'cambio_representacion',
+          titulo,
+          descripcion:    descripcionLineas.join(' '),
+          origen:         'manual',
+          jurisdiccion:   jur,
+          documentosUrls: [],
+        });
+      } catch (err) {
+        console.error('Error registrando evento de cambio de representación:', err);
+      }
+    }
   };
 
   const handleUpdateAssignments = async (matterId: string, profileIds: string[], leadId: string) => {
