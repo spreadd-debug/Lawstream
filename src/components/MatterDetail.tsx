@@ -31,7 +31,7 @@ import {
   Layers,
   Archive,
 } from 'lucide-react';
-import { Matter, TimelineEvent, Task, LegalDocument, Expediente, MatterMilestone, FlowSnapshot, INCIDENTE_TIPO_LABELS } from '../types';
+import { Matter, TimelineEvent, Task, LegalDocument, Expediente, MatterMilestone, FlowSnapshot, INCIDENTE_TIPO_LABELS, ASPECTO_APELADO_LABELS } from '../types';
 import { Badge, Card, Button, Modal, Input, Textarea, Select } from './UI';
 import { format, parseISO, differenceInCalendarDays } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -96,6 +96,22 @@ export const MatterDetail = ({
     : matter.kind === 'incidente'
       ? `Incidente${matter.incidenteTipo ? ' · ' + INCIDENTE_TIPO_LABELS[matter.incidenteTipo] : ''}`
       : null;
+
+  // GAP 5 — parcialmente firme. Estado DERIVADO: si este matter es principal
+  // y tiene al menos una apelación-hija con estado != Cerrado/Archivado,
+  // está parcialmente firme. Listamos los aspectos de cada apelación abierta.
+  const apelacionesAbiertas = !isSubProceso
+    ? allMatters.filter(m =>
+        m.parentMatterId === matter.id
+        && m.kind === 'apelacion'
+        && m.status !== 'Cerrado'
+        && m.status !== 'Archivado'
+      )
+    : [];
+  const aspectosApeladosAbiertos = Array.from(new Set(
+    apelacionesAbiertas.flatMap(a => a.aspectosApelados ?? [])
+  ));
+  const parcialmenteFirme = apelacionesAbiertas.length > 0;
   const clientObj = clients.find(c => c.name === matter.client);
 
   // Casos legados anteriores a la migración 017 pueden tener jurisdicción NULL.
@@ -255,6 +271,39 @@ export const MatterDetail = ({
             {' de '}
             <span className="font-bold">{parentMatter.title}</span>
           </span>
+        </div>
+      )}
+
+      {/* ═══════════════════════ BANNER PARCIALMENTE FIRME (GAP 5) ═══════════════════════ */}
+      {parcialmenteFirme && (
+        <div
+          role="alert"
+          className="flex items-start gap-3 p-4 rounded-2xl border border-amber-500/40 bg-amber-500/10 shadow-sm"
+        >
+          <div className="shrink-0 w-10 h-10 rounded-xl bg-amber-500/20 text-amber-700 flex items-center justify-center">
+            <Scale size={20} />
+          </div>
+          <div className="flex-1 min-w-0 space-y-1">
+            <span className="text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-300">
+              Sentencia parcialmente firme
+            </span>
+            {aspectosApeladosAbiertos.length > 0 ? (
+              <p className="text-sm font-bold text-foreground">
+                Apelados: {aspectosApeladosAbiertos.map(a => ASPECTO_APELADO_LABELS[a]).join(', ')}.
+                <span className="font-normal text-muted-foreground"> El resto quedó firme.</span>
+              </p>
+            ) : (
+              <p className="text-sm font-bold text-foreground">
+                Hay {apelacionesAbiertas.length} apelación{apelacionesAbiertas.length === 1 ? '' : 'es'} en trámite — sin aspectos detallados.
+              </p>
+            )}
+            <p className="text-[11px] text-muted-foreground">
+              {apelacionesAbiertas.length === 1
+                ? 'Hay 1 sub-proceso de Cámara en trámite.'
+                : `Hay ${apelacionesAbiertas.length} sub-procesos de Cámara en trámite.`}
+              {' '}Verlos en tab Expediente → Sub-procesos.
+            </p>
+          </div>
         </div>
       )}
 

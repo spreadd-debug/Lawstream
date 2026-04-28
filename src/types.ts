@@ -60,6 +60,10 @@ export interface Matter {
   parentMatterId?: string;
   // Tipificación del incidente cuando kind='incidente'. NULL en otros casos.
   incidenteTipo?: IncidenteTipo;
+  // Aspectos apelados cuando kind='apelacion'. Lista de items que se
+  // apelaron de la sentencia del padre. Permite mostrar al padre como
+  // "parcialmente firme" (GAP 5). Migración 029.
+  aspectosApelados?: AspectoApelado[];
 }
 
 /**
@@ -90,6 +94,33 @@ export const INCIDENTE_TIPO_LABELS: Record<IncidenteTipo, string> = {
   medida_cautelar: 'Medida cautelar',
   beneficio_litigar_sin_gastos: 'Beneficio de litigar sin gastos',
   otro: 'Otro',
+};
+
+/**
+ * Aspectos apelables de una sentencia. Cuando un sub-proceso de
+ * tipo 'apelacion' se abre, el usuario marca cuáles aspectos se
+ * apelan; el resto queda firme. El padre se muestra "parcialmente
+ * firme" mientras la apelación esté abierta (GAP 5, migración 029).
+ */
+export type AspectoApelado =
+  | 'compensacion_economica'
+  | 'cuota_alimentaria'
+  | 'atribucion_vivienda'
+  | 'regimen_comunicacion'
+  | 'tenencia'
+  | 'costas'
+  | 'honorarios'
+  | 'otro';
+
+export const ASPECTO_APELADO_LABELS: Record<AspectoApelado, string> = {
+  compensacion_economica: 'Compensación económica',
+  cuota_alimentaria:      'Cuota alimentaria',
+  atribucion_vivienda:    'Atribución de vivienda',
+  regimen_comunicacion:   'Régimen de comunicación',
+  tenencia:               'Tenencia',
+  costas:                 'Costas',
+  honorarios:             'Honorarios',
+  otro:                   'Otro',
 };
 
 export type AssignmentRole = 'lead' | 'assigned';
@@ -709,6 +740,7 @@ export type TipoEvento =
   | 'expresion_agravios'
   | 'contestacion_agravios'
   | 'elevacion_camara'
+  | 'sentencia_camara'
   | 'cambio_representacion'
   | 'otro';
 
