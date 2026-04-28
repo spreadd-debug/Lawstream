@@ -665,6 +665,49 @@ export interface HiloPrueba {
   updatedAt: string;
 }
 
+// ── PERITOS ────────────────────────────────────────────────
+// Perito designado por el juzgado en un caso (puede vincularse
+// a un hilo pericial). Tiene su propio ciclo procesal.
+
+export type EspecialidadPerito =
+  | 'contador'
+  | 'psicologo'
+  | 'medico'
+  | 'arquitecto'
+  | 'ingeniero'
+  | 'tasador'
+  | 'asistente_social'
+  | 'caligrafo'
+  | 'traductor'
+  | 'otra';
+
+export type EstadoPerito =
+  | 'designado'           // sorteado/designado por el juzgado
+  | 'aceptado'            // aceptó el cargo
+  | 'rechazado'           // rechazó
+  | 'recusado'            // recusado por una parte
+  | 'informe_presentado'  // entregó dictamen
+  | 'sustituido';         // reemplazado por otro
+
+export interface Perito {
+  id: string;
+  matterId: string;
+  hiloId?: string;
+  nombre: string;
+  especialidad: EspecialidadPerito;
+  matricula?: string;
+  email?: string;
+  telefono?: string;
+  estado: EstadoPerito;
+  fechaDesignado?: string;       // 'YYYY-MM-DD'
+  fechaAceptado?: string;
+  fechaInforme?: string;
+  notas?: string;
+  createdBy?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface EventoExpediente {
   id: string;
   matterId: string;

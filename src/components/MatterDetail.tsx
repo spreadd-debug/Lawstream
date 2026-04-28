@@ -51,6 +51,7 @@ import { ApprovalWorkflow } from './ApprovalWorkflow';
 import { ClientAccountStatement } from './ClientAccountStatement';
 import { TimelinePanel } from './TimelinePanel';
 import { HilosPanel } from './HilosPanel';
+import { PeritosPanel } from './PeritosPanel';
 import { urgenciaDePlazo, diasRestantes } from '../lib/plazos';
 
 interface MatterDetailProps {
@@ -724,7 +725,7 @@ export const MatterDetail = ({
           {([
             { key: 'flujo' as const, label: 'Flujo', icon: Zap },
             { key: 'timeline' as const, label: 'Timeline', icon: Clock },
-            { key: 'hilos' as const, label: 'Hilos de prueba', icon: Layers },
+            { key: 'hilos' as const, label: 'Prueba (hilos y peritos)', icon: Layers },
             { key: 'expediente' as const, label: 'Expediente', icon: FileText },
             { key: 'comunicaciones' as const, label: 'Comunicaciones', icon: MessageSquare },
           ]).map(tab => (
@@ -982,10 +983,12 @@ export const MatterDetail = ({
           <TimelinePanel matter={matter} />
         )}
 
-        {/* ─────────── TAB: HILOS DE PRUEBA ─────────── */}
+        {/* ─────────── TAB: HILOS Y PERITOS ─────────── */}
         {activeTab === 'hilos' && (
-          <div className="py-8">
+          <div className="py-8 space-y-10">
             <HilosPanel matterId={matter.id} />
+            <div className="border-t border-border/40" />
+            <PeritosPanel matterId={matter.id} />
           </div>
         )}
 
