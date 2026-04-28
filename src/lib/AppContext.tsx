@@ -82,6 +82,7 @@ interface AppContextType {
   handleUpdateDocument: (id: string, changes: any) => Promise<void>;
   handleAddDocument: (doc: any) => Promise<void>;
   handleCloseMatter: (matterId: string) => Promise<void>;
+  handleArchiveMatter: (matterId: string) => Promise<void>;
   handleUpdateMatterDirect: (matterId: string, changes: Partial<Matter>) => Promise<void>;
   handleCreateMatter: (data: any) => Promise<Matter>;
   handleCreateConsultation: (data: Omit<Consultation, 'id'>) => Promise<void>;
@@ -453,6 +454,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       audit('cerrar_asunto', 'matter', matterId, matter?.title);
     } catch (err) {
       console.error('Error cerrando asunto:', err);
+    }
+  };
+
+  /**
+   * Archiva un caso (estado 'Archivado'). Distinto de Cerrado:
+   *  - Cerrado:   el caso terminó (con o sin éxito de fondo).
+   *  - Archivado: el expediente fue archivado judicialmente (post-ejecución
+   *               cumplida, perención, etc). Se mantiene como histórico
+   *               consultable pero no aparece en listas de casos activos.
+   */
+  const handleArchiveMatter = async (matterId: string) => {
+    const matter = matters.find(m => m.id === matterId);
+    setMatters(prev => prev.map(m => m.id === matterId ? { ...m, status: 'Archivado' as any } : m));
+    try {
+      await db.updateMatter(matterId, { status: 'Archivado' });
+      audit('cerrar_asunto', 'matter', matterId, matter?.title, { accion: 'archivar' });
+    } catch (err) {
+      console.error('Error archivando asunto:', err);
     }
   };
 
@@ -1317,7 +1336,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       handleSaveAction, handleSaveMatterEdit,
       handleCreateClient, handleUpdateClient,
       handleUpdateDocument, handleAddDocument,
-      handleCloseMatter, handleUpdateMatterDirect, handleCreateMatter,
+      handleCloseMatter, handleArchiveMatter, handleUpdateMatterDirect, handleCreateMatter,
       handleCreateConsultation, handleUpdateConsultation,
       handleCreateTask, handleUpdateTask, handleCompleteTask,
       handleConsultationStatusChange,

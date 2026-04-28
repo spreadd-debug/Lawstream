@@ -201,6 +201,7 @@ const toDocument = (r: any): LegalDocument => ({
   updatedAt:        r.updated_at        ?? '',
   associatedAction: r.associated_action ?? undefined,
   category:         r.category          ?? undefined,
+  eventoId:         r.evento_id         ?? undefined,
 });
 
 const toTask = (r: any): Task => ({
@@ -276,6 +277,7 @@ const documentToRow = (d: Partial<LegalDocument>) => ({
   ...(d.updatedAt        !== undefined && { updated_at:        d.updatedAt || null }),
   ...(d.associatedAction !== undefined && { associated_action: d.associatedAction }),
   ...(d.category         !== undefined && { category:          d.category }),
+  ...(d.eventoId         !== undefined && { evento_id:         d.eventoId ?? null }),
 });
 
 // ── Fetches ───────────────────────────────────────────────────────

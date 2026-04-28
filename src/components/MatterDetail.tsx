@@ -29,6 +29,7 @@ import {
   Ban,
   Send,
   Layers,
+  Archive,
 } from 'lucide-react';
 import { Matter, TimelineEvent, Task, LegalDocument, Expediente, MatterMilestone, FlowSnapshot } from '../types';
 import { Badge, Card, Button, Modal, Input, Textarea, Select } from './UI';
@@ -84,7 +85,7 @@ export const MatterDetail = ({
   currentUser, currentUserRole,
 }: MatterDetailProps) => {
   const navigate = useNavigate();
-  const { clients, plazos: allPlazos, eventos: allEventos, handleEditMatter, setEditMatterFocusField } = useAppContext();
+  const { clients, plazos: allPlazos, eventos: allEventos, handleEditMatter, setEditMatterFocusField, handleArchiveMatter } = useAppContext();
   const clientObj = clients.find(c => c.name === matter.client);
 
   // Casos legados anteriores a la migración 017 pueden tener jurisdicción NULL.
@@ -709,15 +710,33 @@ export const MatterDetail = ({
             </div>
           </div>
 
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-[9px] font-black uppercase tracking-widest h-8 w-fit border border-border/50"
-            onClick={() => { setBlockageText(matter.blockage || ''); setIsBlockageOpen(true); }}
-          >
-            <AlertCircle size={12} className="mr-1.5" />
-            {matter.blockage ? 'Ver Bloqueo' : 'Reportar Bloqueo'}
-          </Button>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-[9px] font-black uppercase tracking-widest h-8 w-fit border border-border/50"
+              onClick={() => { setBlockageText(matter.blockage || ''); setIsBlockageOpen(true); }}
+            >
+              <AlertCircle size={12} className="mr-1.5" />
+              {matter.blockage ? 'Ver Bloqueo' : 'Reportar Bloqueo'}
+            </Button>
+
+            {matter.status !== 'Archivado' && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-[9px] font-black uppercase tracking-widest h-8 w-fit border border-border/50"
+                onClick={() => {
+                  if (window.confirm(`¿Archivar "${matter.title}"? El caso pasará a estado Archivado y dejará de aparecer en listas activas. El histórico se preserva.`)) {
+                    handleArchiveMatter(matter.id);
+                  }
+                }}
+              >
+                <Archive size={12} className="mr-1.5" />
+                Archivar caso
+              </Button>
+            )}
+          </div>
         </div>
       </section>
 
