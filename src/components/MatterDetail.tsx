@@ -52,6 +52,7 @@ import { ClientAccountStatement } from './ClientAccountStatement';
 import { TimelinePanel } from './TimelinePanel';
 import { HilosPanel } from './HilosPanel';
 import { PeritosPanel } from './PeritosPanel';
+import { CompensacionPanel } from './CompensacionPanel';
 import { urgenciaDePlazo, diasRestantes } from '../lib/plazos';
 
 interface MatterDetailProps {
@@ -138,7 +139,7 @@ export const MatterDetail = ({
   const [fichaOpenStage, setFichaOpenStage] = useState<string | null>(null);
 
   // New navigation state
-  const [activeTab, setActiveTab] = useState<'flujo' | 'timeline' | 'hilos' | 'expediente' | 'comunicaciones'>('flujo');
+  const [activeTab, setActiveTab] = useState<'flujo' | 'timeline' | 'hilos' | 'cobranzas' | 'expediente' | 'comunicaciones'>('flujo');
   const [viewingStage, setViewingStage] = useState<string | null>(null);
 
   // Pre-filled communication message (from "Solicitar datos" button)
@@ -726,6 +727,7 @@ export const MatterDetail = ({
             { key: 'flujo' as const, label: 'Flujo', icon: Zap },
             { key: 'timeline' as const, label: 'Timeline', icon: Clock },
             { key: 'hilos' as const, label: 'Prueba (hilos y peritos)', icon: Layers },
+            { key: 'cobranzas' as const, label: 'Cobranzas', icon: Coins },
             { key: 'expediente' as const, label: 'Expediente', icon: FileText },
             { key: 'comunicaciones' as const, label: 'Comunicaciones', icon: MessageSquare },
           ]).map(tab => (
@@ -989,6 +991,13 @@ export const MatterDetail = ({
             <HilosPanel matterId={matter.id} />
             <div className="border-t border-border/40" />
             <PeritosPanel matterId={matter.id} />
+          </div>
+        )}
+
+        {/* ─────────── TAB: COBRANZAS ─────────── */}
+        {activeTab === 'cobranzas' && (
+          <div className="py-8">
+            <CompensacionPanel matterId={matter.id} />
           </div>
         )}
 

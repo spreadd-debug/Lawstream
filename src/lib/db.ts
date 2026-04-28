@@ -52,6 +52,8 @@ import {
   EstadoPlazo,
   HiloPrueba,
   Perito,
+  CompensacionEconomica,
+  CuotaCompensacion,
 } from '../types';
 
 // ── Profiles ──────────────────────────────────────────────────────
@@ -2235,6 +2237,136 @@ export const deletePerito = async (id: string): Promise<void> => {
   const { error } = await supabase
     .from('peritos')
     .delete()
+    .eq('id', id);
+  if (error) throw error;
+};
+
+// ── Compensaciones económicas ──────────────────────────────────
+
+const toCompensacion = (r: any): CompensacionEconomica => ({
+  id:                r.id,
+  matterId:          r.matter_id,
+  montoTotal:        parseFloat(r.monto_total),
+  moneda:            r.moneda,
+  cantidadCuotas:    r.cantidad_cuotas,
+  frecuencia:        r.frecuencia,
+  fechaPrimeraCuota: r.fecha_primera_cuota,
+  tasaInteresAnual:  r.tasa_interes_anual != null ? parseFloat(r.tasa_interes_anual) : undefined,
+  estado:            r.estado,
+  notas:             r.notas      ?? undefined,
+  createdBy:         r.created_by ?? undefined,
+  createdAt:         r.created_at,
+  updatedAt:         r.updated_at,
+});
+
+const compensacionToRow = (c: Partial<CompensacionEconomica>): Record<string, unknown> => {
+  const row: Record<string, unknown> = {};
+  if (c.matterId          !== undefined) row.matter_id           = c.matterId;
+  if (c.montoTotal        !== undefined) row.monto_total         = c.montoTotal;
+  if (c.moneda            !== undefined) row.moneda              = c.moneda;
+  if (c.cantidadCuotas    !== undefined) row.cantidad_cuotas     = c.cantidadCuotas;
+  if (c.frecuencia        !== undefined) row.frecuencia          = c.frecuencia;
+  if (c.fechaPrimeraCuota !== undefined) row.fecha_primera_cuota = c.fechaPrimeraCuota;
+  if (c.tasaInteresAnual  !== undefined) row.tasa_interes_anual  = c.tasaInteresAnual ?? null;
+  if (c.estado            !== undefined) row.estado              = c.estado;
+  if (c.notas             !== undefined) row.notas               = c.notas      ?? null;
+  if (c.createdBy         !== undefined) row.created_by          = c.createdBy  ?? null;
+  return row;
+};
+
+export const fetchCompensaciones = async (): Promise<CompensacionEconomica[]> => {
+  const { data, error } = await supabase
+    .from('compensaciones')
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(toCompensacion);
+};
+
+export const createCompensacion = async (
+  c: Omit<CompensacionEconomica, 'id' | 'createdAt' | 'updatedAt'>,
+): Promise<CompensacionEconomica> => {
+  const { data, error } = await supabase
+    .from('compensaciones')
+    .insert(compensacionToRow(c))
+    .select()
+    .single();
+  if (error) throw error;
+  return toCompensacion(data);
+};
+
+export const updateCompensacion = async (id: string, changes: Partial<CompensacionEconomica>): Promise<void> => {
+  const { error } = await supabase
+    .from('compensaciones')
+    .update(compensacionToRow(changes))
+    .eq('id', id);
+  if (error) throw error;
+};
+
+export const deleteCompensacion = async (id: string): Promise<void> => {
+  const { error } = await supabase
+    .from('compensaciones')
+    .delete()
+    .eq('id', id);
+  if (error) throw error;
+};
+
+// ── Cuotas de compensación ─────────────────────────────────────
+
+const toCuota = (r: any): CuotaCompensacion => ({
+  id:                r.id,
+  compensacionId:    r.compensacion_id,
+  numero:            r.numero,
+  fechaVencimiento:  r.fecha_vencimiento,
+  monto:             parseFloat(r.monto),
+  estado:            r.estado,
+  fechaPago:         r.fecha_pago      ?? undefined,
+  montoPagado:       r.monto_pagado != null ? parseFloat(r.monto_pagado) : undefined,
+  comprobanteUrl:    r.comprobante_url ?? undefined,
+  notas:             r.notas           ?? undefined,
+  createdAt:         r.created_at,
+  updatedAt:         r.updated_at,
+});
+
+const cuotaToRow = (c: Partial<CuotaCompensacion>): Record<string, unknown> => {
+  const row: Record<string, unknown> = {};
+  if (c.compensacionId   !== undefined) row.compensacion_id   = c.compensacionId;
+  if (c.numero           !== undefined) row.numero            = c.numero;
+  if (c.fechaVencimiento !== undefined) row.fecha_vencimiento = c.fechaVencimiento;
+  if (c.monto            !== undefined) row.monto             = c.monto;
+  if (c.estado           !== undefined) row.estado            = c.estado;
+  if (c.fechaPago        !== undefined) row.fecha_pago        = c.fechaPago      ?? null;
+  if (c.montoPagado      !== undefined) row.monto_pagado      = c.montoPagado    ?? null;
+  if (c.comprobanteUrl   !== undefined) row.comprobante_url   = c.comprobanteUrl ?? null;
+  if (c.notas            !== undefined) row.notas             = c.notas          ?? null;
+  return row;
+};
+
+export const fetchCuotasCompensacion = async (): Promise<CuotaCompensacion[]> => {
+  const { data, error } = await supabase
+    .from('cuotas_compensacion')
+    .select('*')
+    .order('fecha_vencimiento', { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map(toCuota);
+};
+
+export const createCuotasBulk = async (
+  cuotas: Array<Omit<CuotaCompensacion, 'id' | 'createdAt' | 'updatedAt'>>,
+): Promise<CuotaCompensacion[]> => {
+  if (cuotas.length === 0) return [];
+  const { data, error } = await supabase
+    .from('cuotas_compensacion')
+    .insert(cuotas.map(cuotaToRow))
+    .select();
+  if (error) throw error;
+  return (data ?? []).map(toCuota);
+};
+
+export const updateCuota = async (id: string, changes: Partial<CuotaCompensacion>): Promise<void> => {
+  const { error } = await supabase
+    .from('cuotas_compensacion')
+    .update(cuotaToRow(changes))
     .eq('id', id);
   if (error) throw error;
 };

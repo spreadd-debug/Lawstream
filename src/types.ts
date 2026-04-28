@@ -773,6 +773,47 @@ export interface Feriado {
   jurisdiccionAplica: 'todas' | Jurisdiccion;
 }
 
+// ── COMPENSACIÓN ECONÓMICA ─────────────────────────────────
+// Compensación pactada en sentencia (art. 441 CCyCN en divorcio,
+// pero también aplicable a otros contextos). Se paga en cuotas
+// con calendario auto-generado y tracking individual de pagos.
+
+export type Moneda = 'ARS' | 'USD' | 'EUR';
+export type FrecuenciaCuota = 'mensual' | 'bimestral' | 'trimestral' | 'semestral' | 'anual' | 'unica';
+export type EstadoCompensacion = 'vigente' | 'cumplida' | 'incumplida' | 'renegociada';
+export type EstadoCuota = 'pendiente' | 'pagada' | 'parcial' | 'mora';
+
+export interface CompensacionEconomica {
+  id: string;
+  matterId: string;
+  montoTotal: number;
+  moneda: Moneda;
+  cantidadCuotas: number;
+  frecuencia: FrecuenciaCuota;
+  fechaPrimeraCuota: string;     // 'YYYY-MM-DD'
+  tasaInteresAnual?: number;     // % anual, opcional
+  estado: EstadoCompensacion;
+  notas?: string;
+  createdBy?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CuotaCompensacion {
+  id: string;
+  compensacionId: string;
+  numero: number;                // 1, 2, 3, …
+  fechaVencimiento: string;
+  monto: number;
+  estado: EstadoCuota;
+  fechaPago?: string;
+  montoPagado?: number;
+  comprobanteUrl?: string;
+  notas?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // ── COMUNICACIONES ──────────────────────────────────────────
 
 export type CanalCommunication = 'WhatsApp' | 'Email' | 'Teléfono' | 'Presencial' | 'Interno';

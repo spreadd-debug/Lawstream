@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { Matter, Client, Consultation, LegalDocument, Task, TimelineEvent, UserProfile, Communication, Expediente, MatterMilestone, EventoExpediente, Plazo, Jurisdiccion, TipoProceso, TipoEvento, HiloPrueba, Perito } from '../types';
+import { Matter, Client, Consultation, LegalDocument, Task, TimelineEvent, UserProfile, Communication, Expediente, MatterMilestone, EventoExpediente, Plazo, Jurisdiccion, TipoProceso, TipoEvento, HiloPrueba, Perito, CompensacionEconomica, CuotaCompensacion, FrecuenciaCuota } from '../types';
 import { GlobalFilters, defaultFilters } from '../components/FiltersContent';
 import { useAuth } from './auth';
 import * as db from './db';
@@ -8,7 +8,7 @@ import { generateConsultationTasks, generateExpedienteTasks } from './taskEngine
 import { findTemplate } from '../data/templates';
 import { instantiateFlow } from './flowEngine';
 import { calcularVencimiento, resetFeriadosCache, getPlazosSugeridosPara, diasHabilesEntre } from './plazos';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, addMonths } from 'date-fns';
 
 /** Normaliza el valor de jurisdicción que viene del wizard ('CABA'|'PBA'|'Nacional'
  *  o variantes) al enum canónico 'caba'|'pba'|'nacional'. Devuelve undefined si
@@ -20,6 +20,18 @@ function normalizeJurisdiccion(raw: string | undefined | null): Jurisdiccion | u
   if (n === 'pba' || n === 'provincia de buenos aires') return 'pba';
   if (n === 'nacional') return 'nacional';
   return undefined;
+}
+
+/** Meses entre cuotas para cada frecuencia. 'unica' = 0 (sólo 1 cuota total). */
+function mesesPorFrecuencia(f: FrecuenciaCuota): number {
+  switch (f) {
+    case 'mensual':    return 1;
+    case 'bimestral':  return 2;
+    case 'trimestral': return 3;
+    case 'semestral':  return 6;
+    case 'anual':      return 12;
+    case 'unica':      return 0;
+  }
 }
 
 /** Normaliza el valor de tipo de proceso al enum canónico. */
@@ -114,6 +126,14 @@ interface AppContextType {
   handleCreatePerito: (perito: Omit<Perito, 'id' | 'createdAt' | 'updatedAt'>) => Promise<Perito>;
   handleUpdatePerito: (id: string, changes: Partial<Perito>) => Promise<void>;
   handleDeletePerito: (id: string) => Promise<void>;
+  // Compensaciones económicas
+  compensaciones: CompensacionEconomica[];
+  cuotasCompensacion: CuotaCompensacion[];
+  handleCreateCompensacion: (c: Omit<CompensacionEconomica, 'id' | 'createdAt' | 'updatedAt'>) => Promise<CompensacionEconomica>;
+  handleUpdateCompensacion: (id: string, changes: Partial<CompensacionEconomica>) => Promise<void>;
+  handleDeleteCompensacion: (id: string) => Promise<void>;
+  handleMarcarCuotaPagada: (cuotaId: string, fechaPago: string, montoPagado: number, comprobanteUrl?: string) => Promise<void>;
+  handleUpdateCuota: (cuotaId: string, changes: Partial<CuotaCompensacion>) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -139,6 +159,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [eventos, setEventos] = useState<EventoExpediente[]>([]);
   const [hilos, setHilos] = useState<HiloPrueba[]>([]);
   const [peritos, setPeritos] = useState<Perito[]>([]);
+  const [compensaciones, setCompensaciones] = useState<CompensacionEconomica[]>([]);
+  const [cuotasCompensacion, setCuotasCompensacion] = useState<CuotaCompensacion[]>([]);
   const [plazos, setPlazos] = useState<Plazo[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -184,8 +206,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       safe(db.fetchAllPlazos(),        'plazos'),
       safe(db.fetchHilos(),            'hilos'),
       safe(db.fetchPeritos(),          'peritos'),
+      safe(db.fetchCompensaciones(),   'compensaciones'),
+      safe(db.fetchCuotasCompensacion(), 'cuotas_compensacion'),
     ])
-      .then(([m, c, co, d, t, tl, p, ex, ms, ev, pl, hi, pe]) => {
+      .then(([m, c, co, d, t, tl, p, ex, ms, ev, pl, hi, pe, comps, cuotas]) => {
         setMatters(m);
         setClients(c);
         setConsultations(co);
@@ -199,6 +223,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setPlazos(pl);
         setHilos(hi);
         setPeritos(pe);
+        setCompensaciones(comps);
+        setCuotasCompensacion(cuotas);
       })
       .finally(() => setIsLoading(false));
   }, [userId]);
@@ -1028,6 +1054,111 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  // ── Compensaciones económicas ──────────────────────────────────
+
+  /**
+   * Crea una compensación y genera automáticamente el calendario de cuotas.
+   * Cada cuota tiene fecha de vencimiento = primera + (i × intervalo) y
+   * monto = montoTotal / cantidadCuotas (la última absorbe el redondeo).
+   */
+  const handleCreateCompensacion = async (
+    c: Omit<CompensacionEconomica, 'id' | 'createdAt' | 'updatedAt'>,
+  ): Promise<CompensacionEconomica> => {
+    const saved = await db.createCompensacion(c);
+    setCompensaciones(prev => [saved, ...prev]);
+
+    // Generar las cuotas
+    const intervaloMeses = mesesPorFrecuencia(c.frecuencia);
+    const montoCuota = +(c.montoTotal / c.cantidadCuotas).toFixed(2);
+    const sumaParcial = +(montoCuota * (c.cantidadCuotas - 1)).toFixed(2);
+    const ultimoMonto = +(c.montoTotal - sumaParcial).toFixed(2);
+
+    const cuotas: Array<Omit<CuotaCompensacion, 'id' | 'createdAt' | 'updatedAt'>> = [];
+    const baseFecha = parseISO(c.fechaPrimeraCuota);
+    for (let i = 0; i < c.cantidadCuotas; i++) {
+      const fecha = addMonths(baseFecha, i * intervaloMeses);
+      cuotas.push({
+        compensacionId:    saved.id,
+        numero:            i + 1,
+        fechaVencimiento:  format(fecha, 'yyyy-MM-dd'),
+        monto:             i === c.cantidadCuotas - 1 ? ultimoMonto : montoCuota,
+        estado:            'pendiente',
+      });
+    }
+    try {
+      const savedCuotas = await db.createCuotasBulk(cuotas);
+      setCuotasCompensacion(prev => [...prev, ...savedCuotas]);
+    } catch (err) {
+      console.error('Error generando cuotas:', err);
+    }
+    audit('crear_asunto', 'matter', saved.matterId, undefined, {
+      accion: 'crear_compensacion',
+      monto: c.montoTotal,
+      cuotas: c.cantidadCuotas,
+    });
+    return saved;
+  };
+
+  const handleUpdateCompensacion = async (id: string, changes: Partial<CompensacionEconomica>): Promise<void> => {
+    setCompensaciones(prev => prev.map(c => c.id === id ? { ...c, ...changes, updatedAt: new Date().toISOString() } : c));
+    try {
+      await db.updateCompensacion(id, changes);
+    } catch (err) {
+      console.error('Error actualizando compensación:', err);
+    }
+  };
+
+  const handleDeleteCompensacion = async (id: string): Promise<void> => {
+    const prevC = compensaciones;
+    const prevCu = cuotasCompensacion;
+    setCompensaciones(curr => curr.filter(c => c.id !== id));
+    setCuotasCompensacion(curr => curr.filter(cu => cu.compensacionId !== id));
+    try {
+      await db.deleteCompensacion(id);
+    } catch (err) {
+      console.error('Error eliminando compensación:', err);
+      setCompensaciones(prevC);
+      setCuotasCompensacion(prevCu);
+    }
+  };
+
+  /**
+   * Marca una cuota como pagada (o parcial si monto < cuota.monto) y
+   * registra la fecha de pago + comprobante opcional.
+   */
+  const handleMarcarCuotaPagada = async (
+    cuotaId: string,
+    fechaPago: string,
+    montoPagado: number,
+    comprobanteUrl?: string,
+  ): Promise<void> => {
+    const cuota = cuotasCompensacion.find(c => c.id === cuotaId);
+    if (!cuota) return;
+    const nuevoEstado: CuotaCompensacion['estado'] =
+      montoPagado >= cuota.monto ? 'pagada' : 'parcial';
+    const cambios: Partial<CuotaCompensacion> = {
+      estado: nuevoEstado,
+      fechaPago,
+      montoPagado,
+      comprobanteUrl: comprobanteUrl ?? undefined,
+    };
+    setCuotasCompensacion(prev => prev.map(c => c.id === cuotaId ? { ...c, ...cambios } : c));
+    try {
+      await db.updateCuota(cuotaId, cambios);
+    } catch (err) {
+      console.error('Error marcando cuota pagada:', err);
+    }
+  };
+
+  const handleUpdateCuota = async (cuotaId: string, changes: Partial<CuotaCompensacion>): Promise<void> => {
+    setCuotasCompensacion(prev => prev.map(c => c.id === cuotaId ? { ...c, ...changes } : c));
+    try {
+      await db.updateCuota(cuotaId, changes);
+    } catch (err) {
+      console.error('Error actualizando cuota:', err);
+    }
+  };
+
   const handleUpdateAssignments = async (matterId: string, profileIds: string[], leadId: string) => {
     // Optimistic update
     setMatters(prev => prev.map(m =>
@@ -1081,6 +1212,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       handleSuspenderPlazo, handleReanudarPlazo, handleActualizarUltimaNotificacion,
       hilos, handleCreateHilo, handleUpdateHilo, handleDeleteHilo,
       peritos, handleCreatePerito, handleUpdatePerito, handleDeletePerito,
+      compensaciones, cuotasCompensacion,
+      handleCreateCompensacion, handleUpdateCompensacion, handleDeleteCompensacion,
+      handleMarcarCuotaPagada, handleUpdateCuota,
     }}>
       {children}
     </AppContext.Provider>
