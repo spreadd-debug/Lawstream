@@ -51,7 +51,9 @@ const DEFAULT_ITEMS: DraftItem[] = [
 export const PresupuestoEditor: React.FC<PresupuestoEditorProps> = ({
   consultationId, clientName, clientEmail, clientPhone, onClose, onSaved,
 }) => {
-  const [iusValor, setIusValor]         = useState(0);
+  const [unidad, setUnidad]             = useState<'JUS' | 'UMA'>('JUS');
+  const [valoresUnidad, setValoresUnidad] = useState<{ jus: number; uma: number }>({ jus: 0, uma: 0 });
+  const iusValor = unidad === 'JUS' ? valoresUnidad.jus : valoresUnidad.uma;
   const [perfil, setPerfil]             = useState<EstudioPerfil | null>(null);
   const [existingId, setExistingId]     = useState<string | null>(null);
   const [items, setItems]               = useState<DraftItem[]>(DEFAULT_ITEMS);
@@ -67,21 +69,24 @@ export const PresupuestoEditor: React.FC<PresupuestoEditorProps> = ({
   const [showPreview, setShowPreview]   = useState(false);
   const [loading, setLoading]           = useState(true);
 
-  // ── Load IUS + perfil + existing presupuesto ─────────────────
+  // ── Load JUS + UMA + perfil + existing presupuesto ───────────
   useEffect(() => {
     Promise.all([
       fetchStudioConfig('ius_valor'),
+      fetchStudioConfig('uma_valor'),
       fetchEstudioPerfil(),
       fetchPresupuestoByConsultation(consultationId),
-    ]).then(([cfg, p, existing]) => {
-      const ius = (cfg?.value as any)?.pesos ?? 0;
-      setIusValor(ius);
+    ]).then(([cfgJus, cfgUma, p, existing]) => {
+      const jus = (cfgJus?.value as any)?.pesos ?? 0;
+      const uma = (cfgUma?.value as any)?.pesos ?? 0;
+      setValoresUnidad({ jus, uma });
       setPerfil(p);
 
       if (existing) {
         setExistingId(existing.id);
         setDescuento(existing.descuentoPorcentaje);
         setNotas(existing.notes ?? '');
+        setUnidad(existing.unidad ?? 'JUS');
         if (existing.cuotaOpciones) setCuotaOpciones(existing.cuotaOpciones);
         if (existing.items.length > 0) {
           setItems(existing.items.map(i => ({
@@ -95,16 +100,28 @@ export const PresupuestoEditor: React.FC<PresupuestoEditorProps> = ({
             obligatorio:            i.obligatorio,
             orden:                  i.orden,
           })));
-        } else if (ius > 0) {
-          // Pre-fill montoPesos from IUS on existing empty items
-          setItems(DEFAULT_ITEMS.map(d => ({ ...d, _key: newKey(), montoPesos: d.cantidadIus ? d.cantidadIus * ius : 0 })));
+        } else if (jus > 0) {
+          setItems(DEFAULT_ITEMS.map(d => ({ ...d, _key: newKey(), montoPesos: d.cantidadIus ? d.cantidadIus * jus : 0 })));
         }
-      } else if (ius > 0) {
-        setItems(DEFAULT_ITEMS.map(d => ({ ...d, _key: newKey(), montoPesos: d.cantidadIus ? d.cantidadIus * ius : 0 })));
+      } else if (jus > 0) {
+        setItems(DEFAULT_ITEMS.map(d => ({ ...d, _key: newKey(), montoPesos: d.cantidadIus ? d.cantidadIus * jus : 0 })));
       }
       setLoading(false);
     });
   }, [consultationId]);
+
+  // Cuando cambia la unidad, recalcular montos de items con cantidad
+  const cambiarUnidad = (nueva: 'JUS' | 'UMA') => {
+    const nuevoValor = nueva === 'JUS' ? valoresUnidad.jus : valoresUnidad.uma;
+    setUnidad(nueva);
+    if (nuevoValor > 0) {
+      setItems(prev => prev.map(it =>
+        it.cantidadIus != null
+          ? { ...it, montoPesos: it.cantidadIus * nuevoValor }
+          : it,
+      ));
+    }
+  };
 
   // ── Item mutations ───────────────────────────────────────────
   const setItem = useCallback((key: string, field: keyof DraftItem, value: any) => {
@@ -146,6 +163,7 @@ export const PresupuestoEditor: React.FC<PresupuestoEditorProps> = ({
         consultationId,
         clientName,
         status,
+        unidad,
         iusValorSnapshot: iusValor,
         subtotalIus: totalIus,
         subtotalPesos: totalFinal,
@@ -181,6 +199,7 @@ export const PresupuestoEditor: React.FC<PresupuestoEditorProps> = ({
       consultationId,
       clientName,
       status: 'Borrador' as const,
+      unidad,
       iusValorSnapshot: iusValor,
       subtotalIus: totalIus,
       subtotalPesos: totalFinal,
@@ -241,23 +260,43 @@ export const PresupuestoEditor: React.FC<PresupuestoEditorProps> = ({
           <div>
             <h2 className="text-xl font-black tracking-tight">Presupuesto de Honorarios</h2>
             <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest mt-0.5">
-              Ley 14.967 · JUS = ${iusValor.toLocaleString('es-AR')} por unidad
+              {unidad === 'JUS' ? 'Ley 27.423' : 'Ley 14.967'} · {unidad} = ${iusValor.toLocaleString('es-AR')} por unidad
             </p>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-muted rounded-xl transition-colors">
-            <X size={20} />
-          </button>
+          <div className="flex items-center gap-3">
+            <div className="flex gap-1 p-1 bg-muted/40 rounded-xl">
+              <button
+                onClick={() => cambiarUnidad('JUS')}
+                className={`px-3 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${
+                  unidad === 'JUS' ? 'bg-amber-500 text-white' : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                JUS
+              </button>
+              <button
+                onClick={() => cambiarUnidad('UMA')}
+                className={`px-3 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${
+                  unidad === 'UMA' ? 'bg-sky-500 text-white' : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                UMA
+              </button>
+            </div>
+            <button onClick={onClose} className="p-2 hover:bg-muted rounded-xl transition-colors">
+              <X size={20} />
+            </button>
+          </div>
         </div>
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
 
-          {/* JUS notice */}
+          {/* Valor unidad notice */}
           {iusValor === 0 && (
             <div className="flex items-start gap-3 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl">
               <Info size={16} className="text-amber-600 shrink-0 mt-0.5" />
               <p className="text-xs font-medium text-amber-700">
-                El valor del JUS no está configurado. Configuralo en <strong>Configuración → Valor del JUS</strong> para que los cálculos sean automáticos.
+                El valor del {unidad} no está configurado. Configuralo en <strong>Configuración → Unidades arancelarias</strong> para que los cálculos sean automáticos.
               </p>
             </div>
           )}
@@ -281,7 +320,7 @@ export const PresupuestoEditor: React.FC<PresupuestoEditorProps> = ({
 
             {/* Table header */}
             <div className="hidden lg:grid grid-cols-[2fr_1fr_1.2fr_0.7fr_0.7fr_1fr_auto] gap-3 px-3 py-2 bg-[#1A3C5E] text-white rounded-lg">
-              {['Descripción', 'Cant. JUS', 'Monto $', 'Fiscal %', 'Desc. %', 'Subtotal $', ''].map(h => (
+              {['Descripción', `Cant. ${unidad}`, 'Monto $', 'Fiscal %', 'Desc. %', 'Subtotal $', ''].map(h => (
                 <div key={h} className="text-[9px] font-black uppercase tracking-widest">{h}</div>
               ))}
             </div>
@@ -319,9 +358,9 @@ export const PresupuestoEditor: React.FC<PresupuestoEditorProps> = ({
                     </div>
                   </div>
 
-                  {/* Cant. JUS */}
+                  {/* Cant. JUS/UMA */}
                   <div className="flex flex-col gap-1">
-                    <label className="lg:hidden text-[9px] font-black uppercase tracking-widest text-muted-foreground">Cant. JUS</label>
+                    <label className="lg:hidden text-[9px] font-black uppercase tracking-widest text-muted-foreground">Cant. {unidad}</label>
                     {item.tipo === 'gasto' ? (
                       <div className="text-sm h-8 text-right px-2 flex items-center justify-end text-muted-foreground/40 border border-border/30 rounded-lg bg-muted/30">—</div>
                     ) : (
@@ -446,7 +485,7 @@ export const PresupuestoEditor: React.FC<PresupuestoEditorProps> = ({
 
               <div className="flex items-center gap-2 text-[10px] text-muted-foreground bg-muted/20 rounded-lg px-3 py-2 border border-border/50">
                 <Calculator size={12} className="shrink-0" />
-                <span>JUS vigente: <strong>${iusValor.toLocaleString('es-AR')}</strong>. Los montos en pesos se calculan automáticamente al ingresar cantidades JUS.</span>
+                <span>{unidad} vigente: <strong>${iusValor.toLocaleString('es-AR')}</strong>. Los montos en pesos se calculan automáticamente al ingresar cantidades {unidad}.</span>
               </div>
             </div>
           </div>

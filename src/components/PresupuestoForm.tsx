@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Button, Input, Badge, MoneyInput } from './UI';
-import { Presupuesto, PresupuestoItem, PresupuestoStatus, PaymentStatus } from '../types';
+import { Presupuesto, PresupuestoItem, PresupuestoStatus, PaymentStatus, UnidadArancelaria } from '../types';
 import {
   fetchStudioConfig,
   createPresupuesto,
@@ -33,7 +33,9 @@ export const PresupuestoForm: React.FC<PresupuestoFormProps> = ({
   onClose,
   onSaved,
 }) => {
-  const [iusValor, setIusValor] = useState<number>(0);
+  const [unidad, setUnidad] = useState<UnidadArancelaria>('JUS');
+  const [valoresUnidad, setValoresUnidad] = useState<{ jus: number; uma: number }>({ jus: 0, uma: 0 });
+  const valorUnidad = unidad === 'JUS' ? valoresUnidad.jus : valoresUnidad.uma;
   const [existing, setExisting] = useState<Presupuesto | null>(null);
   const [saving, setSaving] = useState(false);
   const [notes, setNotes] = useState('');
@@ -52,12 +54,19 @@ export const PresupuestoForm: React.FC<PresupuestoFormProps> = ({
 
   useEffect(() => {
     const load = async () => {
-      const config = await fetchStudioConfig('ius_valor');
-      if (config) setIusValor((config.value as any).pesos ?? 0);
+      const [cfgJus, cfgUma] = await Promise.all([
+        fetchStudioConfig('ius_valor'),
+        fetchStudioConfig('uma_valor'),
+      ]);
+      setValoresUnidad({
+        jus: cfgJus ? ((cfgJus.value as any).pesos ?? 0) : 0,
+        uma: cfgUma ? ((cfgUma.value as any).pesos ?? 0) : 0,
+      });
       const prev = await fetchPresupuestoByConsultation(consultationId);
       if (prev) {
         setExisting(prev);
         setNotes(prev.notes ?? '');
+        setUnidad(prev.unidad ?? 'JUS');
         if (prev.items.length > 0) {
           setItems(prev.items.map(i => ({
             id:          i.id,
@@ -73,15 +82,28 @@ export const PresupuestoForm: React.FC<PresupuestoFormProps> = ({
     load();
   }, [consultationId]);
 
-  // Recalcular monto en pesos cuando cambia cantidadIus o el valor del IUS
+  // Recalcular monto en pesos cuando cambia cantidad o el valor de la unidad
   const handleCantidadIusChange = (index: number, val: string) => {
     const updated = [...items];
     updated[index].cantidadIus = val;
-    const ius = parseFloat(val);
-    if (!isNaN(ius) && iusValor > 0) {
-      updated[index].montoPesos = (ius * iusValor).toFixed(2);
+    const cant = parseFloat(val);
+    if (!isNaN(cant) && valorUnidad > 0) {
+      updated[index].montoPesos = (cant * valorUnidad).toFixed(2);
     }
     setItems(updated);
+  };
+
+  // Cuando cambia la unidad, recalcular los pesos de cada item
+  const cambiarUnidad = (nueva: UnidadArancelaria) => {
+    setUnidad(nueva);
+    const nuevoValor = nueva === 'JUS' ? valoresUnidad.jus : valoresUnidad.uma;
+    if (nuevoValor > 0) {
+      setItems(prev => prev.map(it => {
+        const cant = parseFloat(it.cantidadIus);
+        if (!isNaN(cant)) return { ...it, montoPesos: (cant * nuevoValor).toFixed(2) };
+        return it;
+      }));
+    }
   };
 
   const addItem = () => {
@@ -105,23 +127,24 @@ export const PresupuestoForm: React.FC<PresupuestoFormProps> = ({
     try {
       let presupuesto: Presupuesto;
       if (existing) {
-        await updatePresupuesto(existing.id, { subtotalIus, subtotalPesos, notes });
+        await updatePresupuesto(existing.id, { subtotalIus, subtotalPesos, notes, unidad });
         // Sync items: delete old, insert new
         for (const item of existing.items) {
           await deletePresupuestoItem(item.id);
         }
-        presupuesto = { ...existing, subtotalIus, subtotalPesos, notes, items: [] };
+        presupuesto = { ...existing, subtotalIus, subtotalPesos, notes, unidad, items: [] };
       } else {
         presupuesto = await createPresupuesto({
           consultationId,
           clientName,
           status: 'Borrador',
-          iusValorSnapshot: iusValor,
+          unidad,
+          iusValorSnapshot: valorUnidad,
           subtotalIus,
           subtotalPesos,
           paymentStatus: 'Pendiente',
           notes,
-        });
+        } as any);
       }
       // Guardar items
       const savedItems: PresupuestoItem[] = [];
@@ -154,7 +177,7 @@ export const PresupuestoForm: React.FC<PresupuestoFormProps> = ({
             <div>
               <h2 className="text-xl font-black tracking-tight">Presupuesto de Honorarios</h2>
               <p className="text-sm text-muted-foreground mt-0.5">
-                {clientName} · Ley 14.967
+                {clientName} · {unidad === 'JUS' ? 'Ley 27.423' : 'Ley 14.967'}
               </p>
             </div>
             <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
@@ -162,16 +185,56 @@ export const PresupuestoForm: React.FC<PresupuestoFormProps> = ({
             </button>
           </div>
 
-          {/* Valor IUS */}
-          <div className="flex items-center gap-3 p-3 bg-amber-50 border border-amber-200 rounded-xl">
-            <Calculator size={18} className="text-amber-600 shrink-0" />
+          {/* Toggle unidad arancelaria */}
+          <div className="space-y-2">
+            <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Unidad arancelaria</p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => cambiarUnidad('JUS')}
+                className={cn(
+                  'flex-1 py-2.5 rounded-xl border-2 text-xs font-black uppercase tracking-widest transition-all',
+                  unidad === 'JUS'
+                    ? 'border-amber-500 bg-amber-50 text-amber-700'
+                    : 'border-border bg-card text-muted-foreground hover:border-border/80'
+                )}
+              >
+                JUS · CABA / Nacional
+              </button>
+              <button
+                onClick={() => cambiarUnidad('UMA')}
+                className={cn(
+                  'flex-1 py-2.5 rounded-xl border-2 text-xs font-black uppercase tracking-widest transition-all',
+                  unidad === 'UMA'
+                    ? 'border-sky-500 bg-sky-50 text-sky-700'
+                    : 'border-border bg-card text-muted-foreground hover:border-border/80'
+                )}
+              >
+                UMA · PBA
+              </button>
+            </div>
+          </div>
+
+          {/* Valor de la unidad seleccionada */}
+          <div className={cn(
+            'flex items-center gap-3 p-3 border rounded-xl',
+            unidad === 'JUS' ? 'bg-amber-50 border-amber-200' : 'bg-sky-50 border-sky-200',
+          )}>
+            <Calculator size={18} className={cn('shrink-0', unidad === 'JUS' ? 'text-amber-600' : 'text-sky-600')} />
             <div className="flex-1">
-              <p className="text-xs font-bold text-amber-700 uppercase tracking-wide">Valor del IUS vigente</p>
-              <p className="text-lg font-black text-amber-800">
-                ${iusValor.toLocaleString('es-AR')} por IUS
+              <p className={cn(
+                'text-xs font-bold uppercase tracking-wide',
+                unidad === 'JUS' ? 'text-amber-700' : 'text-sky-700',
+              )}>
+                Valor del {unidad} vigente
+              </p>
+              <p className={cn(
+                'text-lg font-black',
+                unidad === 'JUS' ? 'text-amber-800' : 'text-sky-800',
+              )}>
+                ${valorUnidad.toLocaleString('es-AR')} por {unidad}
               </p>
             </div>
-            {iusValor === 0 && (
+            {valorUnidad === 0 && (
               <Badge variant="warning">Configurar en Ajustes</Badge>
             )}
           </div>
@@ -233,7 +296,7 @@ export const PresupuestoForm: React.FC<PresupuestoFormProps> = ({
                 </div>
                 <div className="col-span-2">
                   <Input
-                    placeholder="IUS"
+                    placeholder={unidad}
                     type="number"
                     value={item.cantidadIus}
                     onChange={e => handleCantidadIusChange(index, e.target.value)}
@@ -272,8 +335,8 @@ export const PresupuestoForm: React.FC<PresupuestoFormProps> = ({
           {/* Totales */}
           <div className="p-4 bg-card border border-border rounded-xl space-y-1">
             <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Subtotal IUS</span>
-              <span className="font-bold">{subtotalIus.toFixed(2)} IUS</span>
+              <span className="text-muted-foreground">Subtotal {unidad}</span>
+              <span className="font-bold">{subtotalIus.toFixed(2)} {unidad}</span>
             </div>
             <div className="flex justify-between text-base font-black">
               <span>Total en Pesos</span>

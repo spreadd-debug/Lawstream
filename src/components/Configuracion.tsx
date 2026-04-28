@@ -163,7 +163,19 @@ const EstudioPerfilConfig = ({ onBack }: { onBack: () => void }) => {
   );
 };
 
-const IUSConfig = ({ onBack }: { onBack: () => void }) => {
+/**
+ * Editor de una unidad arancelaria (JUS o UMA).
+ * Reutilizable: la sección de Configuración renderiza dos copias —
+ * una para JUS (key 'ius_valor', legacy) y otra para UMA (key 'uma_valor').
+ */
+const UnidadValorEditor: React.FC<{
+  configKey: 'ius_valor' | 'uma_valor';
+  unidadLabel: 'JUS' | 'UMA';
+  jurisdiccion: string;
+  ley: string;
+  colorTheme: 'amber' | 'sky';
+  placeholder: string;
+}> = ({ configKey, unidadLabel, jurisdiccion, ley, colorTheme, placeholder }) => {
   const [currentValue, setCurrentValue] = useState<number>(0);
   const [inputValue, setInputValue] = useState('');
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
@@ -171,7 +183,7 @@ const IUSConfig = ({ onBack }: { onBack: () => void }) => {
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    fetchStudioConfig('ius_valor').then(cfg => {
+    fetchStudioConfig(configKey).then(cfg => {
       if (cfg) {
         const val = (cfg.value as any).pesos ?? 0;
         setCurrentValue(val);
@@ -179,14 +191,14 @@ const IUSConfig = ({ onBack }: { onBack: () => void }) => {
         setLastUpdated(cfg.updatedAt);
       }
     });
-  }, []);
+  }, [configKey]);
 
   const handleSave = async () => {
     const newVal = parseFloat(inputValue);
     if (isNaN(newVal) || newVal <= 0) return;
     setSaving(true);
     try {
-      await upsertStudioConfig('ius_valor', { pesos: newVal }, 'usuario');
+      await upsertStudioConfig(configKey, { pesos: newVal }, 'usuario');
       setCurrentValue(newVal);
       setLastUpdated(new Date().toISOString());
       setSaved(true);
@@ -196,6 +208,59 @@ const IUSConfig = ({ onBack }: { onBack: () => void }) => {
     }
   };
 
+  const colors = colorTheme === 'amber'
+    ? { bg: 'bg-amber-50', border: 'border-amber-200', icon: 'text-amber-600', label: 'text-amber-700', value: 'text-amber-800', stamp: 'text-amber-600' }
+    : { bg: 'bg-sky-50',   border: 'border-sky-200',   icon: 'text-sky-600',   label: 'text-sky-700',   value: 'text-sky-800',   stamp: 'text-sky-600' };
+
+  return (
+    <Card className="p-6 space-y-6">
+      <div>
+        <h2 className="text-lg font-black tracking-tighter">Valor del {unidadLabel}</h2>
+        <p className="text-[11px] text-muted-foreground uppercase tracking-widest font-bold mt-0.5">
+          {jurisdiccion} — {ley}
+        </p>
+      </div>
+
+      <div className={`flex items-center gap-4 p-4 ${colors.bg} border ${colors.border} rounded-xl`}>
+        <Calculator size={24} className={`${colors.icon} shrink-0`} />
+        <div>
+          <p className={`text-xs font-bold ${colors.label} uppercase tracking-wide`}>Valor vigente del {unidadLabel}</p>
+          <p className={`text-3xl font-black ${colors.value}`}>
+            {currentValue > 0
+              ? <>${currentValue.toLocaleString('es-AR')}<span className="text-sm font-bold ml-2">por {unidadLabel}</span></>
+              : <span className="text-lg text-muted-foreground">Sin configurar</span>
+            }
+          </p>
+          {lastUpdated && (
+            <p className={`text-xs ${colors.stamp} mt-1`}>
+              Actualizado: {format(parseISO(lastUpdated), "d 'de' MMMM yyyy", { locale: es })}
+            </p>
+          )}
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+          Nuevo valor (en pesos)
+        </label>
+        <div className="flex gap-3">
+          <MoneyInput
+            value={inputValue}
+            onChange={v => setInputValue(v)}
+            placeholder={placeholder}
+            className="flex-1"
+          />
+          <Button onClick={handleSave} disabled={saving} className="gap-2 shrink-0">
+            {saved ? <Check size={16} /> : null}
+            {saving ? 'Guardando...' : saved ? 'Guardado' : 'Actualizar'}
+          </Button>
+        </div>
+      </div>
+    </Card>
+  );
+};
+
+const UnidadesArancelariasConfig = ({ onBack }: { onBack: () => void }) => {
   return (
     <div className="space-y-8 max-w-2xl mx-auto pb-20">
       <header className="flex items-center gap-4">
@@ -203,51 +268,36 @@ const IUSConfig = ({ onBack }: { onBack: () => void }) => {
           <ArrowLeft size={20} />
         </button>
         <div>
-          <h1 className="text-2xl font-black tracking-tighter">Valor del JUS</h1>
+          <h1 className="text-2xl font-black tracking-tighter">Unidades arancelarias</h1>
           <p className="text-xs text-muted-foreground uppercase tracking-widest font-bold mt-0.5">
-            Ley 14.967 — Unidad de honorarios profesionales
+            Valores vigentes para cuantificar honorarios en presupuestos
           </p>
         </div>
       </header>
 
-      <Card className="p-6 space-y-6">
-        <div className="flex items-center gap-4 p-4 bg-amber-50 border border-amber-200 rounded-xl">
-          <Calculator size={24} className="text-amber-600 shrink-0" />
-          <div>
-            <p className="text-xs font-bold text-amber-700 uppercase tracking-wide">Valor vigente del JUS</p>
-            <p className="text-3xl font-black text-amber-800">
-              ${currentValue.toLocaleString('es-AR')}
-              <span className="text-sm font-bold ml-2">por JUS</span>
-            </p>
-            {lastUpdated && (
-              <p className="text-xs text-amber-600 mt-1">
-                Actualizado: {format(parseISO(lastUpdated), "d 'de' MMMM yyyy", { locale: es })}
-              </p>
-            )}
-          </div>
-        </div>
+      <UnidadValorEditor
+        configKey="ius_valor"
+        unidadLabel="JUS"
+        jurisdiccion="Justicia Nacional / CABA"
+        ley="Ley 27.423"
+        colorTheme="amber"
+        placeholder="3500"
+      />
 
-        <div className="space-y-2">
-          <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-            Nuevo valor (en pesos)
-          </label>
-          <div className="flex gap-3">
-            <MoneyInput
-              value={inputValue}
-              onChange={v => setInputValue(v)}
-              placeholder="3500"
-              className="flex-1"
-            />
-            <Button onClick={handleSave} disabled={saving} className="gap-2 shrink-0">
-              {saved ? <Check size={16} /> : null}
-              {saving ? 'Guardando...' : saved ? 'Guardado' : 'Actualizar'}
-            </Button>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Este valor se usa en todos los presupuestos nuevos. Los presupuestos ya creados conservan el valor histórico al momento de su creación.
-          </p>
-        </div>
-      </Card>
+      <UnidadValorEditor
+        configKey="uma_valor"
+        unidadLabel="UMA"
+        jurisdiccion="Provincia de Buenos Aires"
+        ley="Ley 14.967"
+        colorTheme="sky"
+        placeholder="25000"
+      />
+
+      <p className="text-xs text-muted-foreground">
+        Cada presupuesto guarda la unidad y su valor al momento de la creación.
+        Los presupuestos ya creados conservan los valores históricos. Para casos
+        en CABA / Nacional se usa JUS; para casos en PBA, UMA.
+      </p>
     </div>
   );
 };
@@ -371,7 +421,7 @@ export const Configuracion = () => {
   const sections = [
     { id: 'estudio',        label: 'Datos del Estudio',    icon: Briefcase,  desc: 'Nombre, CUIT, dirección y contacto.' },
     { id: 'usuarios',       label: 'Usuarios y Roles',     icon: Shield,     desc: 'Gestionar quién accede y qué puede hacer.' },
-    { id: 'ius',            label: 'Valor del JUS',        icon: Calculator, desc: 'Actualizar el valor vigente del JUS para presupuestos (Ley 14.967).' },
+    { id: 'ius',            label: 'Unidades arancelarias', icon: Calculator, desc: 'Valores vigentes del JUS (Nacional/CABA, Ley 27.423) y UMA (PBA, Ley 14.967).' },
     { id: 'consulta',       label: 'Valor de Consulta',    icon: Calculator, desc: 'Precio de la entrevista inicial. Se guarda históricamente en cada consulta cobrada.' },
     { id: 'asuntos',        label: 'Tipos de Asunto',      icon: FileText,   desc: 'Configurar tipos, estados y checklists.' },
     { id: 'notificaciones', label: 'Notificaciones',       icon: Bell,       desc: 'Alertas de vencimientos y actividad.' },
@@ -381,7 +431,7 @@ export const Configuracion = () => {
   ];
 
   if (activeSection === 'usuarios')  return <UsuariosConfig onBack={() => setActiveSection(null)} />;
-  if (activeSection === 'ius')       return <IUSConfig onBack={() => setActiveSection(null)} />;
+  if (activeSection === 'ius')       return <UnidadesArancelariasConfig onBack={() => setActiveSection(null)} />;
   if (activeSection === 'consulta')  return <ConsultaValorConfig onBack={() => setActiveSection(null)} />;
   if (activeSection === 'estudio')   return <EstudioPerfilConfig onBack={() => setActiveSection(null)} />;
   if (activeSection === 'bitacora')  return <BitacoraPage onBack={() => setActiveSection(null)} />;

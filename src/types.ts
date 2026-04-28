@@ -288,12 +288,26 @@ export interface PresupuestoItem {
   orden: number;
 }
 
+/**
+ * Unidad arancelaria del presupuesto:
+ *  - JUS: Justicia Nacional/CABA (Ley 27.423).
+ *  - UMA: Provincia de Buenos Aires (Ley 14.967).
+ *
+ * `iusValorSnapshot` y `cantidadIus` mantienen su nombre por legacy;
+ * conceptualmente representan el valor/cantidad de la unidad seleccionada
+ * (sea JUS o UMA según el campo `unidad`).
+ */
+export type UnidadArancelaria = 'JUS' | 'UMA';
+
 export interface Presupuesto {
   id: string;
   consultationId?: string;
   matterId?: string;
   clientName: string;
   status: PresupuestoStatus;
+  /** Unidad arancelaria del presupuesto. Default 'JUS' por compatibilidad
+   *  con presupuestos legados. Se elige al crear según jurisdicción. */
+  unidad: UnidadArancelaria;
   iusValorSnapshot: number;
   subtotalIus: number;
   subtotalPesos: number;
