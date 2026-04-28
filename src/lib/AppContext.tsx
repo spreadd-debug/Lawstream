@@ -103,6 +103,7 @@ interface AppContextType {
   handleCancelarPlazo: (id: string) => Promise<void>;
   handleSuspenderPlazo: (id: string, motivo: string, fechaDesde: string) => Promise<void>;
   handleReanudarPlazo: (id: string, fechaReanudacion: string) => Promise<void>;
+  handleActualizarUltimaNotificacion: (id: string, fechaUltima: string) => Promise<void>;
   // Hilos de prueba
   hilos: HiloPrueba[];
   handleCreateHilo: (hilo: Omit<HiloPrueba, 'id' | 'createdAt' | 'updatedAt'>) => Promise<HiloPrueba>;
@@ -897,6 +898,50 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  /**
+   * Actualiza la "última notificación" de un plazo común y recalcula el
+   * vencimiento. Solo aplica a plazos `tipoPlazo = 'comun'` activos.
+   *
+   * Caso típico: en alegatos (art. 482 CPCCN) hay 6 días COMUNES desde la
+   * última notificación. Si el segundo letrado se notifica más tarde, el
+   * abogado registra la nueva fecha y la fecha de vencimiento se mueve.
+   */
+  const handleActualizarUltimaNotificacion = async (id: string, fechaUltima: string) => {
+    const p = plazos.find(x => x.id === id);
+    if (!p) return;
+    if (p.tipoPlazo !== 'comun') {
+      console.warn('actualizarUltimaNotificacion solo aplica a plazos comunes');
+      return;
+    }
+    if (p.estado !== 'activo') {
+      console.warn('Solo plazos activos pueden actualizar la última notificación');
+      return;
+    }
+    let nuevaFecha = p.fechaVencimiento;
+    try {
+      const venc = await calcularVencimiento({
+        fechaInicio: parseISO(fechaUltima),
+        dias: p.dias,
+        diasHabiles: p.diasHabiles,
+        jurisdiccion: p.jurisdiccion,
+      });
+      nuevaFecha = format(venc, 'yyyy-MM-dd');
+    } catch (err) {
+      console.error('Error recalculando vencimiento por nueva notificación:', err);
+    }
+    const cambios: Partial<Plazo> = {
+      fechaUltimaNotificacion: fechaUltima,
+      fechaVencimiento: nuevaFecha,
+    };
+    setPlazos(prev => prev.map(x => x.id === id ? { ...x, ...cambios } : x));
+    try {
+      await db.updatePlazo(id, cambios);
+      audit('editar_asunto', 'plazo', id, p.tipo, { accion: 'nueva_notificacion', fecha: fechaUltima });
+    } catch (err) {
+      console.error('Error actualizando última notificación:', err);
+    }
+  };
+
   // ── Hilos de prueba ────────────────────────────────────────────
 
   const handleCreateHilo = async (
@@ -1033,7 +1078,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       eventos, plazos,
       handleCreateEvento, handleUpdateEvento, handleDeleteEvento,
       handleCreatePlazo, handleCumplirPlazo, handleCancelarPlazo,
-      handleSuspenderPlazo, handleReanudarPlazo,
+      handleSuspenderPlazo, handleReanudarPlazo, handleActualizarUltimaNotificacion,
       hilos, handleCreateHilo, handleUpdateHilo, handleDeleteHilo,
       peritos, handleCreatePerito, handleUpdatePerito, handleDeletePerito,
     }}>

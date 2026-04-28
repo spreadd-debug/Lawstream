@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Modal, Button, Input, Textarea } from './UI';
 import { useAppContext } from '../lib/AppContext';
-import type { EventoExpediente, Plazo, TipoEvento, TipoProceso } from '../types';
+import type { EventoExpediente, Plazo, TipoEvento, TipoProceso, TipoPlazo } from '../types';
 import {
   getPlazosSugeridosPara,
   TIPOS_EVENTO,
@@ -31,6 +31,7 @@ type PlazoSelectionRow = {
   diasHabiles: boolean;
   descripcion: string;
   fechaVencimiento: string; // ISO yyyy-MM-dd
+  tipoPlazo: TipoPlazo;
 };
 
 export const EventoForm: React.FC<EventoFormProps> = ({
@@ -134,6 +135,7 @@ export const EventoForm: React.FC<EventoFormProps> = ({
           diasHabiles: s.diasHabiles,
           descripcion: s.descripcion,
           fechaVencimiento: format(venc, 'yyyy-MM-dd'),
+          tipoPlazo: s.tipoPlazo ?? 'individual',
         };
       });
       if (!cancelled) setPlazos(rows);
@@ -189,6 +191,7 @@ export const EventoForm: React.FC<EventoFormProps> = ({
           jurisdiccion,
           fechaVencimiento: p.fechaVencimiento,
           estado:           'activo',
+          tipoPlazo:        p.tipoPlazo,
         }));
 
       const evento = await handleCreateEvento(

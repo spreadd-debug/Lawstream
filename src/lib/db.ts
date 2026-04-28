@@ -1961,6 +1961,8 @@ const toPlazo = (r: any): Plazo => ({
   diasTranscurridosAlSuspender:   r.dias_transcurridos_al_suspender   ?? undefined,
   fechaReanudacion:               r.fecha_reanudacion                 ?? undefined,
   reanudadoAt:                    r.reanudado_at                      ?? undefined,
+  tipoPlazo:                      r.tipo_plazo                        ?? 'individual',
+  fechaUltimaNotificacion:        r.fecha_ultima_notificacion         ?? undefined,
   createdAt:        r.created_at,
   updatedAt:        r.updated_at,
 });
@@ -1984,6 +1986,8 @@ const plazoToRow = (p: Partial<Plazo>): Record<string, unknown> => {
   if (p.diasTranscurridosAlSuspender !== undefined) row.dias_transcurridos_al_suspender = p.diasTranscurridosAlSuspender ?? null;
   if (p.fechaReanudacion             !== undefined) row.fecha_reanudacion               = p.fechaReanudacion             ?? null;
   if (p.reanudadoAt                  !== undefined) row.reanudado_at                    = p.reanudadoAt                  ?? null;
+  if (p.tipoPlazo                    !== undefined) row.tipo_plazo                      = p.tipoPlazo;
+  if (p.fechaUltimaNotificacion      !== undefined) row.fecha_ultima_notificacion       = p.fechaUltimaNotificacion       ?? null;
   return row;
 };
 
