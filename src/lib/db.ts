@@ -152,6 +152,9 @@ const toMatter = (r: any): Matter => ({
   caseData:         r.case_data        ?? undefined,
   jurisdiccion:     r.jurisdiccion     ?? undefined,
   tipoProceso:      r.tipo_proceso     ?? undefined,
+  kind:             r.kind             ?? undefined,
+  parentMatterId:   r.parent_matter_id ?? undefined,
+  incidenteTipo:    r.incidente_tipo   ?? undefined,
 });
 
 const toClient = (r: any): Client => ({
@@ -255,6 +258,9 @@ const matterToRow = (m: Partial<Matter>) => ({
   ...(m.caseData         !== undefined && { case_data:        m.caseData }),
   ...(m.jurisdiccion     !== undefined && { jurisdiccion:     m.jurisdiccion }),
   ...(m.tipoProceso      !== undefined && { tipo_proceso:     m.tipoProceso }),
+  ...(m.kind             !== undefined && { kind:             m.kind }),
+  ...(m.parentMatterId   !== undefined && { parent_matter_id: m.parentMatterId ?? null }),
+  ...(m.incidenteTipo    !== undefined && { incidente_tipo:   m.incidenteTipo ?? null }),
 });
 
 const clientToRow = (c: Partial<Client>) => ({

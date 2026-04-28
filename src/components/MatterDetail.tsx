@@ -31,7 +31,7 @@ import {
   Layers,
   Archive,
 } from 'lucide-react';
-import { Matter, TimelineEvent, Task, LegalDocument, Expediente, MatterMilestone, FlowSnapshot } from '../types';
+import { Matter, TimelineEvent, Task, LegalDocument, Expediente, MatterMilestone, FlowSnapshot, INCIDENTE_TIPO_LABELS } from '../types';
 import { Badge, Card, Button, Modal, Input, Textarea, Select } from './UI';
 import { format, parseISO, differenceInCalendarDays } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -56,6 +56,7 @@ import { PeritosPanel } from './PeritosPanel';
 import { CompensacionPanel } from './CompensacionPanel';
 import { LetradosPanel } from './LetradosPanel';
 import { HonorariosRegPanel } from './HonorariosRegPanel';
+import { SubProcesosPanel } from './SubProcesosPanel';
 import { urgenciaDePlazo, diasRestantes } from '../lib/plazos';
 
 interface MatterDetailProps {
@@ -86,7 +87,15 @@ export const MatterDetail = ({
   currentUser, currentUserRole,
 }: MatterDetailProps) => {
   const navigate = useNavigate();
-  const { clients, plazos: allPlazos, eventos: allEventos, handleEditMatter, setEditMatterFocusField, handleArchiveMatter } = useAppContext();
+  const { clients, matters: allMatters, plazos: allPlazos, eventos: allEventos, handleEditMatter, setEditMatterFocusField, handleArchiveMatter } = useAppContext();
+  // GAP 1 — sub-procesos: si este matter tiene padre, mostramos breadcrumb.
+  const parentMatter = matter.parentMatterId ? allMatters.find(m => m.id === matter.parentMatterId) : undefined;
+  const isSubProceso = matter.kind === 'incidente' || matter.kind === 'apelacion';
+  const subProcesoLabel = matter.kind === 'apelacion'
+    ? 'Apelación'
+    : matter.kind === 'incidente'
+      ? `Incidente${matter.incidenteTipo ? ' · ' + INCIDENTE_TIPO_LABELS[matter.incidenteTipo] : ''}`
+      : null;
   const clientObj = clients.find(c => c.name === matter.client);
 
   // Casos legados anteriores a la migración 017 pueden tener jurisdicción NULL.
@@ -229,6 +238,26 @@ export const MatterDetail = ({
   return (
     <div className="max-w-6xl mx-auto space-y-8 pb-20">
 
+      {/* ═══════════════════════ BREADCRUMB SUB-PROCESO ═══════════════════════ */}
+      {/* Si este matter es incidente/apelación, mostramos arriba un link al padre. */}
+      {isSubProceso && parentMatter && (
+        <div className="flex items-center gap-3 p-3 rounded-2xl border border-violet-500/40 bg-violet-500/10">
+          <button
+            onClick={() => navigate(`/asuntos/${parentMatter.id}`)}
+            className="flex items-center gap-2 text-[11px] font-black uppercase tracking-widest text-violet-700 dark:text-violet-300 hover:text-violet-900 dark:hover:text-violet-100 transition-colors"
+          >
+            <ArrowLeft size={14} />
+            Volver al caso principal
+          </button>
+          <span className="text-muted-foreground/50">·</span>
+          <span className="text-[11px] text-foreground/80 truncate">
+            <span className="font-bold">{subProcesoLabel}</span>
+            {' de '}
+            <span className="font-bold">{parentMatter.title}</span>
+          </span>
+        </div>
+      )}
+
       {/* ═══════════════════════ BANNER JURISDICCIÓN FALTANTE ═══════════════════════ */}
       {/* Caso legado sin jurisdicción: se ve arriba del stepper para que sea imposible
           ignorarlo. Convive con el banner de violencia si ambos aplican. */}
@@ -318,6 +347,11 @@ export const MatterDetail = ({
           <div className="space-y-2">
             <div className="flex items-center gap-3 flex-wrap">
               <Badge variant="outline" className="text-[9px] font-black uppercase tracking-widest border-border/50">{matter.type}</Badge>
+              {isSubProceso && subProcesoLabel && (
+                <Badge variant="outline" className="text-[9px] font-black uppercase tracking-widest border-violet-500/50 text-violet-600 dark:text-violet-400 bg-violet-500/10">
+                  {subProcesoLabel}
+                </Badge>
+              )}
               {expediente ? (
                 <>
                   <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest opacity-60">
@@ -1027,6 +1061,17 @@ export const MatterDetail = ({
         {/* ─────────── TAB: EXPEDIENTE ─────────── */}
         {activeTab === 'expediente' && (
           <div className="py-8 space-y-10">
+            {/* Sub-procesos (incidentes y apelaciones) — GAP 1.
+                Solo lo mostramos en casos principales para evitar anidamiento. */}
+            {!isSubProceso && (
+              <section>
+                <SubProcesosPanel
+                  matter={matter}
+                  onOpenMatter={(id) => navigate(`/asuntos/${id}`)}
+                />
+              </section>
+            )}
+
             {/* Letrados de la parte / contraparte */}
             <section>
               <LetradosPanel matterId={matter.id} />
