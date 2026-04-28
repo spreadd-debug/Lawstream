@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { Matter, Client, Consultation, LegalDocument, Task, TimelineEvent, UserProfile, Communication, Expediente, MatterMilestone, EventoExpediente, Plazo, Jurisdiccion, TipoProceso, TipoEvento, HiloPrueba, Perito, CompensacionEconomica, CuotaCompensacion, FrecuenciaCuota, LetradoParte } from '../types';
+import { Matter, Client, Consultation, LegalDocument, Task, TimelineEvent, UserProfile, Communication, Expediente, MatterMilestone, EventoExpediente, Plazo, Jurisdiccion, TipoProceso, TipoEvento, HiloPrueba, Perito, CompensacionEconomica, CuotaCompensacion, FrecuenciaCuota, LetradoParte, HonorarioRegulado } from '../types';
 import { GlobalFilters, defaultFilters } from '../components/FiltersContent';
 import { useAuth } from './auth';
 import * as db from './db';
@@ -146,6 +146,11 @@ interface AppContextType {
     fechaCese: string,
     motivoCese?: string,
   ) => Promise<void>;
+  // Honorarios regulados
+  honorariosRegulados: HonorarioRegulado[];
+  handleCreateHonorarioRegulado: (h: Omit<HonorarioRegulado, 'id' | 'createdAt' | 'updatedAt'>) => Promise<HonorarioRegulado>;
+  handleUpdateHonorarioRegulado: (id: string, changes: Partial<HonorarioRegulado>) => Promise<void>;
+  handleDeleteHonorarioRegulado: (id: string) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -174,6 +179,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [compensaciones, setCompensaciones] = useState<CompensacionEconomica[]>([]);
   const [cuotasCompensacion, setCuotasCompensacion] = useState<CuotaCompensacion[]>([]);
   const [letrados, setLetrados] = useState<LetradoParte[]>([]);
+  const [honorariosRegulados, setHonorariosRegulados] = useState<HonorarioRegulado[]>([]);
   const [plazos, setPlazos] = useState<Plazo[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -222,8 +228,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       safe(db.fetchCompensaciones(),   'compensaciones'),
       safe(db.fetchCuotasCompensacion(), 'cuotas_compensacion'),
       safe(db.fetchLetrados(),         'letrados'),
+      safe(db.fetchHonorariosRegulados(), 'honorarios_regulados'),
     ])
-      .then(([m, c, co, d, t, tl, p, ex, ms, ev, pl, hi, pe, comps, cuotas, letr]) => {
+      .then(([m, c, co, d, t, tl, p, ex, ms, ev, pl, hi, pe, comps, cuotas, letr, honor]) => {
         setMatters(m);
         setClients(c);
         setConsultations(co);
@@ -240,6 +247,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setCompensaciones(comps);
         setCuotasCompensacion(cuotas);
         setLetrados(letr);
+        setHonorariosRegulados(honor);
       })
       .finally(() => setIsLoading(false));
   }, [userId]);
@@ -1296,6 +1304,49 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  // ── Honorarios regulados ──────────────────────────────────────
+
+  const handleCreateHonorarioRegulado = async (
+    h: Omit<HonorarioRegulado, 'id' | 'createdAt' | 'updatedAt'>,
+  ): Promise<HonorarioRegulado> => {
+    const optimistic: HonorarioRegulado = {
+      ...h,
+      id: crypto.randomUUID(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    setHonorariosRegulados(prev => [optimistic, ...prev]);
+    try {
+      const saved = await db.createHonorarioRegulado(h);
+      setHonorariosRegulados(prev => prev.map(x => x.id === optimistic.id ? saved : x));
+      return saved;
+    } catch (err) {
+      console.error('Error creando honorario regulado:', err);
+      setHonorariosRegulados(prev => prev.filter(x => x.id !== optimistic.id));
+      throw err;
+    }
+  };
+
+  const handleUpdateHonorarioRegulado = async (id: string, changes: Partial<HonorarioRegulado>): Promise<void> => {
+    setHonorariosRegulados(prev => prev.map(h => h.id === id ? { ...h, ...changes, updatedAt: new Date().toISOString() } : h));
+    try {
+      await db.updateHonorarioRegulado(id, changes);
+    } catch (err) {
+      console.error('Error actualizando honorario regulado:', err);
+    }
+  };
+
+  const handleDeleteHonorarioRegulado = async (id: string): Promise<void> => {
+    const prev = honorariosRegulados;
+    setHonorariosRegulados(curr => curr.filter(h => h.id !== id));
+    try {
+      await db.deleteHonorarioRegulado(id);
+    } catch (err) {
+      console.error('Error eliminando honorario regulado:', err);
+      setHonorariosRegulados(prev);
+    }
+  };
+
   const handleUpdateAssignments = async (matterId: string, profileIds: string[], leadId: string) => {
     // Optimistic update
     setMatters(prev => prev.map(m =>
@@ -1354,6 +1405,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       handleMarcarCuotaPagada, handleUpdateCuota,
       letrados, handleCreateLetrado, handleUpdateLetrado, handleDeleteLetrado,
       handleSustituirLetrado,
+      honorariosRegulados,
+      handleCreateHonorarioRegulado, handleUpdateHonorarioRegulado, handleDeleteHonorarioRegulado,
     }}>
       {children}
     </AppContext.Provider>
