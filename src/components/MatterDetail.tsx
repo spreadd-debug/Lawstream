@@ -723,7 +723,7 @@ export const MatterDetail = ({
 
       {/* ═══════════════════════ TABS ═══════════════════════ */}
       <div>
-        <div className="flex border-b border-border">
+        <div className="flex border-b border-border overflow-x-auto">
           {([
             { key: 'flujo' as const, label: 'Flujo', icon: Zap },
             { key: 'timeline' as const, label: 'Timeline', icon: Clock },
@@ -736,7 +736,7 @@ export const MatterDetail = ({
               key={tab.key}
               onClick={() => { setActiveTab(tab.key); if (tab.key !== 'comunicaciones') setCommPrefill(undefined); }}
               className={cn(
-                "flex items-center gap-2 px-6 py-3.5 text-[11px] font-black uppercase tracking-widest border-b-2 transition-all",
+                "flex items-center gap-2 px-6 py-3.5 text-[11px] font-black uppercase tracking-widest border-b-2 transition-all whitespace-nowrap shrink-0",
                 activeTab === tab.key
                   ? "border-primary text-primary"
                   : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
