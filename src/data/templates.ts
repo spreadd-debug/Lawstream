@@ -2747,6 +2747,117 @@ export const MATTER_TEMPLATES: MatterTemplate[] = [
     fechaSeguimientoSugeridaDays: 7,
     prioridadSugerida: 'Media',
   },
+
+  // ═══════════════════════════════════════════════════════════
+  // CÁMARA / APELACIÓN — sub-proceso de segunda instancia (GAP 4)
+  // Auto-aplicado al crear sub-proceso con kind='apelacion'.
+  // Etapas: Agravios → Traslado → Elevación → Autos → Sentencia → Devolución.
+  // Aplica a CUALQUIER rama (familia, civil, comercial, daños) — el flow
+  // de Cámara es el mismo. Por eso rama='Familia' es nominal y findTemplate
+  // se resuelve directo por id desde handleCreateSubProceso.
+  // ═══════════════════════════════════════════════════════════
+  {
+    id: 'cam-apelacion-civil',
+    name: 'Apelación (Cámara)',
+    rama: 'Familia',
+    subtipo: 'Apelación',
+    jurisdiccion: 'CABA',
+    via: 'Ordinaria',
+    etapaInicial: 'Agravios',
+    descripcion: 'Sub-proceso de segunda instancia. Cubre el ciclo desde la concesión del recurso hasta la devolución a primera instancia. Reusable para cualquier rama (civil, familia, comercial, daños).',
+    stages: [
+      // ── ETAPA 1: AGRAVIOS ────────────────────────────────────
+      {
+        name: 'Agravios',
+        tasks: [
+          { task: 'Estudiar sentencia y aspectos apelables', priority: 'crítico', bloqueante: true },
+          { task: 'Identificar errores in iudicando / in procedendo', priority: 'crítico' },
+          { task: 'Redactar expresión de agravios', priority: 'crítico', bloqueante: true },
+          { task: 'Verificar plazo de fundamentación (5/10 días según recurso)', priority: 'crítico', bloqueante: true },
+        ],
+        documents: [
+          { name: 'Expresión de agravios', required: true },
+        ],
+        milestone: 'Agravios presentados',
+      },
+      // ── ETAPA 2: TRASLADO ────────────────────────────────────
+      {
+        name: 'Traslado',
+        tasks: [
+          { task: 'Notificar agravios a la contraria', priority: 'crítico' },
+          { task: 'Recibir contestación de agravios (10 días art. 259 CPCCN / 254 CPCC PBA)', priority: 'recomendado' },
+          { task: 'Evaluar si replicar (sólo en hechos nuevos)', priority: 'opcional' },
+        ],
+        documents: [
+          { name: 'Contestación de agravios (de la contraria)', required: false },
+        ],
+        milestone: 'Traslado contestado',
+      },
+      // ── ETAPA 3: ELEVACIÓN ───────────────────────────────────
+      {
+        name: 'Elevación',
+        tasks: [
+          { task: 'Verificar elevación a Cámara', priority: 'crítico' },
+          { task: 'Solicitar copias / verificar foliatura', priority: 'recomendado' },
+          { task: 'Tomar nota de Sala asignada y juzgado de Cámara', priority: 'recomendado' },
+        ],
+        documents: [],
+        milestone: 'Expediente elevado',
+      },
+      // ── ETAPA 4: AUTOS EN CÁMARA ─────────────────────────────
+      {
+        name: 'Autos',
+        tasks: [
+          { task: 'Notificación de autos en Cámara', priority: 'crítico' },
+          { task: 'Plazo de aclaraciones u observaciones (3 días)', priority: 'opcional' },
+          { task: 'Esperar sorteo y vocal preopinante', priority: 'opcional' },
+        ],
+        documents: [],
+        milestone: 'Autos para sentencia (Cámara)',
+      },
+      // ── ETAPA 5: SENTENCIA ───────────────────────────────────
+      {
+        name: 'Sentencia',
+        tasks: [
+          { task: 'Notificarse de la sentencia de Cámara', priority: 'crítico', bloqueante: true },
+          { task: 'Evaluar recurso extraordinario federal (10 días art. 257 CPCCN)', priority: 'crítico' },
+          { task: 'Evaluar aclaratoria si hay error material (3 días)', priority: 'opcional' },
+          { task: 'Comunicar resultado al cliente', priority: 'crítico', bloqueante: true },
+        ],
+        documents: [
+          { name: 'Sentencia de Cámara', required: true },
+        ],
+        milestone: 'Sentencia de Cámara dictada',
+      },
+      // ── ETAPA 6: DEVOLUCIÓN ──────────────────────────────────
+      {
+        name: 'Devolución',
+        tasks: [
+          { task: 'Verificar devolución del expediente a primera instancia', priority: 'recomendado' },
+          { task: 'Cerrar el sub-proceso de apelación', priority: 'recomendado' },
+        ],
+        documents: [],
+        milestone: 'Apelación cerrada',
+      },
+    ],
+    checklistBase: [
+      { task: 'Estudiar sentencia apelada', priority: 'crítico' },
+      { task: 'Redactar expresión de agravios', priority: 'crítico' },
+      { task: 'Recibir y estudiar contestación', priority: 'recomendado' },
+      { task: 'Notificarse de sentencia de Cámara', priority: 'crítico' },
+      { task: 'Evaluar recurso extraordinario federal', priority: 'recomendado' },
+    ],
+    documentosBase: [
+      { name: 'Expresión de agravios', required: true },
+      { name: 'Sentencia de Cámara', required: true },
+    ],
+    hitosProyectados: ['Agravios presentados', 'Traslado contestado', 'Expediente elevado', 'Autos para sentencia', 'Sentencia de Cámara', 'Apelación cerrada'],
+    bloqueantesTipicos: ['Vencimiento del plazo de fundamentación', 'Falta sorteo de Sala', 'Demora en sentencia de Cámara'],
+    proximaAccionSugerida: 'Redactar expresión de agravios',
+    fechaSeguimientoSugeridaDays: 5,
+    prioridadSugerida: 'Alta',
+    notasOperativas: 'Sub-proceso reusable para cualquier rama. Las etapas siguen el ciclo del CPCCN/CPCC PBA. Si la apelación es PBA, los plazos del juicio sumario son distintos — el motor de plazos los resuelve por la jurisdicción y tipo_proceso del padre.',
+  },
 ];
 
 /** Find template by rama + subtipo (case-insensitive partial match).

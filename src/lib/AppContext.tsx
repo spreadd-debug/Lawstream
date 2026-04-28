@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { Matter, Client, Consultation, LegalDocument, Task, TimelineEvent, UserProfile, Communication, Expediente, MatterMilestone, EventoExpediente, Plazo, Jurisdiccion, TipoProceso, TipoEvento, HiloPrueba, Perito, CompensacionEconomica, CuotaCompensacion, FrecuenciaCuota, LetradoParte, HonorarioRegulado, MatterKind, IncidenteTipo, INCIDENTE_TIPO_LABELS } from '../types';
+import { Matter, Client, Consultation, LegalDocument, Task, TimelineEvent, UserProfile, Communication, Expediente, MatterMilestone, EventoExpediente, Plazo, Jurisdiccion, TipoProceso, TipoEvento, HiloPrueba, Perito, CompensacionEconomica, CuotaCompensacion, FrecuenciaCuota, LetradoParte, HonorarioRegulado, MatterKind, IncidenteTipo, INCIDENTE_TIPO_LABELS, AspectoApelado, ASPECTO_APELADO_LABELS } from '../types';
 import { GlobalFilters, defaultFilters } from '../components/FiltersContent';
 import { useAuth } from './auth';
 import * as db from './db';
@@ -92,6 +92,7 @@ interface AppContextType {
     description?: string;
     nextAction?: string;
     nextActionDate?: string;
+    aspectosApelados?: string[];
   }) => Promise<Matter>;
   handleCreateConsultation: (data: Omit<Consultation, 'id'>) => Promise<void>;
   handleUpdateConsultation: (id: string, changes: Partial<Consultation>) => void;
@@ -627,10 +628,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       description?: string;
       nextAction?: string;
       nextActionDate?: string;
+      aspectosApelados?: string[];
     },
   ): Promise<Matter> => {
     const parent = matters.find(m => m.id === parentId);
     if (!parent) throw new Error('Caso padre no encontrado');
+
+    // GAP 4 — apelaciones tienen flow propio (Agravios → Traslado → Elevación
+    // → Autos → Sentencia → Devolución). Mismo template para cualquier rama.
+    const apelacionTemplateId = data.kind === 'apelacion' ? 'cam-apelacion-civil' : undefined;
+    const apelacionEtapaInicial = data.kind === 'apelacion' ? 'Agravios' : undefined;
 
     // Hereda metadatos del padre (cliente, tipo, jurisdicción, responsable, expediente).
     const newMatter: Omit<Matter, 'id'> = {
@@ -652,6 +659,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       kind:           data.kind,
       parentMatterId: parentId,
       incidenteTipo:  data.kind === 'incidente' ? (data.incidenteTipo as IncidenteTipo | undefined) : undefined,
+      aspectosApelados: data.kind === 'apelacion' && data.aspectosApelados && data.aspectosApelados.length > 0
+        ? (data.aspectosApelados as AspectoApelado[])
+        : undefined,
+      flowTemplateId: apelacionTemplateId,
+      currentStage:   apelacionEtapaInicial,
     };
 
     const optimistic: Matter = { ...newMatter, id: crypto.randomUUID() };

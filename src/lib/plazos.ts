@@ -345,6 +345,12 @@ export const PLAZOS_POR_EVENTO: Record<TipoEvento, PlazosConVariantes> = {
   },
   contestacion_agravios: { default: [] },
   elevacion_camara: { default: [] },
+  sentencia_camara: {
+    default: [
+      { tipo: 'Recurso extraordinario federal', dias: 10, diasHabiles: true, descripcion: 'Art. 257 CPCCN — REF ante CSJN' },
+      { tipo: 'Aclaratoria', dias: 3, diasHabiles: true, descripcion: 'Art. 166 inc. 2 CPCCN / 36 CPCC PBA' },
+    ],
+  },
   cambio_representacion: { default: [] },
   otro: { default: [] },
 };
@@ -435,6 +441,7 @@ export const TIPOS_EVENTO: TipoEventoDef[] = [
   { tipo: 'expresion_agravios',        label: 'Expresión de agravios',        descripcionCorta: 'Se funda la apelación' },
   { tipo: 'contestacion_agravios',     label: 'Contestación de agravios',     descripcionCorta: 'Se contestan los agravios' },
   { tipo: 'elevacion_camara',          label: 'Elevación a Cámara',           descripcionCorta: 'El expediente sube a Cámara' },
+  { tipo: 'sentencia_camara',          label: 'Sentencia de Cámara',          descripcionCorta: 'Resuelve la apelación — abre plazo REF' },
   { tipo: 'cambio_representacion',     label: 'Cambio de representación',     descripcionCorta: 'Renuncia o cesión de patrocinio' },
   { tipo: 'otro',                      label: 'Otro',                         descripcionCorta: 'Movimiento no tipificado' },
 ];

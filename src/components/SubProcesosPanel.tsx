@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { GitBranch, Plus, ArrowUpRight, Gavel, FileText } from 'lucide-react';
-import { Matter, IncidenteTipo, INCIDENTE_TIPO_LABELS } from '../types';
+import { Matter, IncidenteTipo, INCIDENTE_TIPO_LABELS, AspectoApelado, ASPECTO_APELADO_LABELS } from '../types';
 import { Badge, Button, Card, Modal, Input, Textarea } from './UI';
 import { useAppContext } from '../lib/AppContext';
 import { format, parseISO } from 'date-fns';
@@ -123,6 +123,11 @@ const SubProcesoCard: React.FC<{ matter: Matter; onOpen: () => void }> = ({ matt
           <p className="text-sm font-bold text-foreground truncate group-hover:text-violet-600">
             {matter.title}
           </p>
+          {matter.kind === 'apelacion' && matter.aspectosApelados && matter.aspectosApelados.length > 0 && (
+            <p className="text-[11px] text-amber-700 dark:text-amber-300 truncate mt-1">
+              Apela: {matter.aspectosApelados.map(a => ASPECTO_APELADO_LABELS[a]).join(', ')}
+            </p>
+          )}
           {matter.nextAction && (
             <p className="text-[11px] text-muted-foreground truncate mt-1">
               {matter.nextAction}
@@ -148,12 +153,14 @@ interface CrearSubProcesoModalProps {
     description?: string;
     nextAction?: string;
     nextActionDate?: string;
+    aspectosApelados?: string[];
   }) => Promise<void>;
 }
 
 const CrearSubProcesoModal = ({ isOpen, onClose, onCreate }: CrearSubProcesoModalProps) => {
   const [kind, setKind] = useState<'incidente' | 'apelacion'>('incidente');
   const [incidenteTipo, setIncidenteTipo] = useState<IncidenteTipo>('alimentos_provisorios');
+  const [aspectos, setAspectos] = useState<AspectoApelado[]>([]);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [nextAction, setNextAction] = useState('');
@@ -164,6 +171,7 @@ const CrearSubProcesoModal = ({ isOpen, onClose, onCreate }: CrearSubProcesoModa
     if (isOpen) {
       setKind('incidente');
       setIncidenteTipo('alimentos_provisorios');
+      setAspectos([]);
       setTitle('');
       setDescription('');
       setNextAction('');
@@ -171,6 +179,10 @@ const CrearSubProcesoModal = ({ isOpen, onClose, onCreate }: CrearSubProcesoModa
       setSubmitting(false);
     }
   }, [isOpen]);
+
+  const toggleAspecto = (a: AspectoApelado) => {
+    setAspectos(prev => prev.includes(a) ? prev.filter(x => x !== a) : [...prev, a]);
+  };
 
   // Auto-sugerir título según tipo si el usuario no escribió nada.
   useEffect(() => {
@@ -194,6 +206,7 @@ const CrearSubProcesoModal = ({ isOpen, onClose, onCreate }: CrearSubProcesoModa
         description: description.trim() || undefined,
         nextAction: nextAction.trim() || undefined,
         nextActionDate: nextActionDate || undefined,
+        aspectosApelados: kind === 'apelacion' && aspectos.length > 0 ? aspectos : undefined,
       });
     } catch (err) {
       console.error(err);
@@ -270,6 +283,37 @@ const CrearSubProcesoModal = ({ isOpen, onClose, onCreate }: CrearSubProcesoModa
                 <option key={k} value={k}>{INCIDENTE_TIPO_LABELS[k]}</option>
               ))}
             </select>
+          </div>
+        )}
+
+        {kind === 'apelacion' && (
+          <div>
+            <label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground mb-2 block">
+              Aspectos apelados
+            </label>
+            <p className="text-[11px] text-muted-foreground mb-2">
+              ¿Qué se apela de la sentencia? El resto queda firme. Esto marca al caso padre como <strong>parcialmente firme</strong>.
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              {(Object.keys(ASPECTO_APELADO_LABELS) as AspectoApelado[]).map(a => (
+                <label
+                  key={a}
+                  className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-colors ${
+                    aspectos.includes(a)
+                      ? 'border-amber-500 bg-amber-500/10'
+                      : 'border-border/60 hover:border-amber-500/50'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={aspectos.includes(a)}
+                    onChange={() => toggleAspecto(a)}
+                    className="rounded"
+                  />
+                  <span className="text-xs font-bold">{ASPECTO_APELADO_LABELS[a]}</span>
+                </label>
+              ))}
+            </div>
           </div>
         )}
 
