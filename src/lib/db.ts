@@ -528,6 +528,7 @@ const toPresupuesto = (r: any, items: PresupuestoItem[] = []): Presupuesto => ({
   matterId:            r.matter_id          ?? undefined,
   clientName:          r.client_name,
   status:              r.status,
+  unidad:              r.unidad             ?? 'JUS',
   iusValorSnapshot:    parseFloat(r.ius_valor_snapshot),
   subtotalIus:         parseFloat(r.subtotal_ius),
   subtotalPesos:       parseFloat(r.subtotal_pesos),
@@ -588,6 +589,7 @@ export const createPresupuesto = async (p: Omit<Presupuesto, 'id' | 'items' | 'c
       matter_id:           p.matterId           ?? null,
       client_name:         p.clientName,
       status:              p.status,
+      unidad:              p.unidad             ?? 'JUS',
       ius_valor_snapshot:  p.iusValorSnapshot,
       subtotal_ius:        p.subtotalIus,
       subtotal_pesos:      p.subtotalPesos,
@@ -614,6 +616,7 @@ export const updatePresupuesto = async (id: string, changes: Partial<Omit<Presup
   if (changes.subtotalPesos       !== undefined) row.subtotal_pesos       = changes.subtotalPesos;
   if (changes.iusValorSnapshot    !== undefined) row.ius_valor_snapshot   = changes.iusValorSnapshot;
   if (changes.descuentoPorcentaje !== undefined) row.descuento_porcentaje = changes.descuentoPorcentaje;
+  if (changes.unidad              !== undefined) row.unidad               = changes.unidad;
   if (changes.notes               !== undefined) row.notes                = changes.notes;
   if (changes.cuotaOpciones       !== undefined) row.cuota_opciones       = changes.cuotaOpciones;
   if (changes.matterId            !== undefined) row.matter_id            = changes.matterId;

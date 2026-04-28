@@ -171,7 +171,7 @@ export const PresupuestoPDF: React.FC<PresupuestoPDFProps> = ({
             <Text style={s.tableHeaderText}>Descripción</Text>
           </View>
           <View style={s.cellSmall}>
-            <Text style={[s.tableHeaderText, { textAlign: 'right' }]}>IUS</Text>
+            <Text style={[s.tableHeaderText, { textAlign: 'right' }]}>{presupuesto.unidad ?? 'JUS'}</Text>
           </View>
           <View style={s.cellRight}>
             <Text style={[s.tableHeaderText, { textAlign: 'right' }]}>Valor $</Text>

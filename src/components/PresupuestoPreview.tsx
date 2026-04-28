@@ -157,7 +157,7 @@ export const PresupuestoPreview: React.FC<PresupuestoPreviewProps> = ({
           <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 32 }}>
             <thead>
               <tr style={{ backgroundColor: BLUE, color: 'white' }}>
-                {['Descripción', 'Cant. IUS', 'Valor IUS', 'Fiscal %', 'Desc. %', 'Total $'].map((h, i) => (
+                {['Descripción', `Cant. ${presupuesto.unidad ?? 'JUS'}`, `Valor ${presupuesto.unidad ?? 'JUS'}`, 'Fiscal %', 'Desc. %', 'Total $'].map((h, i) => (
                   <th key={h} style={{
                     padding: '8px 10px',
                     textAlign: i === 0 ? 'left' : 'right',
