@@ -7,7 +7,7 @@ import { logAudit } from './db';
 import { generateConsultationTasks, generateExpedienteTasks } from './taskEngine';
 import { findTemplate } from '../data/templates';
 import { instantiateFlow } from './flowEngine';
-import { calcularVencimiento, resetFeriadosCache, getPlazosSugeridosPara } from './plazos';
+import { calcularVencimiento, resetFeriadosCache, getPlazosSugeridosPara, diasHabilesEntre } from './plazos';
 import { format, parseISO } from 'date-fns';
 
 /** Normaliza el valor de jurisdicción que viene del wizard ('CABA'|'PBA'|'Nacional'
@@ -101,6 +101,8 @@ interface AppContextType {
   handleCreatePlazo: (plazo: Omit<Plazo, 'id' | 'createdAt' | 'updatedAt'>) => Promise<Plazo>;
   handleCumplirPlazo: (id: string) => Promise<void>;
   handleCancelarPlazo: (id: string) => Promise<void>;
+  handleSuspenderPlazo: (id: string, motivo: string, fechaDesde: string) => Promise<void>;
+  handleReanudarPlazo: (id: string, fechaReanudacion: string) => Promise<void>;
   // Hilos de prueba
   hilos: HiloPrueba[];
   handleCreateHilo: (hilo: Omit<HiloPrueba, 'id' | 'createdAt' | 'updatedAt'>) => Promise<HiloPrueba>;
@@ -813,6 +815,88 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  /**
+   * Suspende un plazo manual o judicialmente. Calcula los días hábiles ya
+   * transcurridos entre la fecha de inicio y la fecha de suspensión, y los
+   * guarda para que al reanudar se compute correctamente lo que falta.
+   *
+   * `fechaDesde` es la fecha (YYYY-MM-DD) en que entra en vigor la suspensión
+   * — puede ser hoy o una fecha pasada (ej. acordada que regía retroactivamente).
+   */
+  const handleSuspenderPlazo = async (id: string, motivo: string, fechaDesde: string) => {
+    const p = plazos.find(x => x.id === id);
+    if (!p) return;
+    if (p.estado !== 'activo') {
+      console.warn('Solo se pueden suspender plazos activos:', p.estado);
+      return;
+    }
+    let diasTranscurridos = 0;
+    try {
+      diasTranscurridos = await diasHabilesEntre(
+        parseISO(p.fechaInicio),
+        parseISO(fechaDesde),
+        p.jurisdiccion,
+      );
+    } catch (err) {
+      console.error('Error calculando días transcurridos:', err);
+    }
+    const cambios: Partial<Plazo> = {
+      estado: 'suspendido',
+      suspendidoDesde: fechaDesde,
+      motivoSuspension: motivo.trim() || undefined,
+      diasTranscurridosAlSuspender: diasTranscurridos,
+    };
+    setPlazos(prev => prev.map(x => x.id === id ? { ...x, ...cambios } : x));
+    try {
+      await db.updatePlazo(id, cambios);
+      audit('cancelar_plazo', 'plazo', id, p.tipo, { accion: 'suspender', motivo, fecha: fechaDesde });
+    } catch (err) {
+      console.error('Error suspendiendo plazo:', err);
+    }
+  };
+
+  /**
+   * Reanuda un plazo suspendido desde una fecha. Recalcula la nueva fecha
+   * de vencimiento usando los días que faltaban (total - transcurridos)
+   * a partir de la fecha de reanudación, respetando feriados/feria de la
+   * jurisdicción.
+   */
+  const handleReanudarPlazo = async (id: string, fechaReanudacion: string) => {
+    const p = plazos.find(x => x.id === id);
+    if (!p) return;
+    if (p.estado !== 'suspendido') {
+      console.warn('Solo se pueden reanudar plazos suspendidos:', p.estado);
+      return;
+    }
+    const transcurridos = p.diasTranscurridosAlSuspender ?? 0;
+    const restantes = Math.max(0, p.dias - transcurridos);
+    let nuevaFecha = fechaReanudacion;
+    try {
+      const fecha = await calcularVencimiento({
+        fechaInicio: parseISO(fechaReanudacion),
+        dias: restantes,
+        diasHabiles: p.diasHabiles,
+        jurisdiccion: p.jurisdiccion,
+      });
+      nuevaFecha = format(fecha, 'yyyy-MM-dd');
+    } catch (err) {
+      console.error('Error recalculando vencimiento al reanudar:', err);
+    }
+    const cambios: Partial<Plazo> = {
+      estado: 'activo',
+      fechaReanudacion,
+      reanudadoAt: new Date().toISOString(),
+      fechaVencimiento: nuevaFecha,
+    };
+    setPlazos(prev => prev.map(x => x.id === id ? { ...x, ...cambios } : x));
+    try {
+      await db.updatePlazo(id, cambios);
+      audit('editar_asunto', 'plazo', id, p.tipo, { accion: 'reanudar', fecha: fechaReanudacion, restantes });
+    } catch (err) {
+      console.error('Error reanudando plazo:', err);
+    }
+  };
+
   // ── Hilos de prueba ────────────────────────────────────────────
 
   const handleCreateHilo = async (
@@ -949,6 +1033,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       eventos, plazos,
       handleCreateEvento, handleUpdateEvento, handleDeleteEvento,
       handleCreatePlazo, handleCumplirPlazo, handleCancelarPlazo,
+      handleSuspenderPlazo, handleReanudarPlazo,
       hilos, handleCreateHilo, handleUpdateHilo, handleDeleteHilo,
       peritos, handleCreatePerito, handleUpdatePerito, handleDeletePerito,
     }}>

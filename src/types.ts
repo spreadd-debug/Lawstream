@@ -637,7 +637,7 @@ export type TipoEvento =
   | 'otro';
 
 export type OrigenEvento = 'manual' | 'scraper_mev' | 'scraper_pjn';
-export type EstadoPlazo = 'activo' | 'cumplido' | 'vencido' | 'cancelado';
+export type EstadoPlazo = 'activo' | 'suspendido' | 'cumplido' | 'vencido' | 'cancelado';
 export type TipoFeriado = 'nacional' | 'pba' | 'caba' | 'feria_judicial';
 
 // ── HILOS DE PRUEBA ────────────────────────────────────────
@@ -740,6 +740,12 @@ export interface Plazo {
   estado: EstadoPlazo;
   cumplidoAt?: string;
   tareaId?: string;
+  // Suspensión/reanudación (migración 021)
+  suspendidoDesde?: string;                   // 'YYYY-MM-DD'
+  motivoSuspension?: string;
+  diasTranscurridosAlSuspender?: number;      // hábiles ya consumidos al pausar
+  fechaReanudacion?: string;                  // 'YYYY-MM-DD'
+  reanudadoAt?: string;                       // ISO timestamp
   createdAt: string;
   updatedAt: string;
 }

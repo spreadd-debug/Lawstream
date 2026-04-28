@@ -1,12 +1,12 @@
 import React, { useMemo, useState } from 'react';
-import { Card, Button, Badge } from './UI';
+import { Card, Button, Badge, Modal, Input, Label, Textarea } from './UI';
 import { useAppContext } from '../lib/AppContext';
 import { EventoForm } from './EventoForm';
 import { labelDeTipoEvento, urgenciaDePlazo, diasRestantes } from '../lib/plazos';
 import type { EventoExpediente, Matter, Plazo, HiloPrueba } from '../types';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Plus, Clock, Calendar, CheckCircle2, XCircle, AlertTriangle, Trash2, Layers } from 'lucide-react';
+import { Plus, Clock, Calendar, CheckCircle2, XCircle, AlertTriangle, Trash2, Layers, PauseCircle, PlayCircle } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 // Paleta estable para diferenciar hilos en el timeline. Cada hilo recibe
@@ -42,14 +42,15 @@ const URGENCIA_STYLES: Record<ReturnType<typeof urgenciaDePlazo>, { badge: strin
 };
 
 const ESTADO_PLAZO_META: Record<Plazo['estado'], { label: string; className: string }> = {
-  activo:    { label: 'Activo',    className: 'bg-primary/15 text-primary' },
-  cumplido:  { label: 'Cumplido',  className: 'bg-emerald-500/15 text-emerald-600' },
-  vencido:   { label: 'Vencido',   className: 'bg-destructive/15 text-destructive' },
-  cancelado: { label: 'Cancelado', className: 'bg-muted text-muted-foreground line-through' },
+  activo:     { label: 'Activo',     className: 'bg-primary/15 text-primary' },
+  suspendido: { label: 'Suspendido', className: 'bg-amber-500/15 text-amber-700' },
+  cumplido:   { label: 'Cumplido',   className: 'bg-emerald-500/15 text-emerald-600' },
+  vencido:    { label: 'Vencido',    className: 'bg-destructive/15 text-destructive' },
+  cancelado:  { label: 'Cancelado',  className: 'bg-muted text-muted-foreground line-through' },
 };
 
 export const TimelinePanel: React.FC<TimelinePanelProps> = ({ matter }) => {
-  const { eventos, plazos, hilos, handleCumplirPlazo, handleCancelarPlazo, handleDeleteEvento } = useAppContext();
+  const { eventos, plazos, hilos, handleCumplirPlazo, handleCancelarPlazo, handleSuspenderPlazo, handleReanudarPlazo, handleDeleteEvento } = useAppContext();
   const [isEventoFormOpen, setIsEventoFormOpen] = useState(false);
   // Filtro por hilo: 'all' (todos), 'sin' (sin hilo) o el id de un hilo concreto.
   const [filtroHilo, setFiltroHilo] = useState<string>('all');
@@ -107,7 +108,7 @@ export const TimelinePanel: React.FC<TimelinePanelProps> = ({ matter }) => {
   }, [matterPlazos]);
 
   const plazosSueltos = useMemo(
-    () => matterPlazos.filter(p => !p.eventoOrigenId && p.estado === 'activo'),
+    () => matterPlazos.filter(p => !p.eventoOrigenId && (p.estado === 'activo' || p.estado === 'suspendido')),
     [matterPlazos],
   );
 
@@ -136,6 +137,8 @@ export const TimelinePanel: React.FC<TimelinePanelProps> = ({ matter }) => {
                 plazo={p}
                 onCumplir={() => handleCumplirPlazo(p.id)}
                 onCancelar={() => handleCancelarPlazo(p.id)}
+                onSuspender={(motivo, fecha) => handleSuspenderPlazo(p.id, motivo, fecha)}
+                onReanudar={(fecha) => handleReanudarPlazo(p.id, fecha)}
               />
             ))}
           </div>
@@ -210,6 +213,8 @@ export const TimelinePanel: React.FC<TimelinePanelProps> = ({ matter }) => {
               onDelete={() => handleDeleteEvento(ev.id)}
               onCumplirPlazo={(id) => handleCumplirPlazo(id)}
               onCancelarPlazo={(id) => handleCancelarPlazo(id)}
+              onSuspenderPlazo={(id, motivo, fecha) => handleSuspenderPlazo(id, motivo, fecha)}
+              onReanudarPlazo={(id, fecha) => handleReanudarPlazo(id, fecha)}
               onClickHilo={(id) => setFiltroHilo(id)}
             />
           ))}
@@ -232,8 +237,10 @@ const EventoRow: React.FC<{
   onDelete: () => void;
   onCumplirPlazo: (id: string) => void;
   onCancelarPlazo: (id: string) => void;
+  onSuspenderPlazo: (id: string, motivo: string, fecha: string) => void;
+  onReanudarPlazo: (id: string, fecha: string) => void;
   onClickHilo: (id: string) => void;
-}> = ({ evento, hilo, plazos, onDelete, onCumplirPlazo, onCancelarPlazo, onClickHilo }) => {
+}> = ({ evento, hilo, plazos, onDelete, onCumplirPlazo, onCancelarPlazo, onSuspenderPlazo, onReanudarPlazo, onClickHilo }) => {
   const fechaLabel = (() => {
     try { return format(parseISO(evento.fecha), "d 'de' MMMM yyyy", { locale: es }); }
     catch { return evento.fecha; }
@@ -303,6 +310,8 @@ const EventoRow: React.FC<{
                 plazo={p}
                 onCumplir={() => onCumplirPlazo(p.id)}
                 onCancelar={() => onCancelarPlazo(p.id)}
+                onSuspender={(motivo, fecha) => onSuspenderPlazo(p.id, motivo, fecha)}
+                onReanudar={(fecha) => onReanudarPlazo(p.id, fecha)}
                 compact
               />
             ))}
@@ -345,28 +354,39 @@ const PlazoRow: React.FC<{
   plazo: Plazo;
   onCumplir: () => void;
   onCancelar: () => void;
+  onSuspender: (motivo: string, fecha: string) => void;
+  onReanudar: (fecha: string) => void;
   compact?: boolean;
-}> = ({ plazo, onCumplir, onCancelar, compact }) => {
+}> = ({ plazo, onCumplir, onCancelar, onSuspender, onReanudar, compact }) => {
   const urg = urgenciaDePlazo(plazo);
   const restantes = diasRestantes(plazo.fechaVencimiento);
   const estado = ESTADO_PLAZO_META[plazo.estado];
   const styles = URGENCIA_STYLES[urg];
+  const [suspenderOpen, setSuspenderOpen] = useState(false);
+  const [reanudarOpen, setReanudarOpen]   = useState(false);
 
   const fechaLabel = (() => {
     try { return format(parseISO(plazo.fechaVencimiento), "d MMM yyyy", { locale: es }); }
     catch { return plazo.fechaVencimiento; }
   })();
 
+  const isSuspendido = plazo.estado === 'suspendido';
+  // Cuando está suspendido, NO mostramos el badge de urgencia (no corre el plazo)
+  // y forzamos el border al amber.
+  const borderClass = isSuspendido ? 'border-amber-500/40' : styles.border;
+
   return (
     <div
       className={cn(
         'rounded-xl border p-3 flex items-center justify-between gap-3 flex-wrap',
         compact ? 'bg-muted/30' : 'bg-card',
-        styles.border,
+        borderClass,
       )}
     >
       <div className="flex items-center gap-3 min-w-0 flex-1">
-        {urg === 'vencido' || urg === 'critico' ? (
+        {isSuspendido ? (
+          <PauseCircle size={14} className="text-amber-600 shrink-0" />
+        ) : urg === 'vencido' || urg === 'critico' ? (
           <AlertTriangle size={14} className="text-destructive shrink-0" />
         ) : (
           <Clock size={14} className="text-primary shrink-0" />
@@ -386,12 +406,25 @@ const PlazoRow: React.FC<{
                     : `${restantes}d restantes`}
               </span>
             )}
+            {isSuspendido && plazo.diasTranscurridosAlSuspender !== undefined && (
+              <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-700">
+                {plazo.diasTranscurridosAlSuspender}/{plazo.dias}d transcurridos
+              </span>
+            )}
           </div>
           <div className="text-[10px] text-muted-foreground mt-0.5">
-            Vence {fechaLabel} · {plazo.dias} días {plazo.diasHabiles ? 'hábiles' : 'corridos'} · {plazo.jurisdiccion}
+            {isSuspendido
+              ? <>Pausado desde {plazo.suspendidoDesde} · {plazo.dias} días {plazo.diasHabiles ? 'hábiles' : 'corridos'} · {plazo.jurisdiccion}</>
+              : <>Vence {fechaLabel} · {plazo.dias} días {plazo.diasHabiles ? 'hábiles' : 'corridos'} · {plazo.jurisdiccion}</>
+            }
           </div>
           {plazo.descripcion && (
             <div className="text-[10px] text-muted-foreground/80 mt-0.5 italic">{plazo.descripcion}</div>
+          )}
+          {isSuspendido && plazo.motivoSuspension && (
+            <div className="text-[10px] text-amber-700 mt-0.5">
+              <strong>Motivo:</strong> {plazo.motivoSuspension}
+            </div>
           )}
         </div>
       </div>
@@ -407,6 +440,14 @@ const PlazoRow: React.FC<{
             Cumplido
           </button>
           <button
+            onClick={() => setSuspenderOpen(true)}
+            className="flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-amber-700 hover:bg-amber-500/10 px-2.5 py-1.5 rounded-lg transition-all"
+            title="Suspender plazo"
+          >
+            <PauseCircle size={12} />
+            Suspender
+          </button>
+          <button
             onClick={onCancelar}
             className="flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-muted-foreground hover:bg-muted px-2.5 py-1.5 rounded-lg transition-all"
             title="Cancelar plazo"
@@ -416,7 +457,137 @@ const PlazoRow: React.FC<{
           </button>
         </div>
       )}
+
+      {isSuspendido && (
+        <div className="flex items-center gap-1 shrink-0">
+          <button
+            onClick={() => setReanudarOpen(true)}
+            className="flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-primary hover:bg-primary/10 px-2.5 py-1.5 rounded-lg transition-all"
+            title="Reanudar plazo"
+          >
+            <PlayCircle size={12} />
+            Reanudar
+          </button>
+        </div>
+      )}
+
+      <SuspenderModal
+        isOpen={suspenderOpen}
+        onClose={() => setSuspenderOpen(false)}
+        plazo={plazo}
+        onConfirm={(motivo, fecha) => { onSuspender(motivo, fecha); setSuspenderOpen(false); }}
+      />
+      <ReanudarModal
+        isOpen={reanudarOpen}
+        onClose={() => setReanudarOpen(false)}
+        plazo={plazo}
+        onConfirm={(fecha) => { onReanudar(fecha); setReanudarOpen(false); }}
+      />
     </div>
+  );
+};
+
+// ─── Modales de suspender / reanudar ────────────────────────────
+
+const SuspenderModal: React.FC<{
+  isOpen: boolean;
+  onClose: () => void;
+  plazo: Plazo;
+  onConfirm: (motivo: string, fecha: string) => void;
+}> = ({ isOpen, onClose, plazo, onConfirm }) => {
+  const today = format(new Date(), 'yyyy-MM-dd');
+  const [motivo, setMotivo] = useState('');
+  const [fecha, setFecha]   = useState(today);
+
+  React.useEffect(() => {
+    if (!isOpen) return;
+    setMotivo('');
+    setFecha(today);
+  }, [isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Suspender plazo"
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>Cancelar</Button>
+          <Button variant="primary" onClick={() => onConfirm(motivo, fecha)}>Suspender</Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <p className="text-xs text-muted-foreground">
+          Pausa el plazo <strong className="text-foreground">"{plazo.tipo}"</strong> de {plazo.dias} días.
+          Lawstream calcula los días hábiles ya transcurridos y los preserva
+          para reanudar correctamente más adelante.
+        </p>
+        <div>
+          <Label>Fecha de suspensión</Label>
+          <Input type="date" value={fecha} onChange={e => setFecha(e.target.value)} />
+          <p className="text-[10px] text-muted-foreground mt-1">
+            Día desde el cual el plazo deja de correr. Por defecto, hoy.
+          </p>
+        </div>
+        <div>
+          <Label>Motivo (opcional)</Label>
+          <Textarea
+            value={motivo}
+            onChange={e => setMotivo(e.target.value)}
+            placeholder="Ej: licencia médica del perito · feria extraordinaria · acuerdo de partes…"
+            rows={3}
+          />
+        </div>
+      </div>
+    </Modal>
+  );
+};
+
+const ReanudarModal: React.FC<{
+  isOpen: boolean;
+  onClose: () => void;
+  plazo: Plazo;
+  onConfirm: (fecha: string) => void;
+}> = ({ isOpen, onClose, plazo, onConfirm }) => {
+  const today = format(new Date(), 'yyyy-MM-dd');
+  const [fecha, setFecha] = useState(today);
+  const transcurridos = plazo.diasTranscurridosAlSuspender ?? 0;
+  const restantes = Math.max(0, plazo.dias - transcurridos);
+
+  React.useEffect(() => {
+    if (!isOpen) return;
+    setFecha(today);
+  }, [isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Reanudar plazo"
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>Cancelar</Button>
+          <Button variant="primary" onClick={() => onConfirm(fecha)}>Reanudar</Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <p className="text-xs text-muted-foreground">
+          Reanuda el plazo <strong className="text-foreground">"{plazo.tipo}"</strong>.
+          Quedan <strong className="text-foreground">{restantes} día{restantes === 1 ? '' : 's'} hábil{restantes === 1 ? '' : 'es'}</strong>
+          {' '}por correr ({transcurridos}/{plazo.dias} ya transcurridos antes de la suspensión).
+          Lawstream calculará la nueva fecha de vencimiento desde la fecha que indiques.
+        </p>
+        <div>
+          <Label>Fecha de reanudación</Label>
+          <Input type="date" value={fecha} onChange={e => setFecha(e.target.value)} />
+          <p className="text-[10px] text-muted-foreground mt-1">
+            Día desde el cual vuelve a correr el plazo. Por defecto, hoy.
+          </p>
+        </div>
+      </div>
+    </Modal>
   );
 };
 
