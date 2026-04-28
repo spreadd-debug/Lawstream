@@ -36,7 +36,7 @@ export const PanelManager = ({ matters, documents, consultations, profiles, onSe
   const [expandedAttorney, setExpandedAttorney] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<'vencidos' | 'total' | 'rotos'>('vencidos');
 
-  const activeMatters = matters.filter(m => m.status !== 'Cerrado');
+  const activeMatters = matters.filter(m => m.status !== 'Cerrado' && m.status !== 'Archivado');
 
   // Stats globales
   const globalStats = useMemo(() => {

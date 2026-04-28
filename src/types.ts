@@ -12,7 +12,7 @@ export interface UserProfile {
 }
 
 export type Priority = 'Alta' | 'Media' | 'Baja';
-export type MatterStatus = 'Activo' | 'Suspendido' | 'Cerrado' | 'Pausado';
+export type MatterStatus = 'Activo' | 'Suspendido' | 'Cerrado' | 'Pausado' | 'Archivado';
 export type MatterType = 'Laboral' | 'Familia' | 'Daños' | 'Comercial' | 'Sucesiones' | 'Civil';
 export type MatterHealth = 'Sano' | 'Trabado' | 'Roto' | 'En espera';
 
@@ -126,6 +126,22 @@ export interface Task {
 export type DocumentStatus = 'Faltante' | 'Solicitado' | 'Recibido' | 'En revisión' | 'Aprobado' | 'Listo para presentar' | 'Presentado';
 export type DocumentCriticality = 'Crítico' | 'Recomendado' | 'Opcional';
 
+/**
+ * Categoría jurídica del documento. Vive como enum lógico en TypeScript;
+ * la columna `documents.category` en DB es TEXT libre para no romper
+ * datos legados con valores ad-hoc. La UI sugiere estos valores estándar.
+ */
+export type DocumentCategory =
+  | 'escrito'      // Demanda, contestación, alegato, presentación de la parte.
+  | 'resolucion'   // Resolución, providencia, sentencia interlocutoria.
+  | 'sentencia'    // Sentencia definitiva.
+  | 'pericia'      // Dictamen pericial.
+  | 'oficio'       // Oficio (provisto, diligenciado, contestado).
+  | 'cedula'       // Cédula de notificación.
+  | 'documental'   // Prueba documental aportada (contratos, recibos, etc.).
+  | 'identidad'    // DNI, partidas, actas civiles.
+  | 'otro';
+
 export interface LegalDocument {
   id: string;
   matterId: string;
@@ -139,6 +155,11 @@ export interface LegalDocument {
   updatedAt: string;
   associatedAction?: string;
   category?: string;
+  /** Vínculo opcional con un evento del expediente (migración 025).
+   *  Cuando el documento se generó/recibió en el contexto de un evento
+   *  (ej. acta de audiencia, dictamen pericial, oficio diligenciado),
+   *  permite navegar de evento → documento y viceversa. */
+  eventoId?: string;
 }
 
 export interface FlowTaskCondition {

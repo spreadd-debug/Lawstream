@@ -51,7 +51,7 @@ export const Hoy = ({ matters, documents, onSelectMatter, onNewAction, onEditMat
     setIsActionMenuOpen(true);
   };
 
-  const activeMatters = matters.filter(m => m.status !== 'Cerrado');
+  const activeMatters = matters.filter(m => m.status !== 'Cerrado' && m.status !== 'Archivado');
   const overdue = activeMatters.filter(m => m.nextActionDate && isPast(parseISO(m.nextActionDate)) && !isToday(parseISO(m.nextActionDate)));
   const today = activeMatters.filter(m => m.nextActionDate && isToday(parseISO(m.nextActionDate)));
   const broken = activeMatters.filter(m => m.health === 'Roto');
