@@ -849,6 +849,49 @@ export interface CuotaCompensacion {
   updatedAt: string;
 }
 
+// ── HONORARIOS REGULADOS ───────────────────────────────────
+// Honorarios que el juez fija al cerrar el juicio (típicamente al
+// imponer costas). Distintos del Presupuesto inicial al cliente.
+//
+// Ciclo: regulado → notificado → firme → ejecutable → cobrado.
+
+export type TipoHonorarioRegulado =
+  | 'letrado_propio'      // mi parte / colega del estudio
+  | 'letrado_contrario'   // letrado de la otra parte
+  | 'perito'
+  | 'mediador'
+  | 'otro';
+
+export type EstadoHonorarioRegulado =
+  | 'regulado'
+  | 'apelado'
+  | 'firme'
+  | 'en_ejecucion'
+  | 'cobrado'
+  | 'incobrable';
+
+export interface HonorarioRegulado {
+  id: string;
+  matterId: string;
+  profesional: string;                       // nombre del beneficiario
+  tipo: TipoHonorarioRegulado;
+  cantidadUnidades: number;                  // cantidad de JUS o UMA
+  unidad: UnidadArancelaria;                 // 'JUS' | 'UMA'
+  valorUnidadSnapshot: number;               // valor de la unidad al momento de la regulación
+  montoPesos: number;                        // cantidadUnidades × valorUnidadSnapshot
+  estado: EstadoHonorarioRegulado;
+  obligadoAPagar?: string;                   // quién debe pagar (contraparte / mi cliente / etc.)
+  fechaRegulacion?: string;
+  fechaNotificacion?: string;
+  fechaFirmeza?: string;
+  fechaCobro?: string;
+  apeladoPor?: string;
+  notas?: string;
+  createdBy?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // ── LETRADOS DE LA PARTE / CONTRAPARTE ─────────────────────
 // Datos estructurados con historial. Reemplaza los strings sueltos en
 // matter.caseData (conyuge2_abogado, etc.) que se sobrescribían al

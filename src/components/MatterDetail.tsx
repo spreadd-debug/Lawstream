@@ -55,6 +55,7 @@ import { HilosPanel } from './HilosPanel';
 import { PeritosPanel } from './PeritosPanel';
 import { CompensacionPanel } from './CompensacionPanel';
 import { LetradosPanel } from './LetradosPanel';
+import { HonorariosRegPanel } from './HonorariosRegPanel';
 import { urgenciaDePlazo, diasRestantes } from '../lib/plazos';
 
 interface MatterDetailProps {
@@ -1016,8 +1017,10 @@ export const MatterDetail = ({
 
         {/* ─────────── TAB: COBRANZAS ─────────── */}
         {activeTab === 'cobranzas' && (
-          <div className="py-8">
+          <div className="py-8 space-y-10">
             <CompensacionPanel matterId={matter.id} />
+            <div className="border-t border-border/40" />
+            <HonorariosRegPanel matterId={matter.id} />
           </div>
         )}
 

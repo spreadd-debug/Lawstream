@@ -55,6 +55,7 @@ import {
   CompensacionEconomica,
   CuotaCompensacion,
   LetradoParte,
+  HonorarioRegulado,
 } from '../types';
 
 // ── Profiles ──────────────────────────────────────────────────────
@@ -2452,6 +2453,88 @@ export const updateLetrado = async (id: string, changes: Partial<LetradoParte>):
 export const deleteLetrado = async (id: string): Promise<void> => {
   const { error } = await supabase
     .from('letrados_parte')
+    .delete()
+    .eq('id', id);
+  if (error) throw error;
+};
+
+// ── Honorarios regulados ──────────────────────────────────────
+
+const toHonorario = (r: any): HonorarioRegulado => ({
+  id:                  r.id,
+  matterId:            r.matter_id,
+  profesional:         r.profesional,
+  tipo:                r.tipo,
+  cantidadUnidades:    parseFloat(r.cantidad_unidades),
+  unidad:              r.unidad,
+  valorUnidadSnapshot: parseFloat(r.valor_unidad_snapshot),
+  montoPesos:          parseFloat(r.monto_pesos),
+  estado:              r.estado,
+  obligadoAPagar:      r.obligado_a_pagar    ?? undefined,
+  fechaRegulacion:     r.fecha_regulacion    ?? undefined,
+  fechaNotificacion:   r.fecha_notificacion  ?? undefined,
+  fechaFirmeza:        r.fecha_firmeza       ?? undefined,
+  fechaCobro:          r.fecha_cobro         ?? undefined,
+  apeladoPor:          r.apelado_por         ?? undefined,
+  notas:               r.notas               ?? undefined,
+  createdBy:           r.created_by          ?? undefined,
+  createdAt:           r.created_at,
+  updatedAt:           r.updated_at,
+});
+
+const honorarioToRow = (h: Partial<HonorarioRegulado>): Record<string, unknown> => {
+  const row: Record<string, unknown> = {};
+  if (h.matterId            !== undefined) row.matter_id              = h.matterId;
+  if (h.profesional         !== undefined) row.profesional            = h.profesional;
+  if (h.tipo                !== undefined) row.tipo                   = h.tipo;
+  if (h.cantidadUnidades    !== undefined) row.cantidad_unidades      = h.cantidadUnidades;
+  if (h.unidad              !== undefined) row.unidad                 = h.unidad;
+  if (h.valorUnidadSnapshot !== undefined) row.valor_unidad_snapshot  = h.valorUnidadSnapshot;
+  if (h.montoPesos          !== undefined) row.monto_pesos            = h.montoPesos;
+  if (h.estado              !== undefined) row.estado                 = h.estado;
+  if (h.obligadoAPagar      !== undefined) row.obligado_a_pagar       = h.obligadoAPagar      ?? null;
+  if (h.fechaRegulacion     !== undefined) row.fecha_regulacion       = h.fechaRegulacion     ?? null;
+  if (h.fechaNotificacion   !== undefined) row.fecha_notificacion     = h.fechaNotificacion   ?? null;
+  if (h.fechaFirmeza        !== undefined) row.fecha_firmeza          = h.fechaFirmeza        ?? null;
+  if (h.fechaCobro          !== undefined) row.fecha_cobro            = h.fechaCobro          ?? null;
+  if (h.apeladoPor          !== undefined) row.apelado_por            = h.apeladoPor          ?? null;
+  if (h.notas               !== undefined) row.notas                  = h.notas               ?? null;
+  if (h.createdBy           !== undefined) row.created_by             = h.createdBy           ?? null;
+  return row;
+};
+
+export const fetchHonorariosRegulados = async (): Promise<HonorarioRegulado[]> => {
+  const { data, error } = await supabase
+    .from('honorarios_regulados')
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(toHonorario);
+};
+
+export const createHonorarioRegulado = async (
+  h: Omit<HonorarioRegulado, 'id' | 'createdAt' | 'updatedAt'>,
+): Promise<HonorarioRegulado> => {
+  const { data, error } = await supabase
+    .from('honorarios_regulados')
+    .insert(honorarioToRow(h))
+    .select()
+    .single();
+  if (error) throw error;
+  return toHonorario(data);
+};
+
+export const updateHonorarioRegulado = async (id: string, changes: Partial<HonorarioRegulado>): Promise<void> => {
+  const { error } = await supabase
+    .from('honorarios_regulados')
+    .update(honorarioToRow(changes))
+    .eq('id', id);
+  if (error) throw error;
+};
+
+export const deleteHonorarioRegulado = async (id: string): Promise<void> => {
+  const { error } = await supabase
+    .from('honorarios_regulados')
     .delete()
     .eq('id', id);
   if (error) throw error;
