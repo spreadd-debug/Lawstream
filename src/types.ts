@@ -264,10 +264,14 @@ export interface FlowStageTemplate {
     fields: {
       key: string;
       label: string;
-      type: 'text' | 'date' | 'select' | 'number' | 'money' | 'textarea' | 'repeatable';
+      type: 'text' | 'date' | 'select' | 'number' | 'money' | 'textarea' | 'repeatable' | 'info';
       placeholder?: string;
       options?: string[];
       required?: boolean;
+      /** Para type='info': tono visual del callout. Default 'amber'. */
+      tone?: 'amber' | 'info' | 'rose';
+      /** Para type='info': cuerpo del aviso (label es el título). */
+      body?: string;
       subFields?: {
         key: string;
         label: string;

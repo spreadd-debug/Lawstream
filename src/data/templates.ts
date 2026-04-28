@@ -348,6 +348,13 @@ export const MATTER_TEMPLATES: MatterTemplate[] = [
             title: 'Trámites pendientes para ejecución',
             icon: 'Building2',
             fields: [
+              {
+                key: 'ejec_info',
+                label: 'Importante — leer antes de cargar',
+                type: 'info',
+                tone: 'amber',
+                body: 'Marcá "No aplica" en cada trámite que NO corresponda en este caso. Si dejás un campo vacío (sin elegir opción), la app mostrará por defecto todas las tareas relacionadas en la etapa Ejecución, asumiendo que pueden hacer falta. Solo se ocultan cuando elegís "No aplica" explícitamente.',
+              },
               { key: 'ejec_inmuebles', label: 'Inmuebles a transferir / inscribir', type: 'select', options: ['No aplica', 'Sí — uno', 'Sí — varios'] },
               { key: 'ejec_automotores', label: 'Automotores a transferir (Form 08)', type: 'select', options: ['No aplica', 'Sí — uno', 'Sí — varios'] },
               { key: 'ejec_cuentas', label: 'Cuentas bancarias conjuntas a dividir', type: 'select', options: ['No aplica', 'Sí'] },
@@ -808,6 +815,13 @@ export const MATTER_TEMPLATES: MatterTemplate[] = [
             title: 'Trámites pendientes para ejecución',
             icon: 'Building2',
             fields: [
+              {
+                key: 'ejec_info',
+                label: 'Importante — leer antes de cargar',
+                type: 'info',
+                tone: 'amber',
+                body: 'Marcá "No aplica" en cada trámite que NO corresponda en este caso. Si dejás un campo vacío (sin elegir opción), la app mostrará por defecto todas las tareas relacionadas en la etapa Ejecución, asumiendo que pueden hacer falta. Solo se ocultan cuando elegís "No aplica" explícitamente.',
+              },
               { key: 'ejec_inmuebles', label: 'Inmuebles a transferir / inscribir', type: 'select', options: ['No aplica', 'Sí — uno', 'Sí — varios'] },
               { key: 'ejec_automotores', label: 'Automotores a transferir (Form 08)', type: 'select', options: ['No aplica', 'Sí — uno', 'Sí — varios'] },
               { key: 'ejec_cuentas', label: 'Cuentas bancarias conjuntas a dividir', type: 'select', options: ['No aplica', 'Sí'] },
