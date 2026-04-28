@@ -81,7 +81,10 @@ export const Asuntos = ({ matters, profiles, onSelectMatter, onCreateMatter, onN
   };
 
   const filteredMatters = matters.filter(m => {
-    const matchesSearch = m.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    // GAP 1 — sub-procesos (incidentes/apelaciones) viven dentro del matter padre.
+    // No los mostramos en el listado principal; se acceden desde el padre.
+    if (m.kind === 'incidente' || m.kind === 'apelacion') return false;
+    const matchesSearch = m.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          m.client.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          m.expediente?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesHealth = filterHealth === 'Todos' || m.health === filterHealth;

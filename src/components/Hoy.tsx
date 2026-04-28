@@ -51,7 +51,12 @@ export const Hoy = ({ matters, documents, onSelectMatter, onNewAction, onEditMat
     setIsActionMenuOpen(true);
   };
 
-  const activeMatters = matters.filter(m => m.status !== 'Cerrado' && m.status !== 'Archivado');
+  // GAP 1 — los sub-procesos (incidentes/apelaciones) no se cuentan en el panel diario:
+  // su carga ya está reflejada en los plazos/tareas que el motor expone aparte.
+  const activeMatters = matters.filter(m =>
+    m.status !== 'Cerrado' && m.status !== 'Archivado'
+    && m.kind !== 'incidente' && m.kind !== 'apelacion'
+  );
   const overdue = activeMatters.filter(m => m.nextActionDate && isPast(parseISO(m.nextActionDate)) && !isToday(parseISO(m.nextActionDate)));
   const today = activeMatters.filter(m => m.nextActionDate && isToday(parseISO(m.nextActionDate)));
   const broken = activeMatters.filter(m => m.health === 'Roto');

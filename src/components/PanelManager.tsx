@@ -36,7 +36,12 @@ export const PanelManager = ({ matters, documents, consultations, profiles, onSe
   const [expandedAttorney, setExpandedAttorney] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<'vencidos' | 'total' | 'rotos'>('vencidos');
 
-  const activeMatters = matters.filter(m => m.status !== 'Cerrado' && m.status !== 'Archivado');
+  // GAP 1 — sub-procesos (incidentes/apelaciones) no cuentan como casos
+  // independientes en métricas de carga: viven dentro del padre.
+  const activeMatters = matters.filter(m =>
+    m.status !== 'Cerrado' && m.status !== 'Archivado'
+    && m.kind !== 'incidente' && m.kind !== 'apelacion'
+  );
 
   // Stats globales
   const globalStats = useMemo(() => {

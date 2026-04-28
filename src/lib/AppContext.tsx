@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { Matter, Client, Consultation, LegalDocument, Task, TimelineEvent, UserProfile, Communication, Expediente, MatterMilestone, EventoExpediente, Plazo, Jurisdiccion, TipoProceso, TipoEvento, HiloPrueba, Perito, CompensacionEconomica, CuotaCompensacion, FrecuenciaCuota, LetradoParte, HonorarioRegulado } from '../types';
+import { Matter, Client, Consultation, LegalDocument, Task, TimelineEvent, UserProfile, Communication, Expediente, MatterMilestone, EventoExpediente, Plazo, Jurisdiccion, TipoProceso, TipoEvento, HiloPrueba, Perito, CompensacionEconomica, CuotaCompensacion, FrecuenciaCuota, LetradoParte, HonorarioRegulado, MatterKind, IncidenteTipo, INCIDENTE_TIPO_LABELS } from '../types';
 import { GlobalFilters, defaultFilters } from '../components/FiltersContent';
 import { useAuth } from './auth';
 import * as db from './db';
@@ -85,6 +85,14 @@ interface AppContextType {
   handleArchiveMatter: (matterId: string) => Promise<void>;
   handleUpdateMatterDirect: (matterId: string, changes: Partial<Matter>) => Promise<void>;
   handleCreateMatter: (data: any) => Promise<Matter>;
+  handleCreateSubProceso: (parentId: string, data: {
+    kind: 'incidente' | 'apelacion';
+    title: string;
+    incidenteTipo?: string;
+    description?: string;
+    nextAction?: string;
+    nextActionDate?: string;
+  }) => Promise<Matter>;
   handleCreateConsultation: (data: Omit<Consultation, 'id'>) => Promise<void>;
   handleUpdateConsultation: (id: string, changes: Partial<Consultation>) => void;
   // Tasks
@@ -602,6 +610,87 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } catch (err) {
         console.error('Error registrando evento de flujo:', err);
       }
+    }
+
+    return savedMatter;
+  };
+
+  // GAP 1 — crear incidente o apelación como matter hijo del padre.
+  // Reusa toda la infra (timeline, plazos, documentos) pero queda fuera del
+  // listado principal de casos (filtrado por kind='principal').
+  const handleCreateSubProceso = async (
+    parentId: string,
+    data: {
+      kind: 'incidente' | 'apelacion';
+      title: string;
+      incidenteTipo?: string;
+      description?: string;
+      nextAction?: string;
+      nextActionDate?: string;
+    },
+  ): Promise<Matter> => {
+    const parent = matters.find(m => m.id === parentId);
+    if (!parent) throw new Error('Caso padre no encontrado');
+
+    // Hereda metadatos del padre (cliente, tipo, jurisdicción, responsable, expediente).
+    const newMatter: Omit<Matter, 'id'> = {
+      title:          data.title,
+      client:         parent.client,
+      type:           parent.type,
+      subtype:        parent.subtype,
+      description:    data.description,
+      expediente:     parent.expediente,
+      responsible:    parent.responsible,
+      priority:       parent.priority,
+      status:         'Activo',
+      health:         'Sano',
+      nextAction:     data.nextAction || (data.kind === 'apelacion' ? 'Expresar agravios' : 'Iniciar incidente'),
+      nextActionDate: data.nextActionDate || new Date().toISOString().slice(0, 10),
+      lastActivity:   new Date().toISOString(),
+      jurisdiccion:   parent.jurisdiccion,
+      tipoProceso:    parent.tipoProceso,
+      kind:           data.kind,
+      parentMatterId: parentId,
+      incidenteTipo:  data.kind === 'incidente' ? (data.incidenteTipo as IncidenteTipo | undefined) : undefined,
+    };
+
+    const optimistic: Matter = { ...newMatter, id: crypto.randomUUID() };
+    setMatters(prev => [optimistic, ...prev]);
+
+    let savedMatter: Matter;
+    try {
+      savedMatter = await db.createMatter(newMatter);
+      setMatters(prev => prev.map(m => m.id === optimistic.id ? savedMatter : m));
+      const tipoLabel = data.kind === 'apelacion'
+        ? 'Apelación'
+        : `Incidente${data.incidenteTipo ? ' · ' + (INCIDENTE_TIPO_LABELS[data.incidenteTipo as IncidenteTipo] ?? data.incidenteTipo) : ''}`;
+      audit('crear_asunto', 'matter', savedMatter.id, savedMatter.title, {
+        kind: data.kind,
+        parent_id: parentId,
+        parent_title: parent.title,
+        tipo: tipoLabel,
+      });
+    } catch (err) {
+      console.error('Error creando sub-proceso:', err);
+      throw err;
+    }
+
+    // Registrar evento en el TIMELINE DEL PADRE para que quede trazable.
+    try {
+      const tipoLabel = data.kind === 'apelacion'
+        ? 'Apelación'
+        : `Incidente · ${data.incidenteTipo ? (INCIDENTE_TIPO_LABELS[data.incidenteTipo as IncidenteTipo] ?? data.incidenteTipo) : 'sin tipo'}`;
+      const evt = await db.createTimelineEvent({
+        matterId: parentId,
+        type: 'creation',
+        title: `Sub-proceso abierto: ${tipoLabel}`,
+        description: data.title,
+        user: parent.responsible,
+        date: new Date().toISOString(),
+      });
+      setTimeline(prev => [evt, ...prev]);
+    } catch (err) {
+      console.error('Error registrando evento en padre:', err);
     }
 
     return savedMatter;
@@ -1388,6 +1477,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       handleCreateClient, handleUpdateClient,
       handleUpdateDocument, handleAddDocument,
       handleCloseMatter, handleArchiveMatter, handleUpdateMatterDirect, handleCreateMatter,
+      handleCreateSubProceso,
       handleCreateConsultation, handleUpdateConsultation,
       handleCreateTask, handleUpdateTask, handleCompleteTask,
       handleConsultationStatusChange,

@@ -49,7 +49,48 @@ export interface Matter {
   // Default en backfill: 'ordinario'. Se puede cambiar desde "Editar Asunto" y
   // eso recalcula automáticamente los plazos activos del caso.
   tipoProceso?: TipoProceso;
+  // Naturaleza del matter (migración 028 - GAP 1).
+  //  - 'principal': caso normal (default).
+  //  - 'incidente': sub-proceso que tramita en cuerda separada dentro del
+  //    mismo expediente (alimentos provisorios, tenencia cautelar, etc.).
+  //  - 'apelacion': segunda instancia (Cámara) — GAP 4.
+  // Cuando kind != 'principal' se requiere parentMatterId.
+  kind?: MatterKind;
+  // ID del matter padre cuando este es incidente o apelación.
+  parentMatterId?: string;
+  // Tipificación del incidente cuando kind='incidente'. NULL en otros casos.
+  incidenteTipo?: IncidenteTipo;
 }
+
+/**
+ * Naturaleza del matter — distingue casos principales de sub-procesos
+ * que tramitan en cuerda separada (incidentes) o de segunda instancia
+ * (apelaciones). Migración 028 (GAP 1).
+ */
+export type MatterKind = 'principal' | 'incidente' | 'apelacion';
+
+/**
+ * Tipos de incidente más frecuentes en familia y civil.
+ * Si no encuadra en ninguno, usar 'otro'.
+ */
+export type IncidenteTipo =
+  | 'alimentos_provisorios'
+  | 'tenencia_cautelar'
+  | 'exclusion_hogar'
+  | 'autorizacion_viaje'
+  | 'medida_cautelar'
+  | 'beneficio_litigar_sin_gastos'
+  | 'otro';
+
+export const INCIDENTE_TIPO_LABELS: Record<IncidenteTipo, string> = {
+  alimentos_provisorios: 'Alimentos provisorios',
+  tenencia_cautelar: 'Tenencia cautelar',
+  exclusion_hogar: 'Exclusión de hogar',
+  autorizacion_viaje: 'Autorización de viaje',
+  medida_cautelar: 'Medida cautelar',
+  beneficio_litigar_sin_gastos: 'Beneficio de litigar sin gastos',
+  otro: 'Otro',
+};
 
 export type AssignmentRole = 'lead' | 'assigned';
 
