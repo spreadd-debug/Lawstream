@@ -1,6 +1,6 @@
 import { addDays, isWeekend, format, parseISO, differenceInCalendarDays } from 'date-fns';
 import { supabase } from './supabase';
-import type { Jurisdiccion, TipoEvento, TipoProceso, Plazo, Feriado, Matter } from '../types';
+import type { Jurisdiccion, TipoEvento, TipoProceso, TipoPlazo, Plazo, Feriado, Matter } from '../types';
 
 /**
  * Resuelve la jurisdicción procesal ('caba' | 'pba' | 'nacional') a partir del
@@ -63,6 +63,10 @@ export interface PlazoSugerido {
   dias: number;
   diasHabiles: boolean;
   descripcion: string;
+  /** Modo de cómputo procesal. Default 'individual' si no se especifica.
+   *  Marcar 'comun' cuando el plazo corre desde la última notificación
+   *  (ej. alegatos art. 482 CPCCN). */
+  tipoPlazo?: TipoPlazo;
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -305,7 +309,7 @@ export const PLAZOS_POR_EVENTO: Record<TipoEvento, PlazosConVariantes> = {
   },
   autos_para_alegar: {
     default: [
-      { tipo: 'Presentar alegato', dias: 6, diasHabiles: true, descripcion: 'Art. 482 CPCCN / 480 CPCC PBA — plazo común' },
+      { tipo: 'Presentar alegato', dias: 6, diasHabiles: true, tipoPlazo: 'comun', descripcion: 'Art. 482 CPCCN / 480 CPCC PBA — plazo común (corre desde la última notificación)' },
     ],
   },
   autos_para_sentencia: { default: [] },

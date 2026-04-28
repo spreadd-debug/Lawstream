@@ -6,7 +6,7 @@ import { labelDeTipoEvento, urgenciaDePlazo, diasRestantes } from '../lib/plazos
 import type { EventoExpediente, Matter, Plazo, HiloPrueba } from '../types';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Plus, Clock, Calendar, CheckCircle2, XCircle, AlertTriangle, Trash2, Layers, PauseCircle, PlayCircle } from 'lucide-react';
+import { Plus, Clock, Calendar, CheckCircle2, XCircle, AlertTriangle, Trash2, Layers, PauseCircle, PlayCircle, Users, Bell } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 // Paleta estable para diferenciar hilos en el timeline. Cada hilo recibe
@@ -50,7 +50,7 @@ const ESTADO_PLAZO_META: Record<Plazo['estado'], { label: string; className: str
 };
 
 export const TimelinePanel: React.FC<TimelinePanelProps> = ({ matter }) => {
-  const { eventos, plazos, hilos, handleCumplirPlazo, handleCancelarPlazo, handleSuspenderPlazo, handleReanudarPlazo, handleDeleteEvento } = useAppContext();
+  const { eventos, plazos, hilos, handleCumplirPlazo, handleCancelarPlazo, handleSuspenderPlazo, handleReanudarPlazo, handleActualizarUltimaNotificacion, handleDeleteEvento } = useAppContext();
   const [isEventoFormOpen, setIsEventoFormOpen] = useState(false);
   // Filtro por hilo: 'all' (todos), 'sin' (sin hilo) o el id de un hilo concreto.
   const [filtroHilo, setFiltroHilo] = useState<string>('all');
@@ -139,6 +139,7 @@ export const TimelinePanel: React.FC<TimelinePanelProps> = ({ matter }) => {
                 onCancelar={() => handleCancelarPlazo(p.id)}
                 onSuspender={(motivo, fecha) => handleSuspenderPlazo(p.id, motivo, fecha)}
                 onReanudar={(fecha) => handleReanudarPlazo(p.id, fecha)}
+                onNuevaNotificacion={(fecha) => handleActualizarUltimaNotificacion(p.id, fecha)}
               />
             ))}
           </div>
@@ -215,6 +216,7 @@ export const TimelinePanel: React.FC<TimelinePanelProps> = ({ matter }) => {
               onCancelarPlazo={(id) => handleCancelarPlazo(id)}
               onSuspenderPlazo={(id, motivo, fecha) => handleSuspenderPlazo(id, motivo, fecha)}
               onReanudarPlazo={(id, fecha) => handleReanudarPlazo(id, fecha)}
+              onNuevaNotificacionPlazo={(id, fecha) => handleActualizarUltimaNotificacion(id, fecha)}
               onClickHilo={(id) => setFiltroHilo(id)}
             />
           ))}
@@ -239,8 +241,9 @@ const EventoRow: React.FC<{
   onCancelarPlazo: (id: string) => void;
   onSuspenderPlazo: (id: string, motivo: string, fecha: string) => void;
   onReanudarPlazo: (id: string, fecha: string) => void;
+  onNuevaNotificacionPlazo: (id: string, fecha: string) => void;
   onClickHilo: (id: string) => void;
-}> = ({ evento, hilo, plazos, onDelete, onCumplirPlazo, onCancelarPlazo, onSuspenderPlazo, onReanudarPlazo, onClickHilo }) => {
+}> = ({ evento, hilo, plazos, onDelete, onCumplirPlazo, onCancelarPlazo, onSuspenderPlazo, onReanudarPlazo, onNuevaNotificacionPlazo, onClickHilo }) => {
   const fechaLabel = (() => {
     try { return format(parseISO(evento.fecha), "d 'de' MMMM yyyy", { locale: es }); }
     catch { return evento.fecha; }
@@ -312,6 +315,7 @@ const EventoRow: React.FC<{
                 onCancelar={() => onCancelarPlazo(p.id)}
                 onSuspender={(motivo, fecha) => onSuspenderPlazo(p.id, motivo, fecha)}
                 onReanudar={(fecha) => onReanudarPlazo(p.id, fecha)}
+                onNuevaNotificacion={(fecha) => onNuevaNotificacionPlazo(p.id, fecha)}
                 compact
               />
             ))}
@@ -356,14 +360,17 @@ const PlazoRow: React.FC<{
   onCancelar: () => void;
   onSuspender: (motivo: string, fecha: string) => void;
   onReanudar: (fecha: string) => void;
+  onNuevaNotificacion: (fecha: string) => void;
   compact?: boolean;
-}> = ({ plazo, onCumplir, onCancelar, onSuspender, onReanudar, compact }) => {
+}> = ({ plazo, onCumplir, onCancelar, onSuspender, onReanudar, onNuevaNotificacion, compact }) => {
   const urg = urgenciaDePlazo(plazo);
   const restantes = diasRestantes(plazo.fechaVencimiento);
   const estado = ESTADO_PLAZO_META[plazo.estado];
   const styles = URGENCIA_STYLES[urg];
   const [suspenderOpen, setSuspenderOpen] = useState(false);
   const [reanudarOpen, setReanudarOpen]   = useState(false);
+  const [nuevaNotifOpen, setNuevaNotifOpen] = useState(false);
+  const isComun = plazo.tipoPlazo === 'comun';
 
   const fechaLabel = (() => {
     try { return format(parseISO(plazo.fechaVencimiento), "d MMM yyyy", { locale: es }); }
@@ -411,6 +418,15 @@ const PlazoRow: React.FC<{
                 {plazo.diasTranscurridosAlSuspender}/{plazo.dias}d transcurridos
               </span>
             )}
+            {isComun && (
+              <span
+                className="inline-flex items-center gap-1 text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-violet-500/10 text-violet-700"
+                title="Plazo común — corre desde la última notificación entre las partes"
+              >
+                <Users size={9} />
+                Común
+              </span>
+            )}
           </div>
           <div className="text-[10px] text-muted-foreground mt-0.5">
             {isSuspendido
@@ -426,11 +442,16 @@ const PlazoRow: React.FC<{
               <strong>Motivo:</strong> {plazo.motivoSuspension}
             </div>
           )}
+          {isComun && plazo.fechaUltimaNotificacion && (
+            <div className="text-[10px] text-violet-700 mt-0.5">
+              <strong>Última notificación:</strong> {plazo.fechaUltimaNotificacion}
+            </div>
+          )}
         </div>
       </div>
 
       {plazo.estado === 'activo' && (
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="flex items-center gap-1 shrink-0 flex-wrap">
           <button
             onClick={onCumplir}
             className="flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-emerald-600 hover:bg-emerald-500/10 px-2.5 py-1.5 rounded-lg transition-all"
@@ -439,6 +460,16 @@ const PlazoRow: React.FC<{
             <CheckCircle2 size={12} />
             Cumplido
           </button>
+          {isComun && (
+            <button
+              onClick={() => setNuevaNotifOpen(true)}
+              className="flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-violet-700 hover:bg-violet-500/10 px-2.5 py-1.5 rounded-lg transition-all"
+              title="Registrar nueva notificación (recalcula vencimiento)"
+            >
+              <Bell size={12} />
+              Nueva notif.
+            </button>
+          )}
           <button
             onClick={() => setSuspenderOpen(true)}
             className="flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-amber-700 hover:bg-amber-500/10 px-2.5 py-1.5 rounded-lg transition-all"
@@ -482,6 +513,12 @@ const PlazoRow: React.FC<{
         onClose={() => setReanudarOpen(false)}
         plazo={plazo}
         onConfirm={(fecha) => { onReanudar(fecha); setReanudarOpen(false); }}
+      />
+      <NuevaNotificacionModal
+        isOpen={nuevaNotifOpen}
+        onClose={() => setNuevaNotifOpen(false)}
+        plazo={plazo}
+        onConfirm={(fecha) => { onNuevaNotificacion(fecha); setNuevaNotifOpen(false); }}
       />
     </div>
   );
@@ -584,6 +621,58 @@ const ReanudarModal: React.FC<{
           <Input type="date" value={fecha} onChange={e => setFecha(e.target.value)} />
           <p className="text-[10px] text-muted-foreground mt-1">
             Día desde el cual vuelve a correr el plazo. Por defecto, hoy.
+          </p>
+        </div>
+      </div>
+    </Modal>
+  );
+};
+
+const NuevaNotificacionModal: React.FC<{
+  isOpen: boolean;
+  onClose: () => void;
+  plazo: Plazo;
+  onConfirm: (fecha: string) => void;
+}> = ({ isOpen, onClose, plazo, onConfirm }) => {
+  const today = format(new Date(), 'yyyy-MM-dd');
+  const [fecha, setFecha] = useState(plazo.fechaUltimaNotificacion ?? plazo.fechaInicio);
+
+  React.useEffect(() => {
+    if (!isOpen) return;
+    setFecha(plazo.fechaUltimaNotificacion ?? plazo.fechaInicio);
+  }, [isOpen, plazo.fechaUltimaNotificacion, plazo.fechaInicio]);
+
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Nueva notificación (plazo común)"
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>Cancelar</Button>
+          <Button variant="primary" onClick={() => onConfirm(fecha)}>Recalcular</Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <p className="text-xs text-muted-foreground">
+          El plazo <strong className="text-foreground">"{plazo.tipo}"</strong> es de tipo <strong>común</strong>:
+          corre desde la <strong>última notificación</strong> entre las partes.
+          Si entró una notificación posterior, registrala acá y Lawstream
+          recalcula el vencimiento desde esa fecha (con los {plazo.dias} días
+          {plazo.diasHabiles ? ' hábiles' : ' corridos'} originales).
+        </p>
+        <div>
+          <Label>Fecha de la última notificación</Label>
+          <Input
+            type="date"
+            value={fecha}
+            onChange={e => setFecha(e.target.value)}
+            max={today}
+          />
+          <p className="text-[10px] text-muted-foreground mt-1">
+            Vencimiento actual: <strong className="text-foreground">{plazo.fechaVencimiento}</strong>.
+            Al guardar se recalcula desde la nueva fecha.
           </p>
         </div>
       </div>

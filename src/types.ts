@@ -638,6 +638,15 @@ export type TipoEvento =
 
 export type OrigenEvento = 'manual' | 'scraper_mev' | 'scraper_pjn';
 export type EstadoPlazo = 'activo' | 'suspendido' | 'cumplido' | 'vencido' | 'cancelado';
+
+/**
+ * Tipo de cómputo procesal del plazo.
+ *  - 'individual' — corre desde la notificación a cada parte por separado (default).
+ *  - 'comun'      — corre desde la ÚLTIMA notificación; recalcula si entra una posterior.
+ *                   Aplica típicamente a alegatos (art. 482 CPCCN) y traslados con
+ *                   litisconsorcio múltiple.
+ */
+export type TipoPlazo = 'individual' | 'comun';
 export type TipoFeriado = 'nacional' | 'pba' | 'caba' | 'feria_judicial';
 
 // ── HILOS DE PRUEBA ────────────────────────────────────────
@@ -746,6 +755,12 @@ export interface Plazo {
   diasTranscurridosAlSuspender?: number;      // hábiles ya consumidos al pausar
   fechaReanudacion?: string;                  // 'YYYY-MM-DD'
   reanudadoAt?: string;                       // ISO timestamp
+  // Tipo de cómputo procesal (migración 022)
+  tipoPlazo: TipoPlazo;
+  /** Solo para tipoPlazo = 'comun': fecha desde la que se cuenta el plazo
+   *  (corresponde a la ÚLTIMA notificación entre las partes). Si entra
+   *  una notificación posterior, se actualiza y se recalcula vencimiento. */
+  fechaUltimaNotificacion?: string;           // 'YYYY-MM-DD'
   createdAt: string;
   updatedAt: string;
 }
