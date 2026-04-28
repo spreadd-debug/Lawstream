@@ -29,10 +29,12 @@ interface SubFieldDef {
 interface FichaFieldDef {
   key: string;
   label: string;
-  type: 'text' | 'date' | 'select' | 'number' | 'money' | 'textarea' | 'repeatable';
+  type: 'text' | 'date' | 'select' | 'number' | 'money' | 'textarea' | 'repeatable' | 'info';
   placeholder?: string;
   options?: string[];
   required?: boolean;
+  tone?: 'amber' | 'info' | 'rose';
+  body?: string;
   subFields?: SubFieldDef[];
   addLabel?: string;
 }
@@ -138,6 +140,35 @@ export const StageFicha: React.FC<StageFichaProps> = ({
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {section.fields.map(field => {
+                    // ── Info / callout (no editable) ──
+                    if (field.type === 'info') {
+                      const tone = field.tone ?? 'amber';
+                      const toneClasses = tone === 'rose'
+                        ? 'border-rose-500/40 bg-rose-500/10 text-rose-800 dark:text-rose-200'
+                        : tone === 'info'
+                          ? 'border-sky-500/40 bg-sky-500/10 text-sky-800 dark:text-sky-200'
+                          : 'border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-200';
+                      return (
+                        <div
+                          key={field.key}
+                          className={cn(
+                            'md:col-span-2 flex items-start gap-3 p-3 rounded-xl border-2 border-dashed',
+                            toneClasses,
+                          )}
+                        >
+                          <AlertCircle size={16} className="shrink-0 mt-0.5" />
+                          <div>
+                            <div className="text-[10px] font-black uppercase tracking-widest mb-1">
+                              {field.label}
+                            </div>
+                            <p className="text-xs font-medium leading-relaxed">
+                              {field.body}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    }
+
                     // ── Repeatable ──
                     if (field.type === 'repeatable' && field.subFields) {
                       const items: Record<string, string>[] = (() => {
