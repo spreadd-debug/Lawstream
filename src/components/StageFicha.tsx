@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { Button, Input, Label, Textarea, MoneyInput, Badge } from './UI';
 import { cn } from '../lib/utils';
+import { detectarCruceViolencia } from '../lib/violencia';
 
 interface SubFieldDef {
   key: string;
@@ -223,6 +224,11 @@ export const StageFicha: React.FC<StageFichaProps> = ({
                       );
                     }
 
+                    // GAP 21 — alerta inline al lado del campo de régimen de
+                    // comunicación cuando hay medida de protección vigente.
+                    const showCruceViolencia = field.key === 'regimen_comunicacion';
+                    const cruce = showCruceViolencia ? detectarCruceViolencia(data) : null;
+
                     // ── Standard fields ──
                     return (
                       <div key={field.key} className={cn('space-y-1.5', field.type === 'textarea' && 'md:col-span-2')}>
@@ -230,6 +236,22 @@ export const StageFicha: React.FC<StageFichaProps> = ({
                           {field.label}
                           {field.required && <span className="text-rose-500 ml-0.5">*</span>}
                         </Label>
+                        {cruce?.hayCruce && (
+                          <div className={cn(
+                            'flex items-start gap-2 p-2.5 rounded-lg border text-[11px]',
+                            cruce.regimenLuceAmplio
+                              ? 'bg-rose-500/10 border-rose-500/40 text-rose-800 dark:text-rose-200'
+                              : 'bg-amber-500/10 border-amber-500/40 text-amber-800 dark:text-amber-200'
+                          )}>
+                            <AlertCircle size={14} className="shrink-0 mt-0.5" />
+                            <div>
+                              <div className="font-black uppercase tracking-widest text-[9px] mb-0.5">
+                                {cruce.regimenLuceAmplio ? '⚠ Posible inconsistencia' : 'Hay medida vigente'}
+                              </div>
+                              <div className="font-medium">{cruce.motivo}</div>
+                            </div>
+                          </div>
+                        )}
                         {field.type === 'select' ? (
                           <select
                             className="w-full h-11 bg-muted/30 border border-border/50 rounded-xl px-3 text-sm font-bold text-foreground focus:outline-none focus:ring-2 focus:ring-teal-700/20 transition-all appearance-none"

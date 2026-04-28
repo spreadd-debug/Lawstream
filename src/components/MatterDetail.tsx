@@ -58,6 +58,7 @@ import { LetradosPanel } from './LetradosPanel';
 import { HonorariosRegPanel } from './HonorariosRegPanel';
 import { SubProcesosPanel } from './SubProcesosPanel';
 import { urgenciaDePlazo, diasRestantes } from '../lib/plazos';
+import { detectarCruceViolencia } from '../lib/violencia';
 
 interface MatterDetailProps {
   matter: Matter;
@@ -140,6 +141,9 @@ export const MatterDetail = ({
   const medidaVigenciaHasta = cd.medida_vigencia_hasta?.trim();
   const tieneMedida = !!(medidaDescripcion || medidaOrganismo || medidaVigenciaHasta);
   const medidaVencida = !!(medidaVigenciaHasta && differenceInCalendarDays(parseISO(medidaVigenciaHasta), new Date()) < 0);
+
+  // GAP 21 — detección de cruce entre medida vigente y régimen propuesto.
+  const cruceViolencia = detectarCruceViolencia(cd);
 
   // Plazos activos de este asunto, ordenados por vencimiento — más urgentes primero.
   const matterPlazosActivos = allPlazos
@@ -378,6 +382,43 @@ export const MatterDetail = ({
                 </span>
               )}
             </div>
+
+            {/* GAP 21 — sub-bloque cruce con régimen propuesto. */}
+            {cruceViolencia.hayCruce && (
+              <div className={cn(
+                'mt-3 p-3 rounded-xl border-2 border-dashed',
+                cruceViolencia.regimenLuceAmplio
+                  ? 'border-rose-600/60 bg-rose-600/10'
+                  : 'border-amber-500/60 bg-amber-500/10'
+              )}>
+                <div className="flex items-start gap-2">
+                  <AlertCircle size={16} className={cn(
+                    'shrink-0 mt-0.5',
+                    cruceViolencia.regimenLuceAmplio ? 'text-rose-700' : 'text-amber-700'
+                  )} />
+                  <div className="flex-1 min-w-0">
+                    <span className={cn(
+                      'text-[10px] font-black uppercase tracking-widest',
+                      cruceViolencia.regimenLuceAmplio
+                        ? 'text-rose-700 dark:text-rose-300'
+                        : 'text-amber-700 dark:text-amber-300'
+                    )}>
+                      {cruceViolencia.regimenLuceAmplio
+                        ? '⚠ Posible inconsistencia — revisar urgente'
+                        : 'Revisar consistencia'}
+                    </span>
+                    <p className="text-xs text-foreground/90 mt-1">
+                      {cruceViolencia.motivo}
+                    </p>
+                    {cd.regimen_comunicacion && (
+                      <p className="text-[11px] text-muted-foreground mt-2 italic line-clamp-2">
+                        Régimen cargado: "{cd.regimen_comunicacion}"
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
