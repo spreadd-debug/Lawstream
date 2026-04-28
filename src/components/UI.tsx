@@ -326,21 +326,21 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, 
         className="absolute inset-0 bg-background/80 backdrop-blur-sm animate-in fade-in duration-300"
         onClick={onClose}
       />
-      <div className="relative w-full max-w-lg bg-card border border-border rounded-3xl shadow-2xl flex flex-col animate-in zoom-in-95 duration-300 overflow-hidden">
-        <header className="p-6 border-b border-border flex items-center justify-between">
+      <div className="relative w-full max-w-lg max-h-[90vh] bg-card border border-border rounded-3xl shadow-2xl flex flex-col animate-in zoom-in-95 duration-300 overflow-hidden">
+        <header className="p-6 border-b border-border flex items-center justify-between shrink-0">
           <h2 className="text-xl font-black tracking-tighter text-foreground">{title}</h2>
-          <button 
+          <button
             onClick={onClose}
             className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-full transition-all"
           >
             <XIcon size={20} />
           </button>
         </header>
-        <div className="p-6">
+        <div className="p-6 overflow-y-auto flex-1">
           {children}
         </div>
         {footer && (
-          <footer className="p-6 border-t border-border bg-muted/30 flex justify-end gap-3">
+          <footer className="p-6 border-t border-border bg-muted/30 flex justify-end gap-3 shrink-0">
             {footer}
           </footer>
         )}
