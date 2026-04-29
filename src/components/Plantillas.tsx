@@ -1,10 +1,12 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Card, Badge, Button, Input, Drawer, MoneyInput } from './UI';
-import { LegalTemplate, MatterType, Matter, Client } from '../types';
+import { LegalTemplate, MatterType, Matter, Client, Expediente } from '../types';
 import { LEGAL_TEMPLATES } from '../data/legalTemplates';
 import { cn } from '../lib/utils';
 import { fillTemplate, TEMPLATE_VARIABLES } from '../lib/templateEngine';
+import { resolveExpedienteNumeroFromList } from '../lib/expedienteResolver';
+import { useAppContext } from '../lib/AppContext';
 import {
   FileText,
   Search,
@@ -95,9 +97,13 @@ function autoFillFromMatter(
   template: LegalTemplate,
   matter: Matter,
   client?: Client,
+  expedientes: Expediente[] = [],
 ): Record<string, string> {
   const values: Record<string, string> = {};
   const cd = matter.caseData || {};
+  // GAP 14 — número canónico del expediente: tabla expedientes prioriza
+  // sobre matter.expediente legacy.
+  const expedienteNumero = resolveExpedienteNumeroFromList(matter, expedientes);
 
   for (const ph of template.placeholders) {
     const key = ph.key;
@@ -111,7 +117,7 @@ function autoFillFromMatter(
     if (mapSources) {
       for (const src of mapSources) {
         if (src === '__responsable' && matter.responsible) { values[key] = matter.responsible; break; }
-        if (src === '__juzgado' && matter.expediente) { values[key] = matter.expediente; break; }
+        if (src === '__juzgado' && expedienteNumero) { values[key] = expedienteNumero; break; }
         if (cd[src]) { values[key] = cd[src]; break; }
       }
       if (values[key]) continue;
@@ -152,6 +158,7 @@ interface PlantillasProps {
 }
 
 export const Plantillas = ({ matters = [], clients = [] }: PlantillasProps) => {
+  const { expedientes } = useAppContext();
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<MatterType | 'Todas'>('Todas');
@@ -177,7 +184,7 @@ export const Plantillas = ({ matters = [], clients = [] }: PlantillasProps) => {
           const matter = matters.find(m => m.id === matterId);
           if (matter) {
             const client = clients.find(c => c.name === matter.client);
-            const autoValues = autoFillFromMatter(tmpl, matter, client);
+            const autoValues = autoFillFromMatter(tmpl, matter, client, expedientes);
             setPlaceholderValues(autoValues);
           }
         }
@@ -192,7 +199,7 @@ export const Plantillas = ({ matters = [], clients = [] }: PlantillasProps) => {
     const matter = matters.find(m => m.id === autoFillMatterId);
     if (!matter) return;
     const client = clients.find(c => c.name === matter.client);
-    const autoValues = autoFillFromMatter(selectedTemplate, matter, client);
+    const autoValues = autoFillFromMatter(selectedTemplate, matter, client, expedientes);
     setPlaceholderValues(prev => ({ ...prev, ...autoValues }));
   };
 

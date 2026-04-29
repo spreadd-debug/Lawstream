@@ -32,6 +32,13 @@ export interface Matter {
   subtype?: string;
   blockage?: string;
   reasonForQueue?: string;
+  /**
+   * @deprecated Columna legacy. La fuente canónica del número de
+   * expediente es la tabla `expedientes` (nroReceptoria / nroJuzgado).
+   * Migración 031 vacía esta columna después del backfill. La UI debe
+   * usar `resolveExpedienteNumero()` de `lib/expedienteResolver.ts`
+   * que prioriza la tabla y cae a este campo sólo como fallback.
+   */
   expediente?: string;
   description?: string;
   flowTemplateId?: string;
@@ -480,6 +487,9 @@ export interface Expediente {
   mevPresentado: boolean;
   mevFecha?: string;
   mevToken?: string;
+  /** Notas libres. Migración 031 lo usa para preservar matter.expediente
+   *  legacy cuando hay conflicto con nroJuzgado/nroReceptoria. */
+  notas?: string;
   createdAt: string;
   updatedAt: string;
   estadosLog?: ExpedienteEstadoLog[];
