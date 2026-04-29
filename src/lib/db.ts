@@ -56,6 +56,8 @@ import {
   CuotaCompensacion,
   LetradoParte,
   HonorarioRegulado,
+  Cedula,
+  CedulaIntento,
 } from '../types';
 
 // ── Profiles ──────────────────────────────────────────────────────
@@ -2543,6 +2545,125 @@ export const updateHonorarioRegulado = async (id: string, changes: Partial<Honor
 export const deleteHonorarioRegulado = async (id: string): Promise<void> => {
   const { error } = await supabase
     .from('honorarios_regulados')
+    .delete()
+    .eq('id', id);
+  if (error) throw error;
+};
+
+// ── Cédulas + Intentos (GAP 7) ────────────────────────────────────
+
+const toCedula = (r: any): Cedula => ({
+  id:            r.id,
+  matterId:      r.matter_id,
+  tipo:          r.tipo,
+  destinatario:  r.destinatario,
+  domicilio:     r.domicilio,
+  objeto:        r.objeto         ?? undefined,
+  fechaEmision:  r.fecha_emision  ?? undefined,
+  estadoManual:  r.estado_manual  ?? undefined,
+  notas:         r.notas          ?? undefined,
+  createdBy:     r.created_by     ?? undefined,
+  createdAt:     r.created_at,
+  updatedAt:     r.updated_at,
+});
+
+const cedulaToRow = (c: Partial<Cedula>): Record<string, unknown> => {
+  const row: Record<string, unknown> = {};
+  if (c.matterId      !== undefined) row.matter_id      = c.matterId;
+  if (c.tipo          !== undefined) row.tipo           = c.tipo;
+  if (c.destinatario  !== undefined) row.destinatario   = c.destinatario;
+  if (c.domicilio     !== undefined) row.domicilio      = c.domicilio;
+  if (c.objeto        !== undefined) row.objeto         = c.objeto        ?? null;
+  if (c.fechaEmision  !== undefined) row.fecha_emision  = c.fechaEmision  ?? null;
+  if (c.estadoManual  !== undefined) row.estado_manual  = c.estadoManual  ?? null;
+  if (c.notas         !== undefined) row.notas          = c.notas         ?? null;
+  if (c.createdBy     !== undefined) row.created_by     = c.createdBy     ?? null;
+  return row;
+};
+
+const toCedulaIntento = (r: any): CedulaIntento => ({
+  id:        r.id,
+  cedulaId:  r.cedula_id,
+  fecha:     r.fecha,
+  resultado: r.resultado,
+  hora:      r.hora       ?? undefined,
+  notas:     r.notas      ?? undefined,
+  createdBy: r.created_by ?? undefined,
+  createdAt: r.created_at,
+});
+
+const cedulaIntentoToRow = (i: Partial<CedulaIntento>): Record<string, unknown> => {
+  const row: Record<string, unknown> = {};
+  if (i.cedulaId  !== undefined) row.cedula_id  = i.cedulaId;
+  if (i.fecha     !== undefined) row.fecha      = i.fecha;
+  if (i.resultado !== undefined) row.resultado  = i.resultado;
+  if (i.hora      !== undefined) row.hora       = i.hora      ?? null;
+  if (i.notas     !== undefined) row.notas      = i.notas     ?? null;
+  if (i.createdBy !== undefined) row.created_by = i.createdBy ?? null;
+  return row;
+};
+
+export const fetchCedulas = async (): Promise<Cedula[]> => {
+  const { data, error } = await supabase
+    .from('cedulas')
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(toCedula);
+};
+
+export const fetchCedulaIntentos = async (): Promise<CedulaIntento[]> => {
+  const { data, error } = await supabase
+    .from('cedula_intentos')
+    .select('*')
+    .order('fecha', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(toCedulaIntento);
+};
+
+export const createCedula = async (
+  c: Omit<Cedula, 'id' | 'createdAt' | 'updatedAt'>,
+): Promise<Cedula> => {
+  const { data, error } = await supabase
+    .from('cedulas')
+    .insert(cedulaToRow(c))
+    .select()
+    .single();
+  if (error) throw error;
+  return toCedula(data);
+};
+
+export const updateCedula = async (id: string, changes: Partial<Cedula>): Promise<void> => {
+  const { error } = await supabase
+    .from('cedulas')
+    .update(cedulaToRow(changes))
+    .eq('id', id);
+  if (error) throw error;
+};
+
+export const deleteCedula = async (id: string): Promise<void> => {
+  const { error } = await supabase
+    .from('cedulas')
+    .delete()
+    .eq('id', id);
+  if (error) throw error;
+};
+
+export const createCedulaIntento = async (
+  i: Omit<CedulaIntento, 'id' | 'createdAt'>,
+): Promise<CedulaIntento> => {
+  const { data, error } = await supabase
+    .from('cedula_intentos')
+    .insert(cedulaIntentoToRow(i))
+    .select()
+    .single();
+  if (error) throw error;
+  return toCedulaIntento(data);
+};
+
+export const deleteCedulaIntento = async (id: string): Promise<void> => {
+  const { error } = await supabase
+    .from('cedula_intentos')
     .delete()
     .eq('id', id);
   if (error) throw error;
