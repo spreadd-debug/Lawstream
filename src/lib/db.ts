@@ -733,9 +733,42 @@ const toEstudioPerfil = (r: any): EstudioPerfil => ({
   updatedAt:      r.updated_at,
 });
 
+// Storage helpers — bucket privado, signed URLs con TTL.
+// La columna estudio_perfil.logo_url guarda el PATH (ej "00000000-.../logo/123.png").
+// Al fetch, firmamos el path. Al guardar, si vino un signed URL, extraemos el path.
+
+const SIGNED_URL_TTL_SECONDS = 8 * 60 * 60; // 8 horas — cubre una sesión de trabajo
+
+const signAssetPath = async (pathOrUrl: string | undefined | null): Promise<string | undefined> => {
+  if (!pathOrUrl) return undefined;
+  // Si por alguna razón quedó una URL https legacy sin migrar, devolverla tal cual.
+  // Después del SQL 039 esto no pasa, pero sirve de fallback.
+  if (/^https?:\/\//.test(pathOrUrl)) return pathOrUrl;
+  const { data, error } = await supabase.storage
+    .from('estudio-assets')
+    .createSignedUrl(pathOrUrl, SIGNED_URL_TTL_SECONDS);
+  if (error) {
+    console.error('signAssetPath error:', error);
+    return undefined;
+  }
+  return data.signedUrl;
+};
+
+/** Convierte una URL (pública o signed) a path puro. Si ya es path, lo devuelve igual. */
+const urlOrPathToPath = (urlOrPath: string | null | undefined): string | null => {
+  if (!urlOrPath) return null;
+  if (!/^https?:\/\//.test(urlOrPath)) return urlOrPath;
+  const m = urlOrPath.match(/\/(public|sign)\/estudio-assets\/([^?]+)/);
+  return m ? m[2] : null;
+};
+
 export const fetchEstudioPerfil = async (): Promise<EstudioPerfil> => {
   const { data } = await supabase.from('estudio_perfil').select('*').limit(1).single();
-  return data ? toEstudioPerfil(data) : { nombre: 'Mi Estudio Jurídico' };
+  if (!data) return { nombre: 'Mi Estudio Jurídico' };
+  const perfil = toEstudioPerfil(data);
+  perfil.logoUrl  = await signAssetPath(perfil.logoUrl);
+  perfil.firmaUrl = await signAssetPath(perfil.firmaUrl);
+  return perfil;
 };
 
 export const upsertEstudioPerfil = async (perfil: Partial<EstudioPerfil>): Promise<void> => {
@@ -746,12 +779,12 @@ export const upsertEstudioPerfil = async (perfil: Partial<EstudioPerfil>): Promi
   if (perfil.email          !== undefined) row.email           = perfil.email;
   if (perfil.telefono       !== undefined) row.telefono        = perfil.telefono;
   if (perfil.direccion      !== undefined) row.direccion       = perfil.direccion;
-  if (perfil.logoUrl        !== undefined) row.logo_url        = perfil.logoUrl;
+  if (perfil.logoUrl        !== undefined) row.logo_url        = urlOrPathToPath(perfil.logoUrl);
   if (perfil.cbu            !== undefined) row.cbu             = perfil.cbu;
   if (perfil.aliasCbu       !== undefined) row.alias_cbu       = perfil.aliasCbu;
   if (perfil.banco          !== undefined) row.banco           = perfil.banco;
   if (perfil.titularCuenta  !== undefined) row.titular_cuenta  = perfil.titularCuenta;
-  if (perfil.firmaUrl       !== undefined) row.firma_url       = perfil.firmaUrl;
+  if (perfil.firmaUrl       !== undefined) row.firma_url       = urlOrPathToPath(perfil.firmaUrl);
   if (perfil.footerText     !== undefined) row.footer_text     = perfil.footerText;
 
   if (existing.data?.id) {
@@ -761,8 +794,9 @@ export const upsertEstudioPerfil = async (perfil: Partial<EstudioPerfil>): Promi
   }
 };
 
-/** Upload logo or firma to Supabase Storage and return public URL.
- *  Path queda prefijado por firm_id para aislamiento multi-tenant. */
+/** Sube logo/firma al bucket privado y devuelve un signed URL para preview.
+ *  El path queda prefijado por firm_id. Al persistir vía upsertEstudioPerfil,
+ *  el signed URL se convierte de vuelta al path puro. */
 export const uploadEstudioAsset = async (file: File, path: 'logo' | 'firma'): Promise<string> => {
   const { data: firmId, error: firmErr } = await supabase.rpc('current_firm_id');
   if (firmErr || !firmId) throw new Error('No se pudo determinar el firm para el upload.');
@@ -771,8 +805,12 @@ export const uploadEstudioAsset = async (file: File, path: 'logo' | 'firma'): Pr
   const filePath = `${firmId}/${path}/${Date.now()}.${ext}`;
   const { error } = await supabase.storage.from('estudio-assets').upload(filePath, file, { upsert: true });
   if (error) throw error;
-  const { data } = supabase.storage.from('estudio-assets').getPublicUrl(filePath);
-  return data.publicUrl;
+
+  const { data, error: signErr } = await supabase.storage
+    .from('estudio-assets')
+    .createSignedUrl(filePath, SIGNED_URL_TTL_SECONDS);
+  if (signErr || !data) throw signErr ?? new Error('No se pudo firmar el URL del asset');
+  return data.signedUrl;
 };
 
 // ── Expedientes ───────────────────────────────────────────────────
