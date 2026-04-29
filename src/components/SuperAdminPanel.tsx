@@ -258,17 +258,33 @@ const FirmsTable: React.FC<{
 
 // ── New firm modal ──────────────────────────────────────────────
 
+function generatePassword(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+  let out = '';
+  const buf = new Uint32Array(14);
+  crypto.getRandomValues(buf);
+  for (let i = 0; i < buf.length; i++) out += chars[buf[i] % chars.length];
+  return out;
+}
+
+interface ProvisionResult {
+  firm_nombre: string;
+  socio_email: string;
+  socio_password: string;
+}
+
 const NewFirmModal: React.FC<{ onClose: () => void; onCreated: () => void }> = ({ onClose, onCreated }) => {
   const [nombre, setNombre]       = useState('');
   const [slug, setSlug]           = useState('');
   const [slugTouched, setSlugTouched] = useState(false);
-  const [socioUserId, setSocioUserId] = useState('');
   const [socioNombre, setSocioNombre] = useState('');
   const [socioEmail, setSocioEmail]   = useState('');
+  const [socioPassword, setSocioPassword] = useState('');
   const [status, setStatus]       = useState<SubscriptionStatus>('demo');
   const [fee, setFee]             = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError]         = useState<string | null>(null);
+  const [result, setResult]       = useState<ProvisionResult | null>(null);
 
   // Auto-slug del nombre mientras el user no lo edite manualmente.
   useEffect(() => {
@@ -277,22 +293,40 @@ const NewFirmModal: React.FC<{ onClose: () => void; onCreated: () => void }> = (
 
   const submit = async () => {
     setError(null);
-    if (!nombre || !slug || !socioUserId || !socioNombre || !socioEmail) {
+    if (!nombre || !slug || !socioNombre || !socioEmail || !socioPassword) {
       setError('Completá los campos obligatorios.');
+      return;
+    }
+    if (socioPassword.length < 8) {
+      setError('La contraseña debe tener al menos 8 caracteres.');
       return;
     }
     setSubmitting(true);
     try {
-      const { error } = await supabase.rpc('admin_provision_firm', {
-        p_firm_nombre:   nombre,
-        p_firm_slug:     slug,
-        p_socio_user_id: socioUserId,
-        p_socio_nombre:  socioNombre,
-        p_socio_email:   socioEmail,
-        p_subscription:  status,
-        p_monthly_fee:   fee ? Number(fee) : null,
+      const sessionRes = await supabase.auth.getSession();
+      const token = sessionRes.data.session?.access_token;
+      if (!token) throw new Error('Sesión expirada. Volvé a loguearte.');
+
+      const res = await fetch('/api/admin-provision-firm', {
+        method: 'POST',
+        headers: {
+          'Content-Type':  'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          firm_nombre:    nombre,
+          firm_slug:      slug,
+          socio_email:    socioEmail,
+          socio_password: socioPassword,
+          socio_nombre:   socioNombre,
+          status,
+          monthly_fee:    fee ? Number(fee) : null,
+        }),
       });
-      if (error) throw error;
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? 'No se pudo crear el estudio.');
+
+      setResult({ firm_nombre: nombre, socio_email: socioEmail, socio_password: socioPassword });
       onCreated();
     } catch (err: any) {
       setError(err.message ?? 'No se pudo crear el estudio.');
@@ -300,6 +334,32 @@ const NewFirmModal: React.FC<{ onClose: () => void; onCreated: () => void }> = (
       setSubmitting(false);
     }
   };
+
+  // Pantalla de éxito con credenciales.
+  if (result) {
+    return (
+      <Modal
+        isOpen
+        onClose={onClose}
+        title="Estudio creado"
+        footer={<Button onClick={onClose}>Listo</Button>}
+      >
+        <div className="space-y-4">
+          <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/30 p-4">
+            <p className="text-sm font-bold text-emerald-700 dark:text-emerald-300 mb-1">
+              {result.firm_nombre} dado de alta.
+            </p>
+            <p className="text-xs text-emerald-700/80 dark:text-emerald-300/80">
+              Pasale estas credenciales al Socio. La primera vez que entre, el sistema le va a pedir cambiar la contraseña.
+            </p>
+          </div>
+
+          <CopyRow label="Email"      value={result.socio_email} />
+          <CopyRow label="Contraseña" value={result.socio_password} mono />
+        </div>
+      </Modal>
+    );
+  }
 
   return (
     <Modal
@@ -314,10 +374,6 @@ const NewFirmModal: React.FC<{ onClose: () => void; onCreated: () => void }> = (
       }
     >
       <div className="space-y-4">
-        <div className="rounded-xl bg-muted/40 border border-border p-3 text-xs text-muted-foreground">
-          Antes de continuar: creá el user del Socio en <strong>Supabase Dashboard → Authentication → Add user</strong> y pegá su UUID abajo. La primera vez que entre, el sistema le va a pedir cambiar la contraseña.
-        </div>
-
         <Field label="Nombre del estudio *">
           <Input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Estudio López" />
         </Field>
@@ -350,18 +406,32 @@ const NewFirmModal: React.FC<{ onClose: () => void; onCreated: () => void }> = (
 
         <hr className="border-border" />
 
-        <Field label="UUID del Socio (auth.users.id) *">
-          <Input value={socioUserId} onChange={(e) => setSocioUserId(e.target.value)} placeholder="00000000-0000-0000-0000-000000000000" />
-        </Field>
+        <p className="text-[10px] font-black uppercase tracking-[0.15em] text-muted-foreground">
+          Datos del Socio (primer usuario del estudio)
+        </p>
 
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Nombre del Socio *">
+          <Field label="Nombre completo *">
             <Input value={socioNombre} onChange={(e) => setSocioNombre(e.target.value)} placeholder="Juan López" />
           </Field>
-          <Field label="Email del Socio *">
+          <Field label="Email *">
             <Input type="email" value={socioEmail} onChange={(e) => setSocioEmail(e.target.value)} placeholder="juan@lopez.com" />
           </Field>
         </div>
+
+        <Field label="Contraseña inicial *">
+          <div className="flex gap-2">
+            <Input
+              value={socioPassword}
+              onChange={(e) => setSocioPassword(e.target.value)}
+              placeholder="Mínimo 8 caracteres"
+              className="font-mono"
+            />
+            <Button variant="outline" onClick={() => setSocioPassword(generatePassword())}>
+              Generar
+            </Button>
+          </div>
+        </Field>
 
         {error && (
           <div className="rounded-xl bg-rose-500/10 border border-rose-500/30 p-3 text-xs text-rose-700 dark:text-rose-300">
@@ -370,6 +440,31 @@ const NewFirmModal: React.FC<{ onClose: () => void; onCreated: () => void }> = (
         )}
       </div>
     </Modal>
+  );
+};
+
+// ── Copy row helper ─────────────────────────────────────────────
+
+const CopyRow: React.FC<{ label: string; value: string; mono?: boolean }> = ({ label, value, mono }) => {
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    await navigator.clipboard.writeText(value);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+  return (
+    <div>
+      <p className="text-[10px] font-black uppercase tracking-[0.15em] text-muted-foreground mb-1.5">{label}</p>
+      <div className="flex gap-2">
+        <div className={cn(
+          'flex-1 px-4 py-2 bg-muted/50 border border-border/50 rounded-xl text-sm select-all',
+          mono && 'font-mono',
+        )}>
+          {value}
+        </div>
+        <Button variant="outline" onClick={copy}>{copied ? 'Copiado' : 'Copiar'}</Button>
+      </div>
+    </div>
   );
 };
 
