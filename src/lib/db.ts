@@ -12,6 +12,26 @@
  */
 
 import { supabase } from './supabase';
+
+// ── Multi-tenant helpers ──────────────────────────────────────────
+// firm_id del user logueado, cacheado en memoria para no llamar la RPC
+// en cada query. Se invalida en SIGNED_OUT (cuando entra otro user, el
+// cache queda en null y la próxima llamada lo refresca).
+
+let cachedFirmId: string | null = null;
+
+supabase.auth.onAuthStateChange((event) => {
+  if (event === 'SIGNED_OUT') cachedFirmId = null;
+});
+
+const getCurrentFirmId = async (): Promise<string> => {
+  if (cachedFirmId) return cachedFirmId;
+  const { data, error } = await supabase.rpc('current_firm_id');
+  if (error || !data) throw new Error('No se pudo obtener el firm del user actual.');
+  cachedFirmId = data as string;
+  return cachedFirmId;
+};
+
 import {
   Matter,
   Client,
@@ -489,19 +509,25 @@ const toStudioConfig = (r: any): StudioConfig => ({
 });
 
 export const fetchStudioConfig = async (key: string): Promise<StudioConfig | null> => {
+  const firmId = await getCurrentFirmId();
   const { data, error } = await supabase
     .from('studio_config')
     .select('*')
+    .eq('firm_id', firmId)
     .eq('key', key)
-    .single();
-  if (error) return null;
+    .maybeSingle();
+  if (error || !data) return null;
   return toStudioConfig(data);
 };
 
 export const upsertStudioConfig = async (key: string, value: Record<string, unknown>, updatedBy?: string): Promise<void> => {
+  const firmId = await getCurrentFirmId();
   const { error } = await supabase
     .from('studio_config')
-    .upsert({ key, value, updated_at: new Date().toISOString(), updated_by: updatedBy ?? null }, { onConflict: 'key' });
+    .upsert(
+      { firm_id: firmId, key, value, updated_at: new Date().toISOString(), updated_by: updatedBy ?? null },
+      { onConflict: 'firm_id,key' },
+    );
   if (error) throw error;
 };
 
@@ -763,7 +789,12 @@ const urlOrPathToPath = (urlOrPath: string | null | undefined): string | null =>
 };
 
 export const fetchEstudioPerfil = async (): Promise<EstudioPerfil> => {
-  const { data } = await supabase.from('estudio_perfil').select('*').limit(1).single();
+  const firmId = await getCurrentFirmId();
+  const { data } = await supabase
+    .from('estudio_perfil')
+    .select('*')
+    .eq('firm_id', firmId)
+    .maybeSingle();
   if (!data) return { nombre: 'Mi Estudio Jurídico' };
   const perfil = toEstudioPerfil(data);
   perfil.logoUrl  = await signAssetPath(perfil.logoUrl);
@@ -772,8 +803,8 @@ export const fetchEstudioPerfil = async (): Promise<EstudioPerfil> => {
 };
 
 export const upsertEstudioPerfil = async (perfil: Partial<EstudioPerfil>): Promise<void> => {
-  const existing = await supabase.from('estudio_perfil').select('id').limit(1).single();
-  const row: any = { updated_at: new Date().toISOString() };
+  const firmId = await getCurrentFirmId();
+  const row: any = { firm_id: firmId, updated_at: new Date().toISOString() };
   if (perfil.nombre         !== undefined) row.nombre          = perfil.nombre;
   if (perfil.cuit           !== undefined) row.cuit            = perfil.cuit;
   if (perfil.email          !== undefined) row.email           = perfil.email;
@@ -787,11 +818,11 @@ export const upsertEstudioPerfil = async (perfil: Partial<EstudioPerfil>): Promi
   if (perfil.firmaUrl       !== undefined) row.firma_url       = urlOrPathToPath(perfil.firmaUrl);
   if (perfil.footerText     !== undefined) row.footer_text     = perfil.footerText;
 
-  if (existing.data?.id) {
-    await supabase.from('estudio_perfil').update(row).eq('id', existing.data.id);
-  } else {
-    await supabase.from('estudio_perfil').insert(row);
-  }
+  // UNIQUE(firm_id) en estudio_perfil → upsert directo, sin lookup previo.
+  const { error } = await supabase
+    .from('estudio_perfil')
+    .upsert(row, { onConflict: 'firm_id' });
+  if (error) throw error;
 };
 
 /** Sube logo/firma al bucket privado y devuelve un signed URL para preview.
