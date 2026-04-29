@@ -6,7 +6,7 @@ import { PerencionAlerts } from '../components/PerencionAlerts';
 export const HoyPage = () => {
   const navigate = useNavigate();
   const {
-    matters, documents, expedientes,
+    matters, documents, expedientes, eventos,
     handleNewAction, handleEditMatter, handleCloseMatter,
     setIsFiltersOpen, activeFilters,
   } = useAppContext();
@@ -16,6 +16,7 @@ export const HoyPage = () => {
       <PerencionAlerts
         matters={matters}
         expedientes={expedientes}
+        eventos={eventos}
         onNavigateToMatter={(id) => navigate(`/asuntos/${id}`)}
       />
       <Hoy
