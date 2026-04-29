@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Building2, LogOut, Plus, Users, Briefcase, Wallet, Activity, AlertCircle } from 'lucide-react';
+import { Building2, LogOut, Plus, Users, Briefcase, Wallet, Activity, AlertCircle, History } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
 import { Badge, Button, Card, Input, Modal, Select } from './UI';
@@ -17,6 +17,17 @@ interface PlatformSummary {
   mrr_pesos: number;
   total_users: number;
   total_matters: number;
+}
+
+interface AuditEntry {
+  id:           string;
+  created_at:   string;
+  firm_id:      string | null;
+  firm_nombre:  string | null;
+  actor_name:   string;
+  action:       string;
+  entity_type:  string;
+  entity_label: string | null;
 }
 
 interface FirmMetric {
@@ -75,6 +86,7 @@ export const SuperAdminPanel: React.FC = () => {
   const { signOut, user } = useAuth();
   const [summary, setSummary] = useState<PlatformSummary | null>(null);
   const [firms, setFirms] = useState<FirmMetric[]>([]);
+  const [audit, setAudit] = useState<AuditEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showNewModal, setShowNewModal] = useState(false);
@@ -84,14 +96,17 @@ export const SuperAdminPanel: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const [summaryRes, firmsRes] = await Promise.all([
+      const [summaryRes, firmsRes, auditRes] = await Promise.all([
         supabase.rpc('admin_platform_summary'),
         supabase.rpc('admin_firm_metrics'),
+        supabase.rpc('admin_audit_feed', { p_firm_id: null, p_limit: 100 }),
       ]);
       if (summaryRes.error) throw summaryRes.error;
-      if (firmsRes.error) throw firmsRes.error;
+      if (firmsRes.error)   throw firmsRes.error;
+      if (auditRes.error)   throw auditRes.error;
       setSummary((summaryRes.data?.[0] ?? null) as PlatformSummary | null);
       setFirms((firmsRes.data ?? []) as FirmMetric[]);
+      setAudit((auditRes.data ?? []) as AuditEntry[]);
     } catch (err: any) {
       setError(err.message ?? 'No se pudieron cargar las métricas.');
     } finally {
@@ -143,6 +158,14 @@ export const SuperAdminPanel: React.FC = () => {
             </Button>
           </div>
           <FirmsTable firms={firms} loading={loading} onSelect={setEditingFirm} />
+        </section>
+
+        <section>
+          <div className="flex items-center gap-2 mb-4">
+            <History size={18} className="text-muted-foreground" />
+            <h2 className="text-2xl font-black tracking-tight">Actividad reciente</h2>
+          </div>
+          <AuditTable entries={audit} loading={loading} />
         </section>
       </main>
 
@@ -248,6 +271,69 @@ const FirmsTable: React.FC<{
               <td className="px-4 py-3 text-right tabular-nums">{f.clients_total}</td>
               <td className="px-4 py-3 text-muted-foreground">{formatDate(f.ultimo_login_at)}</td>
               <td className="px-4 py-3 text-muted-foreground">{formatDate(f.created_at)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </Card>
+  );
+};
+
+// ── Audit feed table ────────────────────────────────────────────
+
+const ACTION_LABEL: Record<string, string> = {
+  login:            'Login',
+  logout:           'Logout',
+  invitar_usuario:  'Invitó usuario',
+  crear_asunto:     'Creó asunto',
+  editar_asunto:    'Editó asunto',
+  cerrar_asunto:    'Cerró asunto',
+  crear_cliente:    'Creó cliente',
+  editar_cliente:   'Editó cliente',
+};
+
+function formatRelative(iso: string): string {
+  const ms = Date.now() - new Date(iso).getTime();
+  const m = Math.floor(ms / 60000);
+  if (m < 1)    return 'Ahora';
+  if (m < 60)   return `Hace ${m} min`;
+  const h = Math.floor(m / 60);
+  if (h < 24)   return `Hace ${h} h`;
+  const d = Math.floor(h / 24);
+  if (d < 7)    return `Hace ${d} d`;
+  return new Date(iso).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' });
+}
+
+const AuditTable: React.FC<{ entries: AuditEntry[]; loading: boolean }> = ({ entries, loading }) => {
+  if (loading) {
+    return <Card className="p-12 text-center text-sm text-muted-foreground">Cargando actividad…</Card>;
+  }
+  if (entries.length === 0) {
+    return <Card className="p-12 text-center text-xs text-muted-foreground">Sin actividad registrada.</Card>;
+  }
+  return (
+    <Card className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead className="bg-muted/40 border-b border-border">
+          <tr className="text-left text-[9px] font-black uppercase tracking-[0.15em] text-muted-foreground">
+            <th className="px-4 py-3">Cuándo</th>
+            <th className="px-4 py-3">Estudio</th>
+            <th className="px-4 py-3">Usuario</th>
+            <th className="px-4 py-3">Acción</th>
+            <th className="px-4 py-3">Entidad</th>
+          </tr>
+        </thead>
+        <tbody>
+          {entries.map((e) => (
+            <tr key={e.id} className="border-b border-border last:border-0">
+              <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{formatRelative(e.created_at)}</td>
+              <td className="px-4 py-3 font-medium">{e.firm_nombre ?? '—'}</td>
+              <td className="px-4 py-3">{e.actor_name}</td>
+              <td className="px-4 py-3">{ACTION_LABEL[e.action] ?? e.action}</td>
+              <td className="px-4 py-3 text-muted-foreground">
+                {e.entity_label ? <span>{e.entity_label}</span> : <span className="opacity-50">—</span>}
+                <span className="ml-2 text-[10px] uppercase tracking-[0.1em] opacity-60">{e.entity_type}</span>
+              </td>
             </tr>
           ))}
         </tbody>

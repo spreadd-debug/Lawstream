@@ -86,6 +86,29 @@ async function checkSuperAdmin(): Promise<boolean> {
   }
 }
 
+const BLOCKED_FIRM_STATUSES = new Set(['suspended', 'inactive']);
+
+async function checkFirmStatus(): Promise<{ ok: boolean; status: string | null }> {
+  try {
+    const { data, error } = await supabase.rpc('current_firm_status');
+    if (error) {
+      console.error('current_firm_status error:', error);
+      return { ok: true, status: null }; // por las dudas, no romper sesión por error de RPC
+    }
+    const status = (data as string | null) ?? null;
+    return { ok: !status || !BLOCKED_FIRM_STATUSES.has(status), status };
+  } catch (err) {
+    console.error('checkFirmStatus excepción:', err);
+    return { ok: true, status: null };
+  }
+}
+
+function firmBlockedMessage(status: string | null): string {
+  if (status === 'suspended') return 'Tu estudio está suspendido. Contactá al administrador de Lawstream.';
+  if (status === 'inactive')  return 'Tu estudio está inactivo. Contactá al administrador de Lawstream.';
+  return 'Tu estudio no está habilitado. Contactá al administrador de Lawstream.';
+}
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, setState] = useState<AuthState>({
     ...emptyState,
@@ -139,6 +162,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             isSuperAdmin = await checkSuperAdmin();
             if (!mounted) return;
             if (!isSuperAdmin) {
+              await supabase.auth.signOut();
+              safeSetState(emptyState);
+              return;
+            }
+          } else {
+            // Con profile: verificar que el firm no esté suspendido/inactivo.
+            const firmStatus = await checkFirmStatus();
+            if (!mounted) return;
+            if (!firmStatus.ok) {
               await supabase.auth.signOut();
               safeSetState(emptyState);
               return;
@@ -236,6 +268,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (!isSuperAdmin) {
             await supabase.auth.signOut();
             return { error: 'Tu cuenta no está vinculada a ningún estudio.' };
+          }
+        } else {
+          // Con profile: chequear que el firm esté habilitado.
+          const firmStatus = await checkFirmStatus();
+          if (!firmStatus.ok) {
+            await supabase.auth.signOut();
+            return { error: firmBlockedMessage(firmStatus.status) };
           }
         }
       }
