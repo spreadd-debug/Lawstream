@@ -998,6 +998,102 @@ export interface LetradoParte {
   updatedAt: string;
 }
 
+// ── CÉDULAS DE NOTIFICACIÓN (GAP 7) ─────────────────────────
+// Una cédula = una notificación a un destinatario en un domicilio.
+// Cada intento de diligenciamiento tiene fecha y resultado. El estado
+// agregado de la cédula se DERIVA del último intento (en el front), salvo
+// que el usuario lo fije manualmente como 'devuelta_sin_notificar' o
+// 'vencida'.
+
+export type TipoCedula =
+  | 'demanda'
+  | 'traslado'
+  | 'audiencia'
+  | 'sentencia'
+  | 'citacion_testimonial'
+  | 'intimacion'
+  | 'oficio'
+  | 'otro';
+
+export const TIPO_CEDULA_LABELS: Record<TipoCedula, string> = {
+  demanda:              'Notificación de demanda',
+  traslado:             'Traslado',
+  audiencia:            'Citación a audiencia',
+  sentencia:            'Notificación de sentencia',
+  citacion_testimonial: 'Citación de testigo',
+  intimacion:           'Intimación',
+  oficio:               'Oficio',
+  otro:                 'Otro',
+};
+
+export type ResultadoIntentoCedula =
+  | 'notificado_personalmente'
+  | 'notificado_bajo_puerta'
+  | 'nadie_atiende'
+  | 'domicilio_cerrado'
+  | 'domicilio_inexistente'
+  | 'rehusa_recibir'
+  | 'datos_erroneos'
+  | 'fallecido'
+  | 'otro';
+
+export const RESULTADO_INTENTO_LABELS: Record<ResultadoIntentoCedula, string> = {
+  notificado_personalmente: 'Notificado personalmente',
+  notificado_bajo_puerta:   'Notificado bajo puerta',
+  nadie_atiende:            'Nadie atiende',
+  domicilio_cerrado:        'Domicilio cerrado',
+  domicilio_inexistente:    'Domicilio inexistente',
+  rehusa_recibir:           'Rehúsa recibir',
+  datos_erroneos:           'Datos erróneos',
+  fallecido:                'Destinatario fallecido',
+  otro:                     'Otro',
+};
+
+/** Resultados que cuentan como notificación efectiva. */
+export const RESULTADOS_EXITOSOS: ResultadoIntentoCedula[] = [
+  'notificado_personalmente',
+  'notificado_bajo_puerta',
+];
+
+export type EstadoCedulaManual = 'devuelta_sin_notificar' | 'vencida';
+
+/**
+ * Estado derivado de la cédula. Computado en el front a partir del
+ * último intento + estadoManual.
+ */
+export type EstadoCedula =
+  | 'pendiente'             // sin intentos
+  | 'en_diligenciamiento'   // último intento fallido
+  | 'notificada'            // último intento exitoso
+  | 'devuelta_sin_notificar'// marcada manualmente
+  | 'vencida';              // marcada manualmente
+
+export interface CedulaIntento {
+  id: string;
+  cedulaId: string;
+  fecha: string;            // 'YYYY-MM-DD'
+  resultado: ResultadoIntentoCedula;
+  hora?: string;            // 'HH:MM'
+  notas?: string;
+  createdBy?: string;
+  createdAt: string;
+}
+
+export interface Cedula {
+  id: string;
+  matterId: string;
+  tipo: TipoCedula;
+  destinatario: string;
+  domicilio: string;
+  objeto?: string;
+  fechaEmision?: string;    // 'YYYY-MM-DD'
+  estadoManual?: EstadoCedulaManual;
+  notas?: string;
+  createdBy?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // ── COMUNICACIONES ──────────────────────────────────────────
 
 export type CanalCommunication = 'WhatsApp' | 'Email' | 'Teléfono' | 'Presencial' | 'Interno';

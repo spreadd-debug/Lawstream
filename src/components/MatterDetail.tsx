@@ -57,6 +57,7 @@ import { CompensacionPanel } from './CompensacionPanel';
 import { LetradosPanel } from './LetradosPanel';
 import { HonorariosRegPanel } from './HonorariosRegPanel';
 import { SubProcesosPanel } from './SubProcesosPanel';
+import { CedulasPanel } from './CedulasPanel';
 import { urgenciaDePlazo, diasRestantes } from '../lib/plazos';
 import { detectarCruceViolencia } from '../lib/violencia';
 
@@ -1165,6 +1166,11 @@ export const MatterDetail = ({
             {/* Letrados de la parte / contraparte */}
             <section>
               <LetradosPanel matterId={matter.id} />
+            </section>
+
+            {/* Cédulas de notificación con intentos (GAP 7) */}
+            <section className="border-t border-border/40 pt-8">
+              <CedulasPanel matterId={matter.id} />
             </section>
 
             {/* Datos del Asunto */}

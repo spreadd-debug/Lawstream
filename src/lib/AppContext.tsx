@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { Matter, Client, Consultation, LegalDocument, Task, TimelineEvent, UserProfile, Communication, Expediente, MatterMilestone, EventoExpediente, Plazo, Jurisdiccion, TipoProceso, TipoEvento, HiloPrueba, Perito, CompensacionEconomica, CuotaCompensacion, FrecuenciaCuota, LetradoParte, HonorarioRegulado, MatterKind, IncidenteTipo, INCIDENTE_TIPO_LABELS, AspectoApelado, ASPECTO_APELADO_LABELS } from '../types';
+import { Matter, Client, Consultation, LegalDocument, Task, TimelineEvent, UserProfile, Communication, Expediente, MatterMilestone, EventoExpediente, Plazo, Jurisdiccion, TipoProceso, TipoEvento, HiloPrueba, Perito, CompensacionEconomica, CuotaCompensacion, FrecuenciaCuota, LetradoParte, HonorarioRegulado, MatterKind, IncidenteTipo, INCIDENTE_TIPO_LABELS, AspectoApelado, ASPECTO_APELADO_LABELS, Cedula, CedulaIntento } from '../types';
 import { GlobalFilters, defaultFilters } from '../components/FiltersContent';
 import { useAuth } from './auth';
 import * as db from './db';
@@ -160,6 +160,14 @@ interface AppContextType {
   handleCreateHonorarioRegulado: (h: Omit<HonorarioRegulado, 'id' | 'createdAt' | 'updatedAt'>) => Promise<HonorarioRegulado>;
   handleUpdateHonorarioRegulado: (id: string, changes: Partial<HonorarioRegulado>) => Promise<void>;
   handleDeleteHonorarioRegulado: (id: string) => Promise<void>;
+  // Cédulas (GAP 7)
+  cedulas: Cedula[];
+  cedulaIntentos: CedulaIntento[];
+  handleCreateCedula: (c: Omit<Cedula, 'id' | 'createdAt' | 'updatedAt'>) => Promise<Cedula>;
+  handleUpdateCedula: (id: string, changes: Partial<Cedula>) => Promise<void>;
+  handleDeleteCedula: (id: string) => Promise<void>;
+  handleCreateCedulaIntento: (i: Omit<CedulaIntento, 'id' | 'createdAt'>) => Promise<CedulaIntento>;
+  handleDeleteCedulaIntento: (id: string) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -189,6 +197,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [cuotasCompensacion, setCuotasCompensacion] = useState<CuotaCompensacion[]>([]);
   const [letrados, setLetrados] = useState<LetradoParte[]>([]);
   const [honorariosRegulados, setHonorariosRegulados] = useState<HonorarioRegulado[]>([]);
+  const [cedulas, setCedulas] = useState<Cedula[]>([]);
+  const [cedulaIntentos, setCedulaIntentos] = useState<CedulaIntento[]>([]);
   const [plazos, setPlazos] = useState<Plazo[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -238,8 +248,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       safe(db.fetchCuotasCompensacion(), 'cuotas_compensacion'),
       safe(db.fetchLetrados(),         'letrados'),
       safe(db.fetchHonorariosRegulados(), 'honorarios_regulados'),
+      safe(db.fetchCedulas(),          'cedulas'),
+      safe(db.fetchCedulaIntentos(),   'cedula_intentos'),
     ])
-      .then(([m, c, co, d, t, tl, p, ex, ms, ev, pl, hi, pe, comps, cuotas, letr, honor]) => {
+      .then(([m, c, co, d, t, tl, p, ex, ms, ev, pl, hi, pe, comps, cuotas, letr, honor, ced, cedI]) => {
         setMatters(m);
         setClients(c);
         setConsultations(co);
@@ -257,6 +269,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setCuotasCompensacion(cuotas);
         setLetrados(letr);
         setHonorariosRegulados(honor);
+        setCedulas(ced);
+        setCedulaIntentos(cedI);
       })
       .finally(() => setIsLoading(false));
   }, [userId]);
@@ -1448,6 +1462,82 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  // ── Cédulas + Intentos (GAP 7) ─────────────────────────────
+  const handleCreateCedula = async (
+    c: Omit<Cedula, 'id' | 'createdAt' | 'updatedAt'>,
+  ): Promise<Cedula> => {
+    const optimistic: Cedula = {
+      ...c,
+      id: crypto.randomUUID(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    setCedulas(prev => [optimistic, ...prev]);
+    try {
+      const saved = await db.createCedula(c);
+      setCedulas(prev => prev.map(x => x.id === optimistic.id ? saved : x));
+      return saved;
+    } catch (err) {
+      console.error('Error creando cédula:', err);
+      setCedulas(prev => prev.filter(x => x.id !== optimistic.id));
+      throw err;
+    }
+  };
+
+  const handleUpdateCedula = async (id: string, changes: Partial<Cedula>): Promise<void> => {
+    setCedulas(prev => prev.map(c => c.id === id ? { ...c, ...changes, updatedAt: new Date().toISOString() } : c));
+    try {
+      await db.updateCedula(id, changes);
+    } catch (err) {
+      console.error('Error actualizando cédula:', err);
+    }
+  };
+
+  const handleDeleteCedula = async (id: string): Promise<void> => {
+    const prev = cedulas;
+    const prevIntentos = cedulaIntentos;
+    setCedulas(curr => curr.filter(c => c.id !== id));
+    setCedulaIntentos(curr => curr.filter(i => i.cedulaId !== id));
+    try {
+      await db.deleteCedula(id);
+    } catch (err) {
+      console.error('Error eliminando cédula:', err);
+      setCedulas(prev);
+      setCedulaIntentos(prevIntentos);
+    }
+  };
+
+  const handleCreateCedulaIntento = async (
+    i: Omit<CedulaIntento, 'id' | 'createdAt'>,
+  ): Promise<CedulaIntento> => {
+    const optimistic: CedulaIntento = {
+      ...i,
+      id: crypto.randomUUID(),
+      createdAt: new Date().toISOString(),
+    };
+    setCedulaIntentos(prev => [optimistic, ...prev]);
+    try {
+      const saved = await db.createCedulaIntento(i);
+      setCedulaIntentos(prev => prev.map(x => x.id === optimistic.id ? saved : x));
+      return saved;
+    } catch (err) {
+      console.error('Error creando intento de cédula:', err);
+      setCedulaIntentos(prev => prev.filter(x => x.id !== optimistic.id));
+      throw err;
+    }
+  };
+
+  const handleDeleteCedulaIntento = async (id: string): Promise<void> => {
+    const prev = cedulaIntentos;
+    setCedulaIntentos(curr => curr.filter(i => i.id !== id));
+    try {
+      await db.deleteCedulaIntento(id);
+    } catch (err) {
+      console.error('Error eliminando intento de cédula:', err);
+      setCedulaIntentos(prev);
+    }
+  };
+
   const handleUpdateAssignments = async (matterId: string, profileIds: string[], leadId: string) => {
     // Optimistic update
     setMatters(prev => prev.map(m =>
@@ -1509,6 +1599,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       handleSustituirLetrado,
       honorariosRegulados,
       handleCreateHonorarioRegulado, handleUpdateHonorarioRegulado, handleDeleteHonorarioRegulado,
+      cedulas, cedulaIntentos,
+      handleCreateCedula, handleUpdateCedula, handleDeleteCedula,
+      handleCreateCedulaIntento, handleDeleteCedulaIntento,
     }}>
       {children}
     </AppContext.Provider>
