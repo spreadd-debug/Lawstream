@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   ArrowLeft,
   Calendar,
@@ -30,6 +30,8 @@ import {
   Send,
   Layers,
   Archive,
+  Search,
+  X,
 } from 'lucide-react';
 import { Matter, TimelineEvent, Task, LegalDocument, Expediente, MatterMilestone, FlowSnapshot, INCIDENTE_TIPO_LABELS, ASPECTO_APELADO_LABELS } from '../types';
 import { Badge, Card, Button, Modal, Input, Textarea, Select } from './UI';
@@ -177,6 +179,62 @@ export const MatterDetail = ({
 
   // Pre-filled communication message (from "Solicitar datos" button)
   const [commPrefill, setCommPrefill] = useState<string | undefined>(undefined);
+
+  // GAP 28 — buscador y filtros para Documentación Completa.
+  const [docSearch, setDocSearch] = useState('');
+  const [docFilterStatus, setDocFilterStatus] = useState<string | null>(null);
+  const [docFilterCategory, setDocFilterCategory] = useState<string | null>(null);
+
+  // Lista filtrada — busca en nombre, categoría y associatedAction (etapa).
+  const filteredDocuments = useMemo(() => {
+    const q = docSearch.trim().toLowerCase();
+    return documents.filter(d => {
+      if (docFilterStatus && d.status !== docFilterStatus) return false;
+      if (docFilterCategory && (d.category ?? 'sin_categoria') !== docFilterCategory) return false;
+      if (q.length > 0) {
+        const hay = [d.name, d.category, d.associatedAction]
+          .filter(Boolean)
+          .some(s => (s as string).toLowerCase().includes(q));
+        if (!hay) return false;
+      }
+      return true;
+    });
+  }, [documents, docSearch, docFilterStatus, docFilterCategory]);
+
+  const docActiveFilters = (docSearch.trim() ? 1 : 0) + (docFilterStatus ? 1 : 0) + (docFilterCategory ? 1 : 0);
+  const clearDocFilters = () => {
+    setDocSearch('');
+    setDocFilterStatus(null);
+    setDocFilterCategory(null);
+  };
+
+  // Conteos por estado/categoría para chips (sólo lo que existe en este caso).
+  const docStatusOptions = useMemo(() => {
+    const counts: Record<string, number> = {};
+    documents.forEach(d => { counts[d.status] = (counts[d.status] ?? 0) + 1; });
+    return Object.entries(counts).map(([value, count]) => ({ value, count }));
+  }, [documents]);
+  const docCategoryOptions = useMemo(() => {
+    const counts: Record<string, number> = {};
+    documents.forEach(d => {
+      const k = d.category ?? 'sin_categoria';
+      counts[k] = (counts[k] ?? 0) + 1;
+    });
+    return Object.entries(counts).map(([value, count]) => ({ value, count }));
+  }, [documents]);
+
+  const DOC_CATEGORY_LABELS: Record<string, string> = {
+    escrito:    'Escrito',
+    resolucion: 'Resolución',
+    sentencia:  'Sentencia',
+    pericia:    'Pericia',
+    oficio:     'Oficio',
+    cedula:     'Cédula',
+    documental: 'Documental',
+    identidad:  'Identidad',
+    otro:       'Otro',
+    sin_categoria: 'Sin categoría',
+  };
 
   useEffect(() => {
     fetchExpediente(matter.id).then(setExpediente);
@@ -1225,7 +1283,14 @@ export const MatterDetail = ({
             {/* Documentación completa */}
             <section className="space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em]">Documentación Completa</h3>
+                <h3 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em]">
+                  Documentación Completa
+                  {documents.length > 0 && (
+                    <span className="ml-2 text-foreground/60">
+                      ({docActiveFilters > 0 ? `${filteredDocuments.length} de ${documents.length}` : documents.length})
+                    </span>
+                  )}
+                </h3>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -1236,17 +1301,104 @@ export const MatterDetail = ({
                   Solicitar
                 </Button>
               </div>
+
+              {/* GAP 28 — buscador + filtros (solo se muestra si hay 4+ docs). */}
+              {documents.length >= 4 && (
+                <div className="space-y-2.5">
+                  {/* Buscador */}
+                  <div className="relative">
+                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                    <input
+                      type="text"
+                      value={docSearch}
+                      onChange={e => setDocSearch(e.target.value)}
+                      placeholder="Buscar por nombre, categoría o etapa..."
+                      className="w-full h-10 pl-9 pr-9 bg-muted/30 border border-border/50 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/30"
+                    />
+                    {docSearch && (
+                      <button
+                        onClick={() => setDocSearch('')}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      >
+                        <X size={14} />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Chips de estado */}
+                  {docStatusOptions.length > 1 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground self-center mr-1">Estado:</span>
+                      {docStatusOptions.map(opt => (
+                        <button
+                          key={opt.value}
+                          onClick={() => setDocFilterStatus(docFilterStatus === opt.value ? null : opt.value)}
+                          className={cn(
+                            'text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-full border transition-colors',
+                            docFilterStatus === opt.value
+                              ? 'border-primary bg-primary/15 text-primary'
+                              : 'border-border/60 text-muted-foreground hover:border-primary/50',
+                          )}
+                        >
+                          {opt.value} <span className="opacity-60">({opt.count})</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Chips de categoría */}
+                  {docCategoryOptions.length > 1 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground self-center mr-1">Categoría:</span>
+                      {docCategoryOptions.map(opt => (
+                        <button
+                          key={opt.value}
+                          onClick={() => setDocFilterCategory(docFilterCategory === opt.value ? null : opt.value)}
+                          className={cn(
+                            'text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-full border transition-colors',
+                            docFilterCategory === opt.value
+                              ? 'border-primary bg-primary/15 text-primary'
+                              : 'border-border/60 text-muted-foreground hover:border-primary/50',
+                          )}
+                        >
+                          {DOC_CATEGORY_LABELS[opt.value] ?? opt.value} <span className="opacity-60">({opt.count})</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Limpiar filtros */}
+                  {docActiveFilters > 0 && (
+                    <button
+                      onClick={clearDocFilters}
+                      className="text-[10px] font-black uppercase tracking-widest text-muted-foreground hover:text-foreground flex items-center gap-1"
+                    >
+                      <X size={12} /> Limpiar filtros ({docActiveFilters})
+                    </button>
+                  )}
+                </div>
+              )}
+
               <div className="grid grid-cols-1 gap-3">
                 {documents.length > 0 ? (
-                  documents.map(doc => (
-                    <DocumentMatterItem
-                      key={doc.id}
-                      doc={doc}
-                      menuOpen={docMenuOpen === doc.id}
-                      onToggleMenu={() => setDocMenuOpen(docMenuOpen === doc.id ? null : doc.id)}
-                      onChangeStatus={(docId, status) => { onUpdateDocument?.(docId, { status }); setDocMenuOpen(null); }}
-                    />
-                  ))
+                  filteredDocuments.length > 0 ? (
+                    filteredDocuments.map(doc => (
+                      <DocumentMatterItem
+                        key={doc.id}
+                        doc={doc}
+                        menuOpen={docMenuOpen === doc.id}
+                        onToggleMenu={() => setDocMenuOpen(docMenuOpen === doc.id ? null : doc.id)}
+                        onChangeStatus={(docId, status) => { onUpdateDocument?.(docId, { status }); setDocMenuOpen(null); }}
+                      />
+                    ))
+                  ) : (
+                    <div className="py-8 text-center border border-dashed border-border/50 rounded-2xl bg-muted/5 space-y-2">
+                      <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Ningún documento coincide con los filtros</p>
+                      <button onClick={clearDocFilters} className="text-[10px] font-bold text-primary hover:underline">
+                        Limpiar filtros
+                      </button>
+                    </div>
+                  )
                 ) : (
                   <div className="py-8 text-center border border-border/50 rounded-2xl bg-muted/5">
                     <p className="text-[10px] font-black text-muted-foreground/40 uppercase tracking-widest">Sin documentos cargados</p>
