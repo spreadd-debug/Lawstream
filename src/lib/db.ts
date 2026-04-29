@@ -761,10 +761,14 @@ export const upsertEstudioPerfil = async (perfil: Partial<EstudioPerfil>): Promi
   }
 };
 
-/** Upload logo or firma to Supabase Storage and return public URL */
+/** Upload logo or firma to Supabase Storage and return public URL.
+ *  Path queda prefijado por firm_id para aislamiento multi-tenant. */
 export const uploadEstudioAsset = async (file: File, path: 'logo' | 'firma'): Promise<string> => {
+  const { data: firmId, error: firmErr } = await supabase.rpc('current_firm_id');
+  if (firmErr || !firmId) throw new Error('No se pudo determinar el firm para el upload.');
+
   const ext = file.name.split('.').pop();
-  const filePath = `${path}/${Date.now()}.${ext}`;
+  const filePath = `${firmId}/${path}/${Date.now()}.${ext}`;
   const { error } = await supabase.storage.from('estudio-assets').upload(filePath, file, { upsert: true });
   if (error) throw error;
   const { data } = supabase.storage.from('estudio-assets').getPublicUrl(filePath);
