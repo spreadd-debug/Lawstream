@@ -71,7 +71,12 @@ function buildVariableMap(ctx: TemplateContext): Record<string, string> {
     vars.asunto_tipo        = ctx.matter.type;
     vars.asunto_subtipo     = ctx.matter.subtype || '';
     vars.asunto_responsable = ctx.matter.responsible;
-    vars.asunto_expediente  = ctx.matter.expediente || '';
+    // GAP 14 — preferimos el expediente canónico (tabla) sobre el legacy.
+    vars.asunto_expediente  =
+      ctx.expediente?.nroJuzgado
+      || ctx.expediente?.nroReceptoria
+      || ctx.matter.expediente
+      || '';
   }
 
   if (ctx.expediente) {

@@ -7,6 +7,7 @@ import { es } from 'date-fns/locale';
 import { cn } from '../lib/utils';
 import { GlobalFilters, isFiltersActive } from './FiltersContent';
 import { useAppContext } from '../lib/AppContext';
+import { resolveExpedienteNumeroFromList } from '../lib/expedienteResolver';
 import { urgenciaDePlazo, diasRestantes } from '../lib/plazos';
 
 interface HoyProps {
@@ -372,6 +373,8 @@ interface WorkItemProps {
 }
 
 const WorkItem: React.FC<WorkItemProps> = ({ matter, onClick, onOpenMenu }) => {
+  const { expedientes } = useAppContext();
+  const expedienteNumero = resolveExpedienteNumeroFromList(matter, expedientes);
   const isOverdue = matter.nextActionDate && isPast(parseISO(matter.nextActionDate)) && !isToday(parseISO(matter.nextActionDate));
   const isTodayAction = matter.nextActionDate && isToday(parseISO(matter.nextActionDate));
 
@@ -404,10 +407,10 @@ const WorkItem: React.FC<WorkItemProps> = ({ matter, onClick, onOpenMenu }) => {
           <span className="text-foreground/80">{matter.client}</span>
           <span className="opacity-30">•</span>
           <span>{matter.type}</span>
-          {matter.expediente && (
+          {expedienteNumero && (
             <>
               <span className="opacity-30">•</span>
-              <span className="font-mono text-[10px] bg-muted px-1.5 py-0.5 rounded">{matter.expediente}</span>
+              <span className="font-mono text-[10px] bg-muted px-1.5 py-0.5 rounded">{expedienteNumero}</span>
             </>
           )}
         </div>

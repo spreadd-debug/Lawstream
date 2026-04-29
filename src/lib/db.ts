@@ -798,6 +798,7 @@ const toExpediente = (r: any, log: ExpedienteEstadoLog[] = []): Expediente => ({
   mevPresentado:  r.mev_presentado,
   mevFecha:       r.mev_fecha      ?? undefined,
   mevToken:       r.mev_token      ?? undefined,
+  notas:          r.notas          ?? undefined,
   createdAt:      r.created_at,
   updatedAt:      r.updated_at,
   estadosLog:     log,

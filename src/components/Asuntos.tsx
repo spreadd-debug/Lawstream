@@ -84,9 +84,18 @@ export const Asuntos = ({ matters, profiles, onSelectMatter, onCreateMatter, onN
     // GAP 1 — sub-procesos (incidentes/apelaciones) viven dentro del matter padre.
     // No los mostramos en el listado principal; se acceden desde el padre.
     if (m.kind === 'incidente' || m.kind === 'apelacion') return false;
+    // GAP 14 — buscar en ambas fuentes: tabla expedientes (canónica) y
+    // matter.expediente (legacy hasta que la migración 031 los consolide).
+    const expDeMatter = expedientesMap[m.id];
+    const expedienteText = [
+      m.expediente,
+      expDeMatter?.nroJuzgado,
+      expDeMatter?.nroReceptoria,
+      expDeMatter?.caratula,
+    ].filter(Boolean).join(' ').toLowerCase();
     const matchesSearch = m.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          m.client.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         m.expediente?.toLowerCase().includes(searchTerm.toLowerCase());
+                         expedienteText.includes(searchTerm.toLowerCase());
     const matchesHealth = filterHealth === 'Todos' || m.health === filterHealth;
     const matchesResponsible = filterResponsible === 'Todos' || m.responsible === filterResponsible;
     const matchesType = filterType === 'Todos' || m.type === filterType;

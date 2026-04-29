@@ -6,6 +6,8 @@ import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '../lib/utils';
 import { ClientAccountStatement } from './ClientAccountStatement';
+import { useAppContext } from '../lib/AppContext';
+import { resolveExpedienteNumeroFromList } from '../lib/expedienteResolver';
 
 interface ClientDrawerProps {
   client: Client;
@@ -16,6 +18,7 @@ interface ClientDrawerProps {
 }
 
 export const ClientDrawer = ({ client, matters, onSave, onClose, onSelectMatter }: ClientDrawerProps) => {
+  const { expedientes } = useAppContext();
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
     name: client.name,
@@ -196,9 +199,12 @@ export const ClientDrawer = ({ client, matters, onSave, onClose, onSelectMatter 
                     </div>
                     <div className="flex items-center gap-2 mt-0.5">
                       <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">{m.type}</span>
-                      {m.expediente && (
-                        <span className="font-mono text-[9px] text-muted-foreground/60">{m.expediente}</span>
-                      )}
+                      {(() => {
+                        const num = resolveExpedienteNumeroFromList(m, expedientes);
+                        return num ? (
+                          <span className="font-mono text-[9px] text-muted-foreground/60">{num}</span>
+                        ) : null;
+                      })()}
                     </div>
                   </div>
                   <span className={cn(

@@ -348,6 +348,11 @@ export const EditMatterForm = ({ matter, onSave, onCancel, initialFocus }: EditM
       </div>
 
       {/* ── SECCIÓN "EXPEDIENTE JUDICIAL" ─────────────────────────── */}
+      {/* GAP 14 — campo legacy. La fuente canónica es la tabla expedientes
+          (tab Expediente del MatterDetail). Este input se mantiene para
+          permitir edición rápida del número, pero la migración 031 vacía
+          esta columna y consolida todo en la tabla. Una vez migrado, los
+          datos canónicos viven ahí. */}
       <div className="space-y-4 rounded-2xl border border-border/60 bg-muted/20 p-5">
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 rounded-lg bg-blue-500/10 flex items-center justify-center">
@@ -359,14 +364,15 @@ export const EditMatterForm = ({ matter, onSave, onCancel, initialFocus }: EditM
           )}
         </div>
         <div className="space-y-2">
-          <Label>Número de Expediente</Label>
+          <Label>Número de Expediente (atajo)</Label>
           <Input
             value={formData.expediente}
             onChange={e => setFormData({ ...formData, expediente: e.target.value })}
             placeholder="Ej: 25.673/2025"
           />
           <p className="text-[10px] text-muted-foreground">
-            Cargalo cuando el caso se inscriba en receptoría. Dejalo vacío mientras el caso no esté judicializado.
+            Atajo rápido. La carga completa (carátula, fuero, juzgado, secretaría, estados) se hace
+            desde el tab <strong>Expediente</strong> del caso, que es la fuente canónica.
           </p>
         </div>
       </div>
