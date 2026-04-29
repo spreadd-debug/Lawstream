@@ -21,9 +21,13 @@ export const PrivateRoute: React.FC = () => {
     return <Navigate to="/login" replace />;
   }
 
-  // Force password change on first login
+  // Force password change on first login.
   if (mustChangePassword && location.pathname !== '/cambiar-password') {
     return <Navigate to="/cambiar-password" replace />;
+  }
+  // Cuando ya cambió la password, salir de /cambiar-password al destino correcto.
+  if (!mustChangePassword && location.pathname === '/cambiar-password') {
+    return <Navigate to={isSuperAdmin ? '/admin' : '/hoy'} replace />;
   }
 
   // Superadmins solo viven en /admin. Cualquier otra ruta los manda allá.
