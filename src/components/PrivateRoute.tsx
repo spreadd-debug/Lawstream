@@ -3,7 +3,7 @@ import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 
 export const PrivateRoute: React.FC = () => {
-  const { session, isLoading, mustChangePassword } = useAuth();
+  const { session, isLoading, mustChangePassword, isSuperAdmin } = useAuth();
   const location = useLocation();
 
   if (isLoading) {
@@ -24,6 +24,16 @@ export const PrivateRoute: React.FC = () => {
   // Force password change on first login
   if (mustChangePassword && location.pathname !== '/cambiar-password') {
     return <Navigate to="/cambiar-password" replace />;
+  }
+
+  // Superadmins solo viven en /admin. Cualquier otra ruta los manda allá.
+  const isAdminRoute = location.pathname.startsWith('/admin');
+  if (isSuperAdmin && !isAdminRoute) {
+    return <Navigate to="/admin" replace />;
+  }
+  // Users normales no pueden entrar a /admin.
+  if (!isSuperAdmin && isAdminRoute) {
+    return <Navigate to="/hoy" replace />;
   }
 
   return <Outlet />;

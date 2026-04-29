@@ -8,6 +8,7 @@ interface AuthState {
   session: Session | null;
   user: User | null;
   profile: UserProfile | null;
+  isSuperAdmin: boolean;
   isLoading: boolean;
   mustChangePassword: boolean;
 }
@@ -37,6 +38,7 @@ const emptyState: AuthState = {
   session: null,
   user: null,
   profile: null,
+  isSuperAdmin: false,
   isLoading: false,
   mustChangePassword: false,
 };
@@ -60,7 +62,6 @@ async function fetchProfile(userId: string): Promise<UserProfile | null> {
     };
 
     if (error || !data) {
-      console.error('fetchProfile error:', error);
       return null;
     }
 
@@ -68,6 +69,20 @@ async function fetchProfile(userId: string): Promise<UserProfile | null> {
   } catch (err) {
     console.error('fetchProfile excepción:', err);
     return null;
+  }
+}
+
+async function checkSuperAdmin(): Promise<boolean> {
+  try {
+    const { data, error } = await supabase.rpc('is_super_admin');
+    if (error) {
+      console.error('is_super_admin error:', error);
+      return false;
+    }
+    return data === true;
+  } catch (err) {
+    console.error('checkSuperAdmin excepción:', err);
+    return false;
   }
 }
 
@@ -90,13 +105,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Si es el mismo usuario (ej: token refresh al volver al tab), conservar el
         // perfil ya cargado para evitar el flash. Solo vaciamos si cambia el usuario.
         if (mounted) {
-          setState((prev: AuthState) => ({
-            ...prev,
-            session,
-            user: session?.user ?? null,
-            profile: session?.user?.id === prev.user?.id ? prev.profile : null,
-            isLoading: false,
-          }));
+          setState((prev: AuthState) => {
+            const sameUser = !!session?.user && session.user.id === prev.user?.id;
+            return {
+              ...prev,
+              session,
+              user: session?.user ?? null,
+              profile:      sameUser ? prev.profile      : null,
+              isSuperAdmin: sameUser ? prev.isSuperAdmin : false,
+              isLoading: false,
+            };
+          });
         }
 
         // Recargar perfil solo si no lo teníamos o cambió el usuario
@@ -112,11 +131,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             return;
           }
 
+          // Sin profile → puede ser superadmin (no pertenece a ningún firm).
+          // Si tampoco es superadmin, la cuenta no está vinculada a nada y
+          // cerramos sesión.
+          let isSuperAdmin = false;
+          if (!profile) {
+            isSuperAdmin = await checkSuperAdmin();
+            if (!mounted) return;
+            if (!isSuperAdmin) {
+              await supabase.auth.signOut();
+              safeSetState(emptyState);
+              return;
+            }
+          }
+
           setState(prev => ({
             ...prev,
             session,
             user: session.user,
             profile,
+            isSuperAdmin,
             mustChangePassword: profile?.mustChangePassword ?? false,
             isLoading: false,
           }));
@@ -189,12 +223,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) return { error: error.message };
 
-      // Verificar is_active antes de permitir el acceso
+      // Verificar profile / superadmin antes de permitir el acceso
       if (data.user) {
         const profile = await fetchProfile(data.user.id);
         if (profile && !profile.isActive) {
           await supabase.auth.signOut();
           return { error: 'Tu cuenta fue desactivada. Contactá al administrador del estudio.' };
+        }
+
+        if (!profile) {
+          const isSuperAdmin = await checkSuperAdmin();
+          if (!isSuperAdmin) {
+            await supabase.auth.signOut();
+            return { error: 'Tu cuenta no está vinculada a ningún estudio.' };
+          }
         }
       }
 

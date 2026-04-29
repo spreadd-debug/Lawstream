@@ -25,6 +25,7 @@ import { ConfiguracionPage } from './pages/ConfiguracionPage';
 import { ReportesPage }     from './pages/ReportesPage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { ChangePasswordPage } from './pages/ChangePasswordPage';
+import { SuperAdminPanel } from './components/SuperAdminPanel';
 
 export default function App() {
   return (
@@ -38,6 +39,10 @@ export default function App() {
         <Route element={<PrivateRoute />}>
           {/* Cambio de password obligatorio (primer login) */}
           <Route path="/cambiar-password" element={<ChangePasswordPage />} />
+
+          {/* Panel del superadmin de plataforma — fuera del AppLayout del estudio */}
+          <Route path="/admin" element={<SuperAdminPanel />} />
+
           <Route element={<AppLayout />}>
             <Route index element={<Navigate to="/hoy" replace />} />
             <Route path="/hoy"             element={<HoyPage />} />
