@@ -117,6 +117,11 @@ export const BienesPanel: React.FC<BienesPanelProps> = ({ matterId }) => {
   const [valuacionesOpen, setValuacionesOpen] = useState<Bien | null>(null);
   const [sociedadFormOpen, setSociedadFormOpen] = useState(false);
   const [sociedadEditing,  setSociedadEditing]  = useState<SociedadInterpuesta | null>(null);
+  // GAP UX-20: cuando el form de bien dispara "+ Nueva sociedad", el panel
+  // abre el SociedadForm encima sin cerrar el BienForm. Al guardar, se setea
+  // este state para que BienForm pre-seleccione la sociedad recién creada.
+  const [nuevaSociedadParaBien, setNuevaSociedadParaBien] = useState<string | null>(null);
+  const [creandoSociedadDesdeBien, setCreandoSociedadDesdeBien] = useState(false);
 
   const openNewActivo  = () => { setBienFormNaturaleza('activo');  setBienEditing(null); setBienFormOpen(true); };
   const openNewPasivo  = () => { setBienFormNaturaleza('pasivo');  setBienEditing(null); setBienFormOpen(true); };
@@ -202,7 +207,7 @@ export const BienesPanel: React.FC<BienesPanelProps> = ({ matterId }) => {
             <div>
               <h3 className="text-sm font-black uppercase tracking-widest text-foreground">Pasivos</h3>
               <p className="text-[11px] text-muted-foreground">
-                Deudas: tarjetas, préstamos, hipotecas, moratorias fiscales.
+                Deudas: tarjetas, préstamos, hipotecas, moratorias fiscales. Click en el saldo para trackear evolución (los pasivos cambian de monto en el tiempo).
               </p>
             </div>
           </div>
@@ -276,6 +281,13 @@ export const BienesPanel: React.FC<BienesPanelProps> = ({ matterId }) => {
         editing={bienEditing}
         naturaleza={bienFormNaturaleza}
         sociedades={sociedadesDelMatter}
+        nuevaSociedadIdSugerida={nuevaSociedadParaBien}
+        onConsumirSociedadSugerida={() => setNuevaSociedadParaBien(null)}
+        onCreateSociedadInline={() => {
+          setSociedadEditing(null);
+          setCreandoSociedadDesdeBien(true);
+          setSociedadFormOpen(true);
+        }}
         onClose={() => setBienFormOpen(false)}
         onSave={async (data) => {
           if (bienEditing) {
@@ -302,14 +314,26 @@ export const BienesPanel: React.FC<BienesPanelProps> = ({ matterId }) => {
       <SociedadForm
         isOpen={sociedadFormOpen}
         editing={sociedadEditing}
-        onClose={() => setSociedadFormOpen(false)}
+        onClose={() => {
+          setSociedadFormOpen(false);
+          setCreandoSociedadDesdeBien(false);
+        }}
         onSave={async (data) => {
           if (sociedadEditing) {
             await handleUpdateSociedadInterpuesta(sociedadEditing.id, data);
+            setSociedadFormOpen(false);
+            setCreandoSociedadDesdeBien(false);
           } else {
-            await handleCreateSociedadInterpuesta({ ...data, matterId } as Omit<SociedadInterpuesta, 'id' | 'createdAt' | 'updatedAt'>);
+            const creada = await handleCreateSociedadInterpuesta({ ...data, matterId } as Omit<SociedadInterpuesta, 'id' | 'createdAt' | 'updatedAt'>);
+            // GAP UX-20: si la creación viene del flujo de carga del bien,
+            // pasamos el id al BienForm para que pre-seleccione la sociedad
+            // sin que el usuario tenga que volver a buscarla en el dropdown.
+            if (creandoSociedadDesdeBien) {
+              setNuevaSociedadParaBien(creada.id);
+            }
+            setSociedadFormOpen(false);
+            setCreandoSociedadDesdeBien(false);
           }
-          setSociedadFormOpen(false);
         }}
       />
     </div>
@@ -506,10 +530,13 @@ const BienCard: React.FC<{
           </div>
 
           <div className="flex items-center gap-3 flex-wrap text-[11px]">
+            {/* GAP UX-21: ícono explícito de "histórico" pegado al monto +
+                texto en hover para reforzar el affordance. El botón con el
+                monto sigue siendo clickable y abre el modal de valuaciones. */}
             <button
               onClick={onOpenValuaciones}
-              className="inline-flex items-center gap-1 text-foreground hover:text-emerald-700 font-bold"
-              title="Ver / agregar valuaciones"
+              className="inline-flex items-center gap-1 text-foreground hover:text-emerald-700 font-bold border-b border-dashed border-transparent hover:border-emerald-700/40 transition-colors"
+              title="Ver / agregar valuaciones históricas"
             >
               <Coins size={11} className="text-muted-foreground" />
               {formatMoneda(b.valorActual, b.monedaActual)}
@@ -523,11 +550,16 @@ const BienCard: React.FC<{
                   {variacionTxt}
                 </span>
               )}
+              <TrendingUp size={11} className="ml-0.5 text-emerald-600/80" />
             </button>
             {tieneHistorico && (
-              <span className="text-muted-foreground italic">
+              <button
+                onClick={onOpenValuaciones}
+                className="text-muted-foreground italic hover:text-foreground transition-colors"
+                title="Ver / agregar valuaciones históricas"
+              >
                 · {valuaciones.length} valuación{valuaciones.length === 1 ? '' : 'es'} registrada{valuaciones.length === 1 ? '' : 's'}
-              </span>
+              </button>
             )}
             {b.titularDetalle && (
               <span className="text-muted-foreground italic">· {b.titularDetalle}</span>
@@ -642,11 +674,17 @@ interface BienFormProps {
   editing: Bien | null;
   naturaleza: BienNaturaleza;
   sociedades: SociedadInterpuesta[];
+  // GAP UX-20: cuando el usuario crea una sociedad desde adentro del form
+  // de bien, el panel ofrece la id de la sociedad recién creada para que
+  // se pre-seleccione automáticamente.
+  nuevaSociedadIdSugerida?: string | null;
+  onConsumirSociedadSugerida?: () => void;
+  onCreateSociedadInline?: () => void;
   onClose: () => void;
   onSave: (data: Partial<Bien>) => Promise<void>;
 }
 
-const BienForm: React.FC<BienFormProps> = ({ isOpen, editing, naturaleza, sociedades, onClose, onSave }) => {
+const BienForm: React.FC<BienFormProps> = ({ isOpen, editing, naturaleza, sociedades, nuevaSociedadIdSugerida, onConsumirSociedadSugerida, onCreateSociedadInline, onClose, onSave }) => {
   const opts = naturaleza === 'activo' ? TIPO_ACTIVO_OPTS : TIPO_PASIVO_OPTS;
   const [tipo, setTipo]                       = useState<BienTipo>(opts[0]);
   const [descripcion, setDescripcion]         = useState('');
@@ -677,6 +715,14 @@ const BienForm: React.FC<BienFormProps> = ({ isOpen, editing, naturaleza, socied
     setObservaciones(editing?.observaciones ?? '');
     setNotas(editing?.notas ?? '');
   }, [isOpen, editing]);
+
+  // GAP UX-20: cuando vuelve el id de la sociedad recién creada, lo
+  // pre-seleccionamos y notificamos al panel que lo limpie.
+  React.useEffect(() => {
+    if (!isOpen || !nuevaSociedadIdSugerida) return;
+    setSociedadId(nuevaSociedadIdSugerida);
+    onConsumirSociedadSugerida?.();
+  }, [isOpen, nuevaSociedadIdSugerida, onConsumirSociedadSugerida]);
 
   const puedeGuardar = descripcion.trim().length > 0;
 
@@ -803,19 +849,40 @@ const BienForm: React.FC<BienFormProps> = ({ isOpen, editing, naturaleza, socied
           </div>
         </div>
 
-        {naturaleza === 'activo' && sociedades.length > 0 && (
+        {/* GAP UX-20: el dropdown aparece siempre (incluso si no hay
+            sociedades) para que el botón "+ Nueva sociedad" sea visible
+            sin tener que salir del flujo de carga del bien. */}
+        {naturaleza === 'activo' && (
           <div>
             <Label>Sociedad interpuesta (opcional)</Label>
-            <select value={sociedadId} onChange={e => setSociedadId(e.target.value)} className="w-full h-10 px-3 bg-muted/50 border border-border/50 rounded-xl text-sm font-bold">
-              <option value="">Sin sociedad — titularidad directa</option>
-              {sociedades.map(s => (
-                <option key={s.id} value={s.id}>
-                  {s.denominacion}{s.jurisdiccion ? ` (${s.jurisdiccion})` : ''}
-                </option>
-              ))}
-            </select>
+            <div className="flex items-center gap-2">
+              <select
+                value={sociedadId}
+                onChange={e => setSociedadId(e.target.value)}
+                className="flex-1 h-10 px-3 bg-muted/50 border border-border/50 rounded-xl text-sm font-bold"
+              >
+                <option value="">Sin sociedad — titularidad directa</option>
+                {sociedades.map(s => (
+                  <option key={s.id} value={s.id}>
+                    {s.denominacion}{s.jurisdiccion ? ` (${s.jurisdiccion})` : ''}
+                  </option>
+                ))}
+              </select>
+              {onCreateSociedadInline && (
+                <button
+                  type="button"
+                  onClick={onCreateSociedadInline}
+                  className="shrink-0 inline-flex items-center gap-1 h-10 px-3 rounded-xl border border-violet-500/40 bg-violet-500/5 text-violet-700 hover:bg-violet-500/10 text-[11px] font-bold transition-colors"
+                  title="Crear sociedad nueva sin salir de este formulario"
+                >
+                  <Plus size={12} /> Nueva
+                </button>
+              )}
+            </div>
             <p className="text-[10px] text-muted-foreground italic mt-1">
-              Si el bien no está a nombre directo del titular sino de una sociedad, marcalo acá.
+              {sociedades.length === 0
+                ? 'No hay sociedades cargadas. Si el bien está a nombre de una sociedad, creala con "+ Nueva".'
+                : 'Si el bien no está a nombre directo del titular sino de una sociedad, marcala acá.'}
             </p>
           </div>
         )}

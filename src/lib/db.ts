@@ -2799,6 +2799,7 @@ const toHijoCaso = (r: any): HijoCaso => ({
   residenciaPrincipal:    r.residencia_principal    ?? undefined,
   regimenComunicacion:    r.regimen_comunicacion    ?? undefined,
   motivoRegimenDistinto:  r.motivo_regimen_distinto ?? undefined,
+  transicion18Gestionada: r.transicion_18_gestionada ?? false,
   orden:                  r.orden ?? 0,
   notas:                  r.notas      ?? undefined,
   createdBy:              r.created_by ?? undefined,
@@ -2819,11 +2820,12 @@ const hijoCasoToRow = (h: Partial<HijoCaso>): Record<string, unknown> => {
   if (h.terapiasDesc           !== undefined) row.terapias_desc           = h.terapiasDesc           ?? null;
   if (h.acompananteTerapeutico !== undefined) row.acompanante_terapeutico = h.acompananteTerapeutico ?? null;
   if (h.coberturaEspecial      !== undefined) row.cobertura_especial      = h.coberturaEspecial      ?? null;
-  if (h.regimenCuidado         !== undefined) row.regimen_cuidado         = h.regimenCuidado         ?? null;
-  if (h.residenciaPrincipal    !== undefined) row.residencia_principal    = h.residenciaPrincipal    ?? null;
-  if (h.regimenComunicacion    !== undefined) row.regimen_comunicacion    = h.regimenComunicacion    ?? null;
-  if (h.motivoRegimenDistinto  !== undefined) row.motivo_regimen_distinto = h.motivoRegimenDistinto  ?? null;
-  if (h.orden                  !== undefined) row.orden                   = h.orden;
+  if (h.regimenCuidado         !== undefined) row.regimen_cuidado          = h.regimenCuidado         ?? null;
+  if (h.residenciaPrincipal    !== undefined) row.residencia_principal     = h.residenciaPrincipal    ?? null;
+  if (h.regimenComunicacion    !== undefined) row.regimen_comunicacion     = h.regimenComunicacion    ?? null;
+  if (h.motivoRegimenDistinto  !== undefined) row.motivo_regimen_distinto  = h.motivoRegimenDistinto  ?? null;
+  if (h.transicion18Gestionada !== undefined) row.transicion_18_gestionada = h.transicion18Gestionada;
+  if (h.orden                  !== undefined) row.orden                    = h.orden;
   if (h.notas                  !== undefined) row.notas                   = h.notas      ?? null;
   if (h.createdBy              !== undefined) row.created_by              = h.createdBy  ?? null;
   return row;

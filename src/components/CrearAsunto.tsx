@@ -1317,8 +1317,51 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
                 <div className="space-y-4">
                   <Label>Próxima Acción Inicial</Label>
                   <div className="space-y-4">
-                    <Input 
-                      placeholder="¿Qué es lo primero que hay que hacer?" 
+                    {/* GAP UX-8: chips de sugerencia. La primera viene del
+                        template (`proximaAccionSugerida`) — específica del
+                        subtype/jurisdicción. Las demás son acciones genéricas
+                        que aplican a casi cualquier inicio de matter. Click
+                        rellena el input. */}
+                    {(() => {
+                      const sugerencias: string[] = [];
+                      if (activeTemplate?.proximaAccionSugerida) {
+                        sugerencias.push(activeTemplate.proximaAccionSugerida);
+                      }
+                      sugerencias.push(
+                        'Estudiar expediente y documentación',
+                        'Agendar entrevista de seguimiento',
+                        'Solicitar IUS y bono CPACF',
+                      );
+                      const unicas = Array.from(new Set(sugerencias));
+                      return (
+                        <div className="flex flex-wrap gap-1.5">
+                          <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-muted-foreground">
+                            <Zap size={10} className="text-primary" />
+                            Sugerencias:
+                          </span>
+                          {unicas.map(s => {
+                            const isActive = formData.nextAction === s;
+                            return (
+                              <button
+                                key={s}
+                                type="button"
+                                onClick={() => setFormData(prev => ({ ...prev, nextAction: s }))}
+                                className={cn(
+                                  'inline-flex items-center px-2 py-0.5 rounded-md border text-[10px] font-bold transition-colors',
+                                  isActive
+                                    ? 'border-primary bg-primary/15 text-primary'
+                                    : 'border-border/60 bg-card hover:border-primary/40 hover:bg-primary/5 text-foreground/80',
+                                )}
+                              >
+                                {s}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
+                    <Input
+                      placeholder="¿Qué es lo primero que hay que hacer?"
                       className="bg-muted/30 border-border/50 font-bold h-12"
                       value={formData.nextAction}
                       onChange={e => setFormData({...formData, nextAction: e.target.value})}
@@ -1327,7 +1370,7 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
                       <Label className="text-[9px]">Fecha de Seguimiento</Label>
                       <div className="relative">
                         <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
-                        <Input 
+                        <Input
                           type="date"
                           className="pl-10 bg-muted/30 border-border/50 font-bold h-12"
                           value={formData.nextActionDate}
@@ -1955,7 +1998,12 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
                     )}
                   </div>
 
-                  {activeTemplate && (
+                  {/* GAP UX-4: el workflow solo se considera "activo" cuando
+                      el usuario también eligió Materia (subtype). Antes el
+                      panel decía "Workflow activo: Divorcio (CABA), 6 etapas"
+                      apenas elegías tipo + jurisdicción, sugiriendo que la
+                      decisión estaba tomada cuando todavía falta la materia. */}
+                  {activeTemplate && formData.subtype ? (
                     <div className="p-2.5 rounded-xl bg-primary/5 border border-primary/20 animate-in fade-in zoom-in-95 duration-300">
                       <div className="flex items-center gap-2">
                         <Zap size={12} className="text-primary fill-primary" />
@@ -1966,7 +2014,17 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
                         <div className="text-[9px] text-muted-foreground mt-0.5">{activeTemplate.stages.length} etapas</div>
                       )}
                     </div>
-                  )}
+                  ) : (formData.type && (
+                    <div className="p-2.5 rounded-xl bg-muted/40 border border-border/40">
+                      <div className="flex items-center gap-2">
+                        <Zap size={12} className="text-muted-foreground/50" />
+                        <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Workflow no determinado</span>
+                      </div>
+                      <div className="text-[10px] text-muted-foreground/80 mt-1">
+                        Elegí Materia para activar el workflow.
+                      </div>
+                    </div>
+                  ))}
 
                   <div className="flex items-center gap-3">
                     <div className="flex-1 space-y-1">

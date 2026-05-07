@@ -30,6 +30,21 @@ interface MutarDivorcioModalProps {
   onClose: () => void;
 }
 
+// GAP UX-26: agrupa items por etapa preservando el orden de aparición.
+// Las etapas vacías van al final con label "Sin etapa".
+function agruparPorEtapa<T extends { etapa?: string; title: string; key: string }>(
+  items: T[],
+): Array<{ etapa: string; items: T[] }> {
+  const buckets = new Map<string, T[]>();
+  for (const it of items) {
+    const k = it.etapa || 'Sin etapa';
+    const arr = buckets.get(k);
+    if (arr) arr.push(it);
+    else buckets.set(k, [it]);
+  }
+  return Array.from(buckets.entries()).map(([etapa, items]) => ({ etapa, items }));
+}
+
 type TipoDivorcio = 'Unilateral' | 'De común acuerdo' | 'Por definir';
 
 const TIPO_OPUESTO: Record<string, 'Unilateral' | 'De común acuerdo'> = {
@@ -197,20 +212,26 @@ export const MutarDivorcioModal: React.FC<MutarDivorcioModalProps> = ({ isOpen, 
             </div>
           )}
 
+          {/* GAP UX-26: agrupamos por etapa para que el usuario lea más rápido
+              cuando hay 8+ tareas. Cada grupo arranca con sub-header. */}
           {preview.aCancelar.length > 0 && (
-            <div className="rounded-xl border border-rose-500/30 bg-rose-500/5 p-3 space-y-2">
+            <div className="rounded-xl border border-rose-500/30 bg-rose-500/5 p-3 space-y-2.5">
               <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-widest text-rose-700">
                 <XCircle size={14} />
                 Se cancelarán {preview.aCancelar.length} tarea{preview.aCancelar.length === 1 ? '' : 's'} pendiente{preview.aCancelar.length === 1 ? '' : 's'}
               </div>
-              <ul className="space-y-0.5 text-[12px] text-foreground/90">
-                {preview.aCancelar.map(t => (
-                  <li key={t.id}>
-                    <span className="text-muted-foreground">[{t.etapa || 'sin etapa'}]</span>{' '}
-                    {t.title}
-                  </li>
-                ))}
-              </ul>
+              {agruparPorEtapa(preview.aCancelar.map(t => ({ etapa: t.etapa, title: t.title, key: t.id }))).map(g => (
+                <div key={`cancel-${g.etapa}`} className="space-y-0.5">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-rose-600/80">
+                    {g.etapa} · {g.items.length}
+                  </div>
+                  <ul className="space-y-0.5 text-[12px] text-foreground/90 pl-2">
+                    {g.items.map(it => (
+                      <li key={it.key}>· {it.title}</li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
               <p className="text-[10px] text-muted-foreground italic">
                 Las tareas <strong>completadas</strong> de la rama anterior no se tocan — quedan como historia.
               </p>
@@ -218,19 +239,23 @@ export const MutarDivorcioModal: React.FC<MutarDivorcioModalProps> = ({ isOpen, 
           )}
 
           {preview.aCrear.length > 0 && (
-            <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3 space-y-2">
+            <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3 space-y-2.5">
               <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-widest text-emerald-700">
                 <CheckCircle2 size={14} />
                 Se crearán {preview.aCrear.length} tarea{preview.aCrear.length === 1 ? '' : 's'} nueva{preview.aCrear.length === 1 ? '' : 's'}
               </div>
-              <ul className="space-y-0.5 text-[12px] text-foreground/90">
-                {preview.aCrear.map((t, idx) => (
-                  <li key={`${t.etapa}-${t.title}-${idx}`}>
-                    <span className="text-muted-foreground">[{t.etapa || 'sin etapa'}]</span>{' '}
-                    {t.title}
-                  </li>
-                ))}
-              </ul>
+              {agruparPorEtapa(preview.aCrear.map((t, idx) => ({ etapa: t.etapa, title: t.title, key: `${t.etapa}-${t.title}-${idx}` }))).map(g => (
+                <div key={`crear-${g.etapa}`} className="space-y-0.5">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-700/80">
+                    {g.etapa} · {g.items.length}
+                  </div>
+                  <ul className="space-y-0.5 text-[12px] text-foreground/90 pl-2">
+                    {g.items.map(it => (
+                      <li key={it.key}>· {it.title}</li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
             </div>
           )}
         </div>

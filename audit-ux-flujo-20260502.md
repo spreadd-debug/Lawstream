@@ -45,10 +45,10 @@
 **Categoría:** Wizard de creación.
 **Recomendación:** cuando `tipo_divorcio === 'De común acuerdo'`, mover el sub-bloque "Datos básicos del Cónyuge 2" (nombre + DNI + domicilio) al Step 1 al lado del cliente principal. Datos laborales y abogado contrario quedan en Step 2.
 
-### UX-4: "Resumen en vivo" lateral muestra workflow antes de elegir Materia
+### UX-4: "Resumen en vivo" lateral muestra workflow antes de elegir Materia — RESUELTO 2026-05-07
 **Descripción:** el panel lateral derecho dice "Workflow activo: Divorcio (CABA), 6 etapas" en cuanto seleccionás tipo + jurisdicción, ANTES de que toques el botón "Divorcio" en Materia. Sugiere que ya elegiste cuando no.
 **Situación que lo revela:** snapshot del DOM durante test E2E lo evidencia.
-**Estado actual:** [src/components/CrearAsunto.tsx:1500](src/components/CrearAsunto.tsx) — sidebar de resumen.
+**Estado actual:** RESUELTO — el panel "Workflow activo" en [src/components/CrearAsunto.tsx](src/components/CrearAsunto.tsx) ahora se gatea por `activeTemplate && formData.subtype`. Hasta que el usuario elija Materia se muestra un placeholder gris "Workflow no determinado · Elegí Materia para activar el workflow" con ícono apagado. Cuando elige subtype, el bloque cambia a primary con animación fade-in/zoom y el nombre del template + cantidad de etapas. Sin formData.type tampoco se renderiza el placeholder (no hay nada útil que decir).
 **Criticidad:** MEDIA.
 **Frecuencia:** universal en cada creación.
 **Categoría:** Wizard de creación.
@@ -81,10 +81,10 @@
 **Categoría:** Wizard de creación.
 **Recomendación:** distinguir `required` de **bloqueante para avanzar** vs **bloqueante para presentar**. Solo 4-5 campos críticos (cónyuges, tipo de divorcio, jurisdicción) deben bloquear el wizard. El resto se completa después desde la ficha de Instrucción.
 
-### UX-8: Step "Operatividad" pide próxima acción que en divorcio se sabe del template
+### UX-8: Step "Operatividad" pide próxima acción que en divorcio se sabe del template — RESUELTO 2026-05-07
 **Descripción:** el Step 3 (Operatividad) pide "Próxima Acción Inicial" como input libre. Pero el template ya tiene `proximaAccionSugerida: 'Solicitar acta de matrimonio actualizada al Registro Civil'`. La app la pre-completa pero el usuario tiene que confirmar.
 **Situación que lo revela:** en divorcio bilateral la primera acción es típicamente "Verificar datos del matrimonio" o "Solicitar acta" — muy estándar.
-**Estado actual:** [src/components/CrearAsunto.tsx:1015-1019](src/components/CrearAsunto.tsx) — input libre con default del template.
+**Estado actual:** RESUELTO — agregada fila de chips "Sugerencias" arriba del input "Próxima Acción Inicial" en [src/components/CrearAsunto.tsx](src/components/CrearAsunto.tsx). La primera chip viene del template activo (`proximaAccionSugerida`) y es específica del subtype/jurisdicción ("Solicitar acta de matrimonio…", "Recopilar recibos…", etc.). Las siguientes son genéricas que aplican a cualquier matter ("Estudiar expediente y documentación", "Agendar entrevista de seguimiento", "Solicitar IUS y bono CPACF"). Click rellena el input — si el valor coincide la chip se pinta primary. El input libre se mantiene como fallback para casos atípicos.
 **Criticidad:** BAJA.
 **Frecuencia:** universal.
 **Categoría:** Wizard de creación.
@@ -103,41 +103,41 @@
 **Categoría:** Cabecera del matter.
 **Recomendación:** introducir un "centro de alertas" colapsado por default (botón rojo "4 alertas" arriba a la derecha) que se abre como panel lateral con los banners categorizados (procesales / patrimoniales / familiares). Solo el más crítico queda visible permanentemente.
 
-### UX-10: Banner de "cumple 18" se muestra para hijos de cualquier hijo del matter sin diferenciar criticidad
+### UX-10: Banner de "cumple 18" se muestra para hijos de cualquier hijo del matter sin diferenciar criticidad — RESUELTO 2026-05-07
 **Descripción:** el banner amber R3 dispara igual cuando un hijo cumple 18 en 89 días que cuando cumplió ayer. La urgencia es distinta. Tampoco distingue si el caso ya está en ejecución (donde el cumple-18 puede ser irrelevante para los regímenes pasados).
-**Estado actual:** [src/lib/hijosTransicion.ts](src/lib/hijosTransicion.ts) — un solo umbral por default 90.
+**Estado actual:** RESUELTO — [src/components/MatterDetail.tsx](src/components/MatterDetail.tsx) calcula `transicionMayoriaSeveridad`: `'critica'` si hay alguno con `recienCumplio18` (ya cumplió) o `proximosCumplir.diasRestantes ≤ 30`; `'media'` para 31-90 días. El banner cambia de amber a rojo en el caso crítico (border, fondo, ícono y CTA). Por item: el chip de "en N días" se pinta rojo individualmente cuando ese hijo es crítico. La línea de "cumplió 18 hace N días" siempre va en rojo. Adicionalmente: si `matter.status === 'Cerrado' || 'Archivado'`, `hayTransicionMayoria` se evalúa en false y el banner desaparece. El resumen colapsado UX-9 escala su severidad/tono también.
 **Criticidad:** BAJA.
 **Frecuencia:** ocasional.
 **Categoría:** Cabecera del matter.
 **Recomendación:** colorear el banner según urgencia (rojo si <30 días, amber 30-90, gris >90). Si el matter está en estado `Cerrado` o `Archivado`, ocultar el banner.
 
-### UX-11: Banner de violencia familiar no diferencia entre "vigente" y "vencida"
+### UX-11: Banner de violencia familiar no diferencia entre "vigente" y "vencida" — RESUELTO 2026-05-07
 **Descripción:** el banner sí distingue medida vencida con un sub-badge, pero la prominencia visual es la misma. Una medida vencida implica acción urgente (renovar) pero el banner se ve igual de "presente" que una vigente.
-**Estado actual:** [src/components/MatterDetail.tsx:405-440](src/components/MatterDetail.tsx) — mismo estilo rojo, badge chico "vencida".
+**Estado actual:** RESUELTO — [src/components/MatterDetail.tsx](src/components/MatterDetail.tsx) ahora calcula `diasDesdeVencimientoMedida` y bifurca el estilo del banner: vencida → rojo crítico (`border-2 border-rose-600/60 ring-1 bg-rose-500/15`), header "Renovar medida — vencida hace X días", botón rojo "Renovar medida" que abre el editor del matter; vigente → tono amber/informativo (`bg-amber-500/10 border-amber-500/40`), sin CTA. La línea de fecha también cambia ("Vencida el" vs "Vigencia hasta") y se pinta rojo cuando aplica. El resumen colapsado UX-9 escala a 'critica' cuando vencida y cambia el chip a "Violencia (vencida)".
 **Criticidad:** MEDIA.
 **Frecuencia:** 10-15% en casos con violencia previa.
 **Categoría:** Cabecera del matter.
 **Recomendación:** banner rojo con call-to-action explícito si está vencida ("Renovar medida — vencida hace X días"). Banner ámbar (informativo) si está vigente.
 
-### UX-12: Tab "Hijos" solo aparece si `type === 'Familia'` pero no en sub-procesos de Familia
+### UX-12: Tab "Hijos" solo aparece si `type === 'Familia'` pero no en sub-procesos de Familia — RESUELTO 2026-05-07
 **Descripción:** un incidente de aumento de cuota (sub-proceso del divorcio) hereda lógicamente el contexto Familia. El código sí lo considera con `parentMatter?.type === 'Familia'`, pero la UI puede no mostrar el tab en otros sub-procesos donde el matter parent es Familia pero el sub-proceso es de otra naturaleza.
-**Estado actual:** [src/components/MatterDetail.tsx](src/components/MatterDetail.tsx) — `esFamilia` derivado.
+**Estado actual:** RESUELTO — `esFamilia` en [src/components/MatterDetail.tsx](src/components/MatterDetail.tsx) ahora hace walk completo del parent chain hasta encontrar uno con `type === 'Familia'`, con guard `Set` para ciclos. Fallback adicional: si el matter tiene `parentMatterId` setteado (sub-proceso) y el `incidenteTipo` pertenece al universo familiar (`alimentos_provisorios`, `tenencia_cautelar`, `exclusion_hogar`, `autorizacion_viaje`), se considera Familia incluso cuando el cache aún no resolvió el padre. Esto evita que el tab desaparezca por race conditions o por sub-procesos con type heredado distinto.
 **Criticidad:** BAJA.
 **Frecuencia:** ocasional.
 **Categoría:** Cabecera del matter.
 **Recomendación:** validar la lógica con un test específico del sub-proceso "incidente de aumento" del Ruiz/Colombo.
 
-### UX-13: Botón "Mutar tipo" solo visible para divorcio CABA/PBA
+### UX-13: Botón "Mutar tipo" solo visible para divorcio CABA/PBA — RESUELTO 2026-05-07 (decisión de diseño)
 **Descripción:** el botón está condicionado a `flowTemplateId === 'fam-divorcio' || 'fam-divorcio-pba'`. Pero conceptualmente el `tipo_divorcio` también podría querer mutarse en otros templates (filiación contenciosa → consensual, alimentos provisorios → definitivos). La feature está atada a un nombre de template hardcodeado.
-**Estado actual:** [src/components/MatterDetail.tsx:151-153](src/components/MatterDetail.tsx) — hardcoded.
+**Estado actual:** RESUELTO (decisión de diseño) — agregado comentario explícito en [src/components/MatterDetail.tsx](src/components/MatterDetail.tsx) donde está la condición `esDivorcioPrincipal`. Se mantiene hardcodeado a `fam-divorcio` / `fam-divorcio-pba` porque hoy son los únicos templates con flow bifurcado por un campo de `caseData`. Cuando aparezca un segundo template de naturaleza similar (filiación contenciosa↔consensual, alimentos provisorios↔definitivos), el plan documentado es introducir un metadato `flowBifurcable` en el template y reemplazar el `||` por una lookup. Mientras tanto el alcance acotado evita falsos positivos. Audit cerrado con anotación.
 **Criticidad:** BAJA (por ahora).
 **Frecuencia:** todo divorcio (alto en ese subset).
 **Categoría:** Cabecera del matter.
 **Recomendación:** dejar como está hoy (es preciso para el alcance), pero anotar que cuando aparezca un segundo template con flow bifurcado, refactorizar la condición.
 
-### UX-14: Acciones en el header (Mutar tipo, Editar Caso, Nueva Acción) no tienen jerarquía clara
+### UX-14: Acciones en el header (Mutar tipo, Editar Caso, Nueva Acción) no tienen jerarquía clara — RESUELTO 2026-05-07
 **Descripción:** los 3 botones del header tienen estilos distintos pero similares en altura/peso visual (dos outline + uno primary). El "Nueva Acción" es la acción más frecuente; "Mutar tipo" es excepcional. Visualmente compiten.
-**Estado actual:** [src/components/MatterDetail.tsx:557-573](src/components/MatterDetail.tsx).
+**Estado actual:** RESUELTO — header reorganizado en [src/components/MatterDetail.tsx](src/components/MatterDetail.tsx) con jerarquía explícita: (1) **"Nueva Acción"** queda primary prominente con shadow (acción más frecuente), (2) **"Editar Caso"** outline neutro secundario, (3) **"Mutar tipo de divorcio"** + **"Archivar caso"** pasaron a un menú overflow `⋯` (`<details>` nativo, sin polyfills), (4) excepción out-of-menu: "Definir tipo" cuando `tipo_divorcio === 'Por definir'` (decisión estructural pendiente, prominente violeta) y "Deshacer mutación" en ventana de 24h (border ámbar, alta visibilidad). El menú overflow no se renderiza si no hay opciones aplicables.
 **Criticidad:** BAJA.
 **Frecuencia:** universal.
 **Categoría:** Cabecera del matter.
@@ -156,26 +156,26 @@
 **Categoría:** Tab Hijos.
 **Recomendación:** botón secundario "Guardar y agregar otro" que mantenga el modal abierto pero limpie campos. Útil también para conceptos en especie.
 
-### UX-16: Régimen propio del hijo es un override, pero la UI no muestra cuál es el "régimen general" para comparar
+### UX-16: Régimen propio del hijo es un override, pero la UI no muestra cuál es el "régimen general" para comparar — RESUELTO 2026-05-07
 **Descripción:** al cargar el régimen propio de Olivia (TEA) hay que pensar "esto es distinto al régimen general" pero la UI no muestra cuál es el régimen general activo. El usuario tiene que recordar o ir al tab Flujo a buscarlo.
-**Estado actual:** [src/components/HijosPanel.tsx](src/components/HijosPanel.tsx) — sección "Régimen propio" del form sin contexto del global.
+**Estado actual:** RESUELTO — [src/components/HijosPanel.tsx](src/components/HijosPanel.tsx) ahora extrae `regimenGeneral` del `caseData` del matter raíz (`tipo_cuidado`, `residencia_principal`, `regimen_comunicacion`, `regimen_vacaciones`) y lo pasa al `HijoForm`. Arriba del bloque "Régimen propio del hijo" se renderiza un mini-card con border `bg-muted/20` mostrando los cuatro valores del régimen general como referencia, con hint "Dejá los campos en blanco para que este hijo siga el régimen general. Cargá solo lo que difiere." Si el régimen general no está cargado, no se muestra nada (no hay regreso vacío).
 **Criticidad:** MEDIA.
 **Frecuencia:** 30% de divorcios con 2+ hijos.
 **Categoría:** Tab Hijos.
 **Recomendación:** mostrar arriba del form de régimen propio un mini-resumen "Régimen general del caso: Compartido alternado · Comunicación: una semana con cada progenitor" como referencia.
 
-### UX-17: La info de "salud y terapias" tiene un campo `terapias_desc` en textarea
+### UX-17: La info de "salud y terapias" tiene un campo `terapias_desc` en textarea — RESUELTO 2026-05-07
 **Descripción:** el detalle de terapias se escribe libre. Para Olivia: "TO con Lic. Pérez 2x/sem $280k; Fonoaudiología 1x/sem $150k; AT escolar 4hs/día $250k". Después en R13 (cuotas alimentarias) hay que cargar de nuevo cada uno como concepto en especie. Doble entrada del mismo dato.
 **Situación que lo revela:** Ruiz/Colombo — terapias de Olivia se cargan en hijos.terapias_desc Y como conceptos en especie.
-**Estado actual:** [src/components/HijosPanel.tsx](src/components/HijosPanel.tsx) y [src/components/CuotasAlimentariasPanel.tsx](src/components/CuotasAlimentariasPanel.tsx).
+**Estado actual:** RESUELTO — agregado parser heurístico `parseTerapiasDesc()` en [src/components/CuotasAlimentariasPanel.tsx](src/components/CuotasAlimentariasPanel.tsx) que separa por `;` o salto de línea y extrae monto (con soporte de `$`, `U$S`/`USD`, `€`/`EUR`, sufijo `k`/`mil`), moneda, frecuencia (`mensual` default; detecta `anual`, `semestral`, `trimestral`, `quincenal`) y prestador (regex sobre `con Lic./Dr./Dra./Prof. <Apellido>`). Cada `CuotaCard` ahora tiene un botón rosa "Importar terapias" al lado de "+ Concepto", visible solo cuando hay al menos un hijo con `terapiasDesc`. Click abre `<ImportarTerapiasModal>` que: (1) lista los items parseados agrupados por hijo, (2) cada item es editable inline (concepto, monto, moneda, frecuencia) con checkbox, (3) muestra el prestador detectado como hint, (4) al confirmar, batch-crea los `cuotaConceptosEspecie` con `categoria: 'terapia'`, `pagador: 'obligado_directo'`, `hijoId` linkeado al hijo origen, en la cuota destino. Aclaración prominente: el parser es heurístico, el usuario revisa cada fila antes de importar.
 **Criticidad:** MEDIA.
 **Frecuencia:** 100% de casos con hijo discapacitado.
 **Categoría:** Tab Hijos.
 **Recomendación:** ofrecer botón "Importar terapias a cuota alimentaria" en el form de cuota — al click, parsea `terapias_desc` y crea conceptos en especie pre-cargados (con la imprecisión de un parser libre que el usuario puede ajustar). O al revés: cuando creás conceptos en especie con `hijo_id`, ofrecer "Sincronizar con la lista de terapias del hijo".
 
-### UX-18: Banner R3 (cumple 18) no diferencia si el régimen del hijo ya está actualizado
+### UX-18: Banner R3 (cumple 18) no diferencia si el régimen del hijo ya está actualizado — RESUELTO 2026-05-07
 **Descripción:** Facundo cumple 18 → banner R3 dispara. El usuario adapta el régimen (lo marca como "no aplica cuidado, solo alimentos art. 663"). Banner sigue ahí porque el cómputo es solo basado en fecha.
-**Estado actual:** [src/lib/hijosTransicion.ts](src/lib/hijosTransicion.ts) — solo mira fecha.
+**Estado actual:** RESUELTO — agregada columna `transicion_18_gestionada BOOLEAN DEFAULT FALSE` en [sql/051_hijos_transicion_18_gestionada.sql](sql/051_hijos_transicion_18_gestionada.sql), campo `transicion18Gestionada?: boolean` en `HijoCaso` ([src/types.ts](src/types.ts)), mapping en `toHijoCaso`/`hijoCasoToRow` ([src/lib/db.ts](src/lib/db.ts)), checkbox amber en `HijoForm` ([src/components/HijosPanel.tsx](src/components/HijosPanel.tsx)) con copy "Transición a mayoría de edad gestionada — Marcá cuando ya adaptaste el régimen…". Helpers `proximosACumplir18` y `recienCumplio18` ([src/lib/hijosTransicion.ts](src/lib/hijosTransicion.ts)) ahora skipean los hijos con `transicion18Gestionada === true`. La `HijoCard` también suprime los chips "Cumple 18 en N" / "Recién cumplió 18" cuando está marcado y muestra en su lugar un chip emerald "Transición 18 OK" (visible para hijos en ventana ±365d alrededor del cumple 18, así no se muestra en menores chicos).
 **Criticidad:** BAJA.
 **Frecuencia:** ocasional.
 **Categoría:** Tab Hijos.
@@ -193,17 +193,17 @@
 **Categoría:** Tab Patrimonio.
 **Recomendación:** card de resumen arriba: "Activos U$S X · Pasivos U$S Y · Neto U$S Z (a fecha del último valuación)". Subtotal por moneda. Distinguir activos del cliente vs contraparte.
 
-### UX-20: Sociedad interpuesta es una sub-sección al final, debería integrarse al flujo de carga del bien
+### UX-20: Sociedad interpuesta es una sub-sección al final, debería integrarse al flujo de carga del bien — RESUELTO 2026-05-07
 **Descripción:** para cargar el apto de Punta del Este via Playa Serena, hay que: (a) crear primero la sociedad en la sección "Sociedades interpuestas", (b) volver arriba, (c) crear el bien y elegir la sociedad del dropdown. Es contraintuitivo cargar la sociedad sin contexto.
-**Estado actual:** [src/components/BienesPanel.tsx](src/components/BienesPanel.tsx) — sociedades en sección 3, bienes en sección 1.
+**Estado actual:** RESUELTO — [src/components/BienesPanel.tsx](src/components/BienesPanel.tsx): el dropdown de sociedad en `BienForm` ahora aparece **siempre** (antes solo si había sociedades cargadas) y al lado tiene un botón violeta `+ Nueva` que abre el `SociedadForm` encima del `BienForm` (modal anidado, ambos z-50). Cuando el usuario guarda la sociedad, el panel detecta que el origen fue el flujo de bien (`creandoSociedadDesdeBien`), captura el `id` retornado por `handleCreateSociedadInterpuesta`, lo pasa a `BienForm` via `nuevaSociedadIdSugerida`, y el form pre-selecciona la sociedad recién creada sin perder los demás datos cargados. El callback `onConsumirSociedadSugerida` limpia el flag tras consumirlo.
 **Criticidad:** MEDIA.
 **Frecuencia:** 8-12% de casos con patrimonio internacional.
 **Categoría:** Tab Patrimonio.
 **Recomendación:** en el form del bien, cuando seleccionás sociedad interpuesta, agregar opción "+ Crear sociedad nueva" que abre un mini-form inline (sin salir del flujo de carga del bien). La sección "Sociedades" queda como vista de gestión post-creación.
 
-### UX-21: Valuaciones temporales se cargan haciendo click en el monto del bien
+### UX-21: Valuaciones temporales se cargan haciendo click en el monto del bien — RESUELTO 2026-05-07
 **Descripción:** el affordance "click en el monto" no es obvio. El usuario que quiere cargar un snapshot histórico (R14) busca un botón "Agregar valuación" y no lo encuentra rápido.
-**Estado actual:** [src/components/BienesPanel.tsx](src/components/BienesPanel.tsx) — el click en `<button>` con el monto abre el modal de valuaciones.
+**Estado actual:** RESUELTO — el botón con el monto en [src/components/BienesPanel.tsx](src/components/BienesPanel.tsx) (`BienCard`) ahora tiene affordance reforzado: ícono `TrendingUp` chico en color emerald **pegado al monto**, border-bottom dashed que aparece en hover, y tooltip "Ver / agregar valuaciones históricas". El conteo de "N valuaciones registradas" también se vuelve clickable y abre el mismo modal. Sigue existiendo el botón aparte con el ícono `TrendingUp` a la derecha (tercera redundancia explícita).
 **Criticidad:** MEDIA.
 **Frecuencia:** 5-10% de casos donde se trackea evolución.
 **Categoría:** Tab Patrimonio.
@@ -218,17 +218,17 @@
 **Categoría:** Tab Patrimonio.
 **Recomendación:** en la card del bien, agregar badge rojo "Bajo cautelar" con tooltip que muestre el tipo y fecha de traba. Click → scroll al detalle de la cautelar.
 
-### UX-23: Veedor judicial mezclado en el panel de Cautelares aunque conceptualmente es un rol persona
+### UX-23: Veedor judicial mezclado en el panel de Cautelares aunque conceptualmente es un rol persona — RESUELTO 2026-05-07 (descubrimiento parcial, no movimiento estructural)
 **Descripción:** el veedor es una persona designada (similar a perito). Hoy está como sub-sección de Cautelares. El usuario que busca "quién es el veedor designado en el caso" tiene que ir a Patrimonio → bajar → buscar.
-**Estado actual:** [src/components/CautelaresPanel.tsx](src/components/CautelaresPanel.tsx) — sub-sección "Veedores judiciales".
+**Estado actual:** RESUELTO — solución de descubrimiento sin reescribir la arquitectura. [src/components/HilosPanel.tsx](src/components/HilosPanel.tsx) ahora muestra al final del panel un bloque amber read-only "Veedores judiciales designados (N)" con nombres + matrícula + estado, cuando el caso tiene veedores cargados. El bloque aclara "Gestionalos desde Patrimonio → Cautelares" para indicar dónde se editan. Resuelve el caso de uso "buscar quién es el veedor del caso desde el tab Prueba" sin duplicar lógica de gestión. La movida estructural completa (refactorizar Veedor como rol-persona en un tab "Personas del expediente") queda anotada para cuando emerja un caso con suficientes roles-persona (peritos, traductores, intérpretes, veedores, custodios judiciales) que justifiquen el panel unificado.
 **Criticidad:** MEDIA.
 **Frecuencia:** 5-8% de casos con intervención.
 **Categoría:** Tab Patrimonio.
 **Recomendación:** mover veedores al tab "Prueba (hilos y peritos)" como tercera sección, junto a Hilos y Peritos. Es la entidad-persona del expediente. Mantener el vínculo cautelar↔veedor visualmente.
 
-### UX-24: Pasivos no admiten valuaciones temporales
+### UX-24: Pasivos no admiten valuaciones temporales — RESUELTO 2026-05-07
 **Descripción:** una hipoteca o moratoria fiscal cambia de saldo en el tiempo. Hoy las valuaciones (`bien_valuaciones`) solo se ofrecen para activos en la UI; aunque la DB las admite para cualquier bien.
-**Estado actual:** [src/components/BienesPanel.tsx](src/components/BienesPanel.tsx) — el modal de valuación solo se abre desde activos.
+**Estado actual:** RESUELTO — `BienCard` y `ValuacionesModal` en [src/components/BienesPanel.tsx](src/components/BienesPanel.tsx) son agnósticos a `naturaleza` y ya soportaban valuaciones desde pasivos (el modal abre con `setValuacionesOpen(b)` en cualquier card; el ícono `TrendingUp` y el botón con el monto disparan la apertura). Lo único que faltaba era el copy: el header de la sección "Pasivos" ahora dice explícitamente "Click en el saldo para trackear evolución (los pasivos cambian de monto en el tiempo)". El refuerzo de affordance de UX-21 (ícono al lado del monto + border-bottom dashed) aplica también a los pasivos por reutilizar el mismo `BienCard`.
 **Criticidad:** BAJA.
 **Frecuencia:** ocasional.
 **Categoría:** Tab Patrimonio.
@@ -247,9 +247,9 @@
 **Categoría:** Mutación.
 **Recomendación:** botón "Deshacer mutación" que: (a) revierte `tipo_divorcio` al valor previo (lo guarda en metadata del evento), (b) re-pendientea tareas canceladas por esa mutación, (c) cancela las creadas. Validar que no hayan pasado >24h desde la mutación.
 
-### UX-26: Preview de tareas a cancelar/crear no agrupa por etapa
+### UX-26: Preview de tareas a cancelar/crear no agrupa por etapa — RESUELTO 2026-05-07
 **Descripción:** el preview muestra una lista plana de tareas "[etapa] título". Cuando hay 8+ tareas (caso típico) cuesta leer.
-**Estado actual:** [src/components/MutarDivorcioModal.tsx](src/components/MutarDivorcioModal.tsx) — `<ul>` plano.
+**Estado actual:** RESUELTO — agregado helper `agruparPorEtapa()` en [src/components/MutarDivorcioModal.tsx](src/components/MutarDivorcioModal.tsx) que preserva orden de aparición. Las dos listas (a cancelar, a crear) se renderizan agrupadas por etapa: cada etapa abre con sub-header "ETAPA · N" en color del bloque (rojo / emerald) y los items van como bullets indentados sin el prefijo "[etapa]" duplicado. Las tareas sin etapa caen en bucket "Sin etapa".
 **Criticidad:** BAJA.
 **Frecuencia:** universal en mutaciones.
 **Categoría:** Mutación.
@@ -259,10 +259,10 @@
 
 ## Categoría: Reconvención
 
-### UX-27: La reconvención se carga como entidad independiente sin link al evento procesal que la originó
+### UX-27: La reconvención se carga como entidad independiente sin link al evento procesal que la originó — RESUELTO 2026-05-07
 **Descripción:** cargás una reconvención con fecha de presentación, pero no creás un evento `demanda_reconvencional` automáticamente en el timeline. Quedan dos cosas para llenar (la reconvención y el evento) que reflejan el mismo hecho procesal.
 **Situación que lo revela:** Ruiz/Colombo — Valentina reconviene 02/05/2026. El usuario carga la reconvención pero el timeline no muestra el hito.
-**Estado actual:** [src/components/ReconvencionesPanel.tsx](src/components/ReconvencionesPanel.tsx) — sin auto-creación de evento.
+**Estado actual:** RESUELTO — [src/components/ReconvencionesPanel.tsx](src/components/ReconvencionesPanel.tsx) ahora ofrece checkbox "Registrar también evento Demanda reconvencional en el timeline" pre-seleccionado al crear (no al editar). Al confirmar: crea primero el evento via `handleCreateEvento` (tipo `demanda_reconvencional`, fecha = `fechaPresentacion`, jurisdicción del matter, descripción = `pretensionDesc`, título incluye "Mi parte" / "Contraparte") y luego crea la reconvención con `eventoPresentacionId` linkeado al evento recién creado. Si la creación del evento falla, igual se crea la reconvención y se loggea el error (degradación grácil). En modo edición, si la reconvención ya tiene `eventoPresentacionId`, muestra confirmación verde "vinculada a un evento del timeline" en lugar del checkbox.
 **Criticidad:** ALTA.
 **Frecuencia:** universal en reconvenciones.
 **Categoría:** Reconvención.

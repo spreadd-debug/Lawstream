@@ -38,7 +38,7 @@ import { cn } from '../lib/utils';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import {
-  Plus, Pencil, Trash2, FileText, Sparkles, Wallet, AlertCircle, ChevronRight,
+  Plus, Pencil, Trash2, FileText, Sparkles, Wallet, AlertCircle, ChevronRight, Heart,
 } from 'lucide-react';
 
 interface CuotasAlimentariasPanelProps {
@@ -57,6 +57,68 @@ const formatMoneda = (valor: number | undefined, moneda: Moneda | undefined): st
   const symbol = moneda === 'USD' ? 'US$' : moneda === 'EUR' ? '€' : '$';
   return `${symbol} ${valor.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 };
+
+// GAP UX-17: parser heurístico de la descripción libre de terapias del hijo
+// (`hijos_caso.terapias_desc`) a items estructurados que se importan como
+// conceptos en especie de la cuota. Es heurístico — el usuario puede editar
+// cada fila antes de confirmar la importación.
+//
+// Formatos típicos esperados (separados por `;` o salto de línea):
+//   "TO con Lic. Pérez 2x/sem $280.000/mes"
+//   "Fonoaudiología 1x/sem $150.000 mensual"
+//   "AT escolar 4hs/día $250.000/mes"
+//   "Hidroterapia con Dra. Gómez U$S 80/sesión 4 sesiones/mes"
+interface TerapiaParseada {
+  concepto: string;
+  prestador?: string;
+  montoEstimado?: number;
+  moneda: Moneda;
+  frecuencia: FrecuenciaCuotaAlim;
+}
+
+function parseTerapiasDesc(text: string): TerapiaParseada[] {
+  return text
+    .split(/[;\n]+/)
+    .map(s => s.trim())
+    .filter(Boolean)
+    .map(chunk => {
+      // Monto: U$S, USD, US$ o $; soporta sufijo k/mil; usa puntos como
+      // separador de miles y coma como decimal (formato AR).
+      let montoEstimado: number | undefined;
+      let moneda: Moneda = 'ARS';
+      const usdMatch = chunk.match(/(?:U\$S|USD|US\$|U\$D)\s*([\d.,]+)\s*(k|mil)?/i);
+      const eurMatch = chunk.match(/(?:€|EUR)\s*([\d.,]+)\s*(k|mil)?/i);
+      const arsMatch = chunk.match(/\$\s*([\d.,]+)\s*(k|mil)?/);
+      const m = usdMatch || eurMatch || arsMatch;
+      if (m) {
+        const raw = m[1].replace(/\./g, '').replace(',', '.');
+        let n = Number(raw);
+        const suffix = (m[2] || '').toLowerCase();
+        if (suffix === 'k' || suffix === 'mil') n *= 1000;
+        if (Number.isFinite(n) && n > 0) montoEstimado = n;
+        if (usdMatch) moneda = 'USD';
+        else if (eurMatch) moneda = 'EUR';
+      }
+      // Frecuencia: si el monto está expresado por sesión / por día, lo
+      // dejamos en mensual (default) — el usuario puede ajustar.
+      let frecuencia: FrecuenciaCuotaAlim = 'mensual';
+      if (/\b(anu|anual|año)\b/i.test(chunk))      frecuencia = 'anual';
+      else if (/\b(semestral|semestre)\b/i.test(chunk)) frecuencia = 'semestral';
+      else if (/\b(trimestre|trimestral)\b/i.test(chunk)) frecuencia = 'trimestral';
+      else if (/\b(quincen)\b/i.test(chunk))       frecuencia = 'quincenal';
+      // Prestador: "con Lic./Dr./Dra./Prof. <Apellido>"
+      let prestador: string | undefined;
+      const prestMatch = chunk.match(/con\s+((?:Lic|Dr|Dra|Prof)\.?\s+[A-ZÁÉÍÓÚÑ][\w'áéíóúñ-]+(?:\s+[A-ZÁÉÍÓÚÑ][\w'áéíóúñ-]+)?)/);
+      if (prestMatch) prestador = prestMatch[1];
+      return {
+        concepto: chunk,
+        prestador,
+        montoEstimado,
+        moneda,
+        frecuencia,
+      };
+    });
+}
 
 export const CuotasAlimentariasPanel: React.FC<CuotasAlimentariasPanelProps> = ({ matterId }) => {
   const {
@@ -95,6 +157,15 @@ export const CuotasAlimentariasPanel: React.FC<CuotasAlimentariasPanelProps> = (
   // banner con CTA "Agregar conceptos en especie". Aumenta la tasa de carga
   // completa frente al botón pequeño dentro de la card que es fácil saltear.
   const [cuotaRecienCreadaId, setCuotaRecienCreadaId] = useState<string | null>(null);
+  // GAP UX-17: cuotaId destino de una importación de terapias del hijo.
+  const [importarCuotaId, setImportarCuotaId] = useState<string | null>(null);
+
+  // Hijos del caso que tienen `terapias_desc` cargado — son los candidatos
+  // a importar conceptos. Si no hay ninguno, no se muestra el botón.
+  const hijosConTerapias = useMemo(
+    () => hijosDelMatter.filter(h => h.terapiasDesc?.trim()),
+    [hijosDelMatter],
+  );
 
   const onDeleteCuota = async (c: CuotaAlimentaria) => {
     const conceptos = cuotaConceptosEspecie.filter(ce => ce.cuotaAlimentariaId === c.id).length;
@@ -231,9 +302,11 @@ export const CuotasAlimentariasPanel: React.FC<CuotasAlimentariasPanelProps> = (
             cuota={c}
             conceptos={cuotaConceptosEspecie.filter(ce => ce.cuotaAlimentariaId === c.id)}
             hijos={hijosDelMatter}
+            puedeImportarTerapias={hijosConTerapias.length > 0}
             onEdit={() => { setCuotaEditing(c); setCuotaFormOpen(true); }}
             onDelete={() => onDeleteCuota(c)}
             onAddConcepto={() => { setConceptoEditing(null); setConceptoCuotaId(c.id); setConceptoFormOpen(true); }}
+            onImportarTerapias={() => setImportarCuotaId(c.id)}
             onEditConcepto={(ce) => { setConceptoEditing(ce); setConceptoCuotaId(ce.cuotaAlimentariaId); setConceptoFormOpen(true); }}
             onDeleteConcepto={onDeleteConcepto}
           />
@@ -270,6 +343,30 @@ export const CuotasAlimentariasPanel: React.FC<CuotasAlimentariasPanelProps> = (
           }
         }}
       />
+
+      {/* GAP UX-17: importar terapias del hijo como conceptos en especie. */}
+      <ImportarTerapiasModal
+        isOpen={importarCuotaId !== null}
+        cuotaId={importarCuotaId ?? ''}
+        hijosConTerapias={hijosConTerapias}
+        onClose={() => setImportarCuotaId(null)}
+        onImport={async (items) => {
+          for (const item of items) {
+            await handleCreateCuotaConceptoEspecie({
+              cuotaAlimentariaId: importarCuotaId!,
+              categoria: 'terapia',
+              concepto: item.concepto,
+              prestador: item.prestador,
+              montoEstimado: item.montoEstimado,
+              moneda: item.moneda,
+              frecuencia: item.frecuencia,
+              pagador: 'obligado_directo',
+              hijoId: item.hijoId,
+            } as Omit<CuotaConceptoEspecie, 'id' | 'createdAt' | 'updatedAt'>);
+          }
+          setImportarCuotaId(null);
+        }}
+      />
     </div>
   );
 };
@@ -280,12 +377,14 @@ const CuotaCard: React.FC<{
   cuota: CuotaAlimentaria;
   conceptos: CuotaConceptoEspecie[];
   hijos: HijoCaso[];
+  puedeImportarTerapias: boolean;
   onEdit: () => void;
   onDelete: () => void;
   onAddConcepto: () => void;
+  onImportarTerapias: () => void;
   onEditConcepto: (ce: CuotaConceptoEspecie) => void;
   onDeleteConcepto: (ce: CuotaConceptoEspecie) => Promise<void>;
-}> = ({ cuota: c, conceptos, hijos, onEdit, onDelete, onAddConcepto, onEditConcepto, onDeleteConcepto }) => {
+}> = ({ cuota: c, conceptos, hijos, puedeImportarTerapias, onEdit, onDelete, onAddConcepto, onImportarTerapias, onEditConcepto, onDeleteConcepto }) => {
   // Cálculo orientativo del total de la cuota (efectivo + suma de conceptos
   // en la misma moneda y frecuencia que el efectivo). Si difieren, no se
   // totaliza pero (GAP UX-34) avisamos por qué en lugar de ocultarlo.
@@ -378,13 +477,29 @@ const CuotaCard: React.FC<{
 
       {/* Conceptos en especie */}
       <div className="border-t border-border/40 pt-3 space-y-2">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
           <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
             Pagos directos / en especie ({conceptos.length})
           </h4>
-          <Button size="sm" variant="outline" onClick={onAddConcepto} className="text-[10px] h-7 gap-1.5">
-            <Plus size={11} /> Concepto
-          </Button>
+          <div className="flex items-center gap-1.5">
+            {/* GAP UX-17: importar terapias del hijo. Solo visible cuando
+                al menos un hijo del caso tiene `terapias_desc` cargado, así
+                el botón no aparece como ruido en casos sin discapacidad. */}
+            {puedeImportarTerapias && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={onImportarTerapias}
+                className="text-[10px] h-7 gap-1.5 border-rose-500/40 text-rose-700 hover:bg-rose-500/5"
+                title="Importar terapias cargadas en el hijo como conceptos en especie"
+              >
+                <Heart size={11} /> Importar terapias
+              </Button>
+            )}
+            <Button size="sm" variant="outline" onClick={onAddConcepto} className="text-[10px] h-7 gap-1.5">
+              <Plus size={11} /> Concepto
+            </Button>
+          </div>
         </div>
         {conceptos.length === 0 && (
           <p className="text-[11px] text-muted-foreground italic">
@@ -868,6 +983,186 @@ const ConceptoForm: React.FC<ConceptoFormProps> = ({ isOpen, editing, cuotaId, h
           <Label>Notas</Label>
           <Textarea value={notas} onChange={e => setNotas(e.target.value)} className="min-h-[60px]" />
         </div>
+      </div>
+    </Modal>
+  );
+};
+
+// ─── Modal: importar terapias del hijo (GAP UX-17) ─────────────
+
+interface ItemImportable extends TerapiaParseada {
+  hijoId: string;
+  seleccionado: boolean;
+}
+
+const ImportarTerapiasModal: React.FC<{
+  isOpen: boolean;
+  cuotaId: string;
+  hijosConTerapias: HijoCaso[];
+  onClose: () => void;
+  onImport: (items: Array<TerapiaParseada & { hijoId: string }>) => Promise<void>;
+}> = ({ isOpen, cuotaId, hijosConTerapias, onClose, onImport }) => {
+  const [items, setItems] = useState<ItemImportable[]>([]);
+  const [saving, setSaving] = useState(false);
+
+  // Re-parsear cuando se abre el modal o cambian los hijos.
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const parsed: ItemImportable[] = [];
+    for (const h of hijosConTerapias) {
+      if (!h.terapiasDesc) continue;
+      for (const t of parseTerapiasDesc(h.terapiasDesc)) {
+        parsed.push({ ...t, hijoId: h.id, seleccionado: true });
+      }
+    }
+    setItems(parsed);
+  }, [isOpen, hijosConTerapias]);
+
+  const seleccionados = items.filter(i => i.seleccionado);
+  const puedeImportar = cuotaId.length > 0 && seleccionados.length > 0;
+
+  const updateItem = (idx: number, changes: Partial<ItemImportable>) => {
+    setItems(prev => prev.map((it, i) => i === idx ? { ...it, ...changes } : it));
+  };
+
+  const handleImport = async () => {
+    if (!puedeImportar) return;
+    setSaving(true);
+    try {
+      await onImport(seleccionados.map(({ seleccionado: _s, ...rest }) => rest));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Agrupar por hijo para presentar.
+  const itemsPorHijo = useMemo(() => {
+    const map = new Map<string, { hijo: HijoCaso; items: Array<{ item: ItemImportable; idx: number }> }>();
+    items.forEach((item, idx) => {
+      const hijo = hijosConTerapias.find(h => h.id === item.hijoId);
+      if (!hijo) return;
+      const entry = map.get(hijo.id);
+      if (entry) entry.items.push({ item, idx });
+      else map.set(hijo.id, { hijo, items: [{ item, idx }] });
+    });
+    return Array.from(map.values());
+  }, [items, hijosConTerapias]);
+
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={saving ? () => {} : onClose}
+      title="Importar terapias como conceptos en especie"
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose} disabled={saving}>Cancelar</Button>
+          <Button variant="primary" onClick={handleImport} disabled={saving || !puedeImportar}>
+            {saving ? 'Importando…' : `Importar ${seleccionados.length} concepto${seleccionados.length === 1 ? '' : 's'}`}
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <div className="rounded-xl border border-rose-500/30 bg-rose-500/5 p-3 text-[11px] text-rose-800 dark:text-rose-200 flex items-start gap-2">
+          <AlertCircle size={13} className="shrink-0 mt-0.5" />
+          <span>
+            Las terapias se parsean del campo <strong>terapias_desc</strong> de cada hijo.
+            El parser es heurístico — revisá cada fila y editá el monto/frecuencia/concepto antes de importar.
+            Los conceptos se crean con categoría <strong>"terapia"</strong>, pagador <strong>"obligado directo"</strong>, vinculados al hijo.
+          </span>
+        </div>
+
+        {itemsPorHijo.length === 0 && (
+          <p className="text-[12px] text-muted-foreground italic">
+            No se detectaron terapias parseables. Cargá las terapias del hijo desde el tab Hijos para poder importarlas.
+          </p>
+        )}
+
+        {itemsPorHijo.map(({ hijo, items: hijoItems }) => (
+          <section key={hijo.id} className="space-y-2">
+            <div className="flex items-center gap-2 pb-1 border-b border-border/40">
+              <Heart size={13} className="text-rose-700" />
+              <span className="text-[11px] font-black uppercase tracking-widest text-foreground">
+                {hijo.nombre} · {hijoItems.length} item{hijoItems.length === 1 ? '' : 's'}
+              </span>
+            </div>
+            {hijoItems.map(({ item, idx }) => (
+              <div
+                key={idx}
+                className={cn(
+                  'rounded-lg border p-2.5 space-y-2',
+                  item.seleccionado ? 'border-emerald-500/40 bg-emerald-500/5' : 'border-border/40 bg-muted/20 opacity-60',
+                )}
+              >
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={item.seleccionado}
+                    onChange={e => updateItem(idx, { seleccionado: e.target.checked })}
+                    className="mt-1 shrink-0"
+                  />
+                  <div className="flex-1 min-w-0 space-y-1.5">
+                    <Input
+                      value={item.concepto}
+                      onChange={e => updateItem(idx, { concepto: e.target.value })}
+                      className="text-sm font-bold h-9"
+                      disabled={!item.seleccionado}
+                      placeholder="Concepto"
+                    />
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <Label className="text-[9px]">Monto</Label>
+                        <Input
+                          type="text"
+                          value={item.montoEstimado != null ? String(item.montoEstimado) : ''}
+                          onChange={e => {
+                            const raw = e.target.value.replace(/[^0-9.,]/g, '');
+                            const n = raw.trim() ? Number(raw.replace(',', '.')) : undefined;
+                            updateItem(idx, { montoEstimado: Number.isFinite(n as number) ? n : undefined });
+                          }}
+                          disabled={!item.seleccionado}
+                          className="h-8 text-xs"
+                          placeholder="0"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-[9px]">Moneda</Label>
+                        <select
+                          value={item.moneda}
+                          onChange={e => updateItem(idx, { moneda: e.target.value as Moneda })}
+                          disabled={!item.seleccionado}
+                          className="w-full h-8 px-2 bg-muted/50 border border-border/50 rounded-md text-xs font-bold"
+                        >
+                          <option value="ARS">ARS</option>
+                          <option value="USD">USD</option>
+                          <option value="EUR">EUR</option>
+                        </select>
+                      </div>
+                      <div>
+                        <Label className="text-[9px]">Frecuencia</Label>
+                        <select
+                          value={item.frecuencia}
+                          onChange={e => updateItem(idx, { frecuencia: e.target.value as FrecuenciaCuotaAlim })}
+                          disabled={!item.seleccionado}
+                          className="w-full h-8 px-2 bg-muted/50 border border-border/50 rounded-md text-xs font-bold"
+                        >
+                          {(Object.keys(FRECUENCIA_CUOTA_LABELS) as FrecuenciaCuotaAlim[]).map(f => (
+                            <option key={f} value={f}>{FRECUENCIA_CUOTA_LABELS[f]}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    {item.prestador && (
+                      <div className="text-[10px] text-muted-foreground">
+                        Prestador detectado: <strong className="text-foreground/80">{item.prestador}</strong>
+                      </div>
+                    )}
+                  </div>
+                </label>
+              </div>
+            ))}
+          </section>
+        ))}
       </div>
     </Modal>
   );

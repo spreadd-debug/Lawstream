@@ -152,7 +152,10 @@ export const MatterDetail = ({
   const medidaFecha = cd.medida_fecha?.trim();
   const medidaVigenciaHasta = cd.medida_vigencia_hasta?.trim();
   const tieneMedida = !!(medidaDescripcion || medidaOrganismo || medidaVigenciaHasta);
-  const medidaVencida = !!(medidaVigenciaHasta && differenceInCalendarDays(parseISO(medidaVigenciaHasta), new Date()) < 0);
+  const diasDesdeVencimientoMedida = medidaVigenciaHasta
+    ? differenceInCalendarDays(new Date(), parseISO(medidaVigenciaHasta))
+    : null;
+  const medidaVencida = !!(diasDesdeVencimientoMedida != null && diasDesdeVencimientoMedida > 0);
 
   // GAP 21 — detección de cruce entre medida vigente y régimen propuesto.
   const cruceViolencia = detectarCruceViolencia(cd);
@@ -169,15 +172,60 @@ export const MatterDetail = ({
   }, [allHijos, matter.id, matter.parentMatterId]);
   const proximosCumplir = useMemo(() => proximosACumplir18(hijosDelMatter), [hijosDelMatter]);
   const recienMayores   = useMemo(() => recienCumplio18(hijosDelMatter),   [hijosDelMatter]);
-  const hayTransicionMayoria = proximosCumplir.length > 0 || recienMayores.length > 0;
+  // GAP UX-10: ocultar el banner en casos cerrados/archivados — la transición
+  // a mayoría de edad ya no requiere acción si el matter no está activo.
+  const matterActivoParaTransicion = matter.status !== 'Cerrado' && matter.status !== 'Archivado';
+  const hayTransicionMayoria = matterActivoParaTransicion
+    && (proximosCumplir.length > 0 || recienMayores.length > 0);
+  // GAP UX-10: severidad — crítica si hay alguno que ya cumplió 18 (acción
+  // pendiente) o cumple en ≤30 días; media para 31-90 días.
+  const transicionMayoriaSeveridad: 'critica' | 'media' = useMemo(() => {
+    if (recienMayores.length > 0) return 'critica';
+    if (proximosCumplir.some(p => p.diasRestantes <= 30)) return 'critica';
+    return 'media';
+  }, [proximosCumplir, recienMayores]);
   // Familia incluye al matter actual o al padre cuando es sub-proceso —
   // un incidente de aumento de cuota dentro de un divorcio sigue siendo
   // contexto de Familia aunque el sub-proceso herede otro tipo.
-  const esFamilia = matter.type === 'Familia' || parentMatter?.type === 'Familia';
+  // GAP UX-12: hardening — walk del parent chain (por si el parent no está
+  // cargado en allMatters por race) + fallback por `incidenteTipo` típico
+  // de Familia. Sin esto, el tab podía ocultarse si el sub-proceso tiene
+  // type distinto del padre o si el cache no terminó de hidratar.
+  const esFamilia = useMemo(() => {
+    if (matter.type === 'Familia') return true;
+    // Walk up siguiendo parentMatterId hasta encontrar uno Familia o quedarnos sin padre.
+    let cursor = parentMatter;
+    const seen = new Set<string>();
+    while (cursor && !seen.has(cursor.id)) {
+      if (cursor.type === 'Familia') return true;
+      seen.add(cursor.id);
+      cursor = cursor.parentMatterId ? allMatters.find(m => m.id === cursor!.parentMatterId) : undefined;
+    }
+    // Fallback: el parent no resolvió (cache vacío) pero el incidenteTipo
+    // pertenece al universo de familia. Mostramos el tab para no frenar al
+    // usuario; si efectivamente no es familia, la lista de hijos será vacía.
+    if (matter.parentMatterId && matter.incidenteTipo) {
+      const familiaIncidentes: typeof matter.incidenteTipo[] = [
+        'alimentos_provisorios',
+        'tenencia_cautelar',
+        'exclusion_hogar',
+        'autorizacion_viaje',
+      ];
+      if (familiaIncidentes.includes(matter.incidenteTipo)) return true;
+    }
+    return false;
+  }, [matter.type, matter.parentMatterId, matter.incidenteTipo, parentMatter, allMatters]);
 
   // GAP R6 — el botón "Mutar tipo de divorcio" aparece solo en casos
   // que usan el template de divorcio (CABA o PBA) y que no son
   // sub-procesos (mutar el divorcio se hace desde el matter principal).
+  // GAP UX-13: la condición hardcodea los dos templates de divorcio. Se
+  // mantiene así porque hoy es la única feature con flow bifurcado por un
+  // campo de caseData (`tipo_divorcio`). Cuando aparezca un segundo template
+  // con esa naturaleza (filiación contenciosa↔consensual, alimentos
+  // provisorios↔definitivos), refactorizar a un metadato `flowBifurcable`
+  // en el template y reemplazar este `||` por una lookup. Mientras tanto el
+  // alcance acotado evita falsos positivos.
   const esDivorcioPrincipal = !isSubProceso
     && (matter.flowTemplateId === 'fam-divorcio' || matter.flowTemplateId === 'fam-divorcio-pba');
 
@@ -296,14 +344,25 @@ export const MatterDetail = ({
       list.push({ id: 'tipo-divorcio-por-definir', severidad: 'alta', titulo: 'Tipo de divorcio por definir', chip: 'Definir tipo', tono: 'violet' });
     }
     if (tieneMedida) {
-      const sev: SeveridadAlerta = cruceViolencia.regimenLuceAmplio ? 'critica' : 'media';
-      list.push({ id: 'violencia', severidad: sev, titulo: 'Medida de protección vigente', chip: 'Violencia', tono: 'rose' });
+      // GAP UX-11: medida vencida es acción urgente (renovar) — sube a crítica.
+      // Cruce con régimen amplio también es crítica. Sino, media.
+      const sev: SeveridadAlerta = (medidaVencida || cruceViolencia.regimenLuceAmplio) ? 'critica' : 'media';
+      const titulo = medidaVencida ? 'Medida de protección vencida' : 'Medida de protección vigente';
+      const chip = medidaVencida ? 'Violencia (vencida)' : 'Violencia';
+      list.push({ id: 'violencia', severidad: sev, titulo, chip, tono: 'rose' });
     }
     if (parcialmenteFirme) {
       list.push({ id: 'parcialmente-firme', severidad: 'media', titulo: 'Sentencia parcialmente firme', chip: 'Parcialmente firme', tono: 'amber' });
     }
     if (esFamilia && hayTransicionMayoria) {
-      list.push({ id: 'transicion-mayoria', severidad: 'media', titulo: 'Transición a mayoría de edad', chip: 'Cumple 18', tono: 'amber' });
+      // GAP UX-10: severidad y tono escalan con urgencia (≤30 días o ya cumplió).
+      list.push({
+        id: 'transicion-mayoria',
+        severidad: transicionMayoriaSeveridad === 'critica' ? 'alta' : 'media',
+        titulo: 'Transición a mayoría de edad',
+        chip: 'Cumple 18',
+        tono: transicionMayoriaSeveridad === 'critica' ? 'rose' : 'amber',
+      });
     }
     if (aplicaReconvencion && reconvencionesPendientes.length > 0) {
       // GAP UX-28: si hay un vencimiento ≤2 días o vencido, escalar a crítica
@@ -319,7 +378,7 @@ export const MatterDetail = ({
       list.push({ id: 'cautelar', severidad: 'alta', titulo: 'Cautelar patrimonial vigente', chip: `Cautelar (${cautelaresVigentes.length})`, tono: 'rose' });
     }
     return list;
-  }, [jurisdiccionFaltante, tipoDivorcioPorDefinir, tieneMedida, cruceViolencia.regimenLuceAmplio, parcialmenteFirme, esFamilia, hayTransicionMayoria, aplicaReconvencion, reconvencionesPendientes.length, reconvencionSeveridad, exhortosLargos.length, cautelaresVigentes.length]);
+  }, [jurisdiccionFaltante, tipoDivorcioPorDefinir, tieneMedida, medidaVencida, cruceViolencia.regimenLuceAmplio, parcialmenteFirme, esFamilia, hayTransicionMayoria, transicionMayoriaSeveridad, aplicaReconvencion, reconvencionesPendientes.length, reconvencionSeveridad, exhortosLargos.length, cautelaresVigentes.length]);
 
   const debeColapsar = alertasActivas.length >= 3;
   const lsKey = `lawstream:alertas-expandidas:${matter.id}`;
@@ -668,28 +727,35 @@ export const MatterDetail = ({
         </div>
       )}
 
-      {/* ═══════════════════════ BANNER VIOLENCIA FAMILIAR ═══════════════════════ */}
+      {/* ═══════════════════════ BANNER VIOLENCIA FAMILIAR (GAP UX-11) ═══════════════════════ */}
+      {/* UX-11: cambia drásticamente el estilo según vigente (informativo, amber)
+          vs vencida (acción urgente, rojo crítico con CTA "Renovar medida"). */}
       {tieneMedida && (
         <div
           role="alert"
           className={cn(
-            'flex items-start gap-3 p-4 rounded-2xl border shadow-sm',
+            'flex items-start gap-3 p-4 rounded-2xl border-2 shadow-sm',
             medidaVencida
-              ? 'bg-rose-500/5 border-rose-500/30'
-              : 'bg-rose-500/10 border-rose-500/40'
+              ? 'bg-rose-500/15 border-rose-600/60 ring-1 ring-rose-500/30'
+              : 'bg-amber-500/10 border-amber-500/40',
           )}
         >
-          <div className="shrink-0 w-10 h-10 rounded-xl bg-rose-500/20 text-rose-600 flex items-center justify-center">
+          <div className={cn(
+            'shrink-0 w-10 h-10 rounded-xl flex items-center justify-center',
+            medidaVencida ? 'bg-rose-500/25 text-rose-700' : 'bg-amber-500/20 text-amber-700',
+          )}>
             <ShieldAlert size={20} />
           </div>
           <div className="flex-1 min-w-0 space-y-1">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-[11px] font-black uppercase tracking-widest text-rose-700 dark:text-rose-300">
-                Caso con medida de protección vigente
+              <span className={cn(
+                'text-[11px] font-black uppercase tracking-widest',
+                medidaVencida ? 'text-rose-700 dark:text-rose-300' : 'text-amber-700 dark:text-amber-300',
+              )}>
+                {medidaVencida
+                  ? `Renovar medida — vencida hace ${diasDesdeVencimientoMedida} ${diasDesdeVencimientoMedida === 1 ? 'día' : 'días'}`
+                  : 'Caso con medida de protección vigente'}
               </span>
-              {medidaVencida && (
-                <Badge variant="warning" className="text-[8px]">Vencida — sugerir renovación</Badge>
-              )}
             </div>
             <p className="text-sm font-bold text-foreground">
               {medidaDescripcion || 'Medida de protección registrada'}
@@ -699,9 +765,9 @@ export const MatterDetail = ({
               {medidaFecha && <span>Denuncia: <strong className="text-foreground/80">{format(parseISO(medidaFecha), "d 'de' MMMM yyyy", { locale: es })}</strong></span>}
               {medidaVigenciaHasta && (
                 <span>
-                  Vigencia hasta:{' '}
+                  {medidaVencida ? 'Vencida el' : 'Vigencia hasta'}:{' '}
                   <strong className={cn(
-                    medidaVencida ? 'text-amber-600' : 'text-foreground/80'
+                    medidaVencida ? 'text-rose-700 dark:text-rose-300' : 'text-foreground/80',
                   )}>
                     {format(parseISO(medidaVigenciaHasta), "d 'de' MMMM yyyy", { locale: es })}
                   </strong>
@@ -746,57 +812,99 @@ export const MatterDetail = ({
               </div>
             )}
           </div>
+          {/* GAP UX-11: cuando la medida venció el banner ofrece CTA explícito. */}
+          {medidaVencida && (
+            <button
+              onClick={() => handleEditMatter(matter.id)}
+              className="shrink-0 px-3 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-black uppercase tracking-widest transition-colors"
+            >
+              Renovar medida
+            </button>
+          )}
         </div>
       )}
 
-      {/* ═══════════════════════ BANNER TRANSICIÓN MAYORÍA DE EDAD (GAP R3) ═══════════════════════ */}
+      {/* ═══════════════════════ BANNER TRANSICIÓN MAYORÍA DE EDAD (GAP R3 + UX-10) ═══════════════════════ */}
       {/* Familia: avisa cuando un hijo está cerca de cumplir 18 (90 días) o
           recién los cumplió (30 días). La cuota muta a alimentos art. 663
-          CCyCN ("hijo mayor que estudia") y deja de aplicar el cuidado. */}
-      {esFamilia && hayTransicionMayoria && (
-        <div
-          role="alert"
-          className="flex items-start gap-3 p-4 rounded-2xl border border-amber-500/40 bg-amber-500/10 shadow-sm"
-        >
-          <div className="shrink-0 w-10 h-10 rounded-xl bg-amber-500/20 text-amber-700 flex items-center justify-center">
-            <Calendar size={20} />
-          </div>
-          <div className="flex-1 min-w-0 space-y-1.5">
-            <span className="text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-300">
-              Transición a mayoría de edad
-            </span>
-            <ul className="space-y-1 text-sm">
-              {proximosCumplir.map(({ hijo, fechaCumple, diasRestantes }) => (
-                <li key={hijo.id} className="text-foreground">
-                  <span className="font-bold">{hijo.nombre}</span>
-                  <span className="text-muted-foreground">
-                    {' '}cumple 18 el {format(fechaCumple, "d 'de' MMMM yyyy", { locale: es })}
-                    {' '}(en {diasRestantes} {diasRestantes === 1 ? 'día' : 'días'}).
-                  </span>
-                </li>
-              ))}
-              {recienMayores.map(({ hijo, fechaCumple, diasDesde }) => (
-                <li key={hijo.id} className="text-foreground">
-                  <span className="font-bold">{hijo.nombre}</span>
-                  <span className="text-muted-foreground">
-                    {' '}cumplió 18 el {format(fechaCumple, "d 'de' MMMM yyyy", { locale: es })}
-                    {' '}(hace {diasDesde} {diasDesde === 1 ? 'día' : 'días'}).
-                  </span>
-                </li>
-              ))}
-            </ul>
-            <p className="text-[11px] text-muted-foreground">
-              Preparar transición a alimentos art. 663 CCyCN (hijo mayor que estudia, hasta 25 años) y desactivar régimen de cuidado para ese hijo.
-            </p>
-          </div>
-          <button
-            onClick={() => setActiveTab('hijos')}
-            className="shrink-0 px-3 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-black uppercase tracking-widest transition-colors"
+          CCyCN ("hijo mayor que estudia") y deja de aplicar el cuidado.
+          UX-10: rojo si alguno ya cumplió o cumple en ≤30 días, amber para
+          31-90; oculto si el matter está Cerrado/Archivado. */}
+      {esFamilia && hayTransicionMayoria && (() => {
+        const critica = transicionMayoriaSeveridad === 'critica';
+        return (
+          <div
+            role="alert"
+            className={cn(
+              'flex items-start gap-3 p-4 rounded-2xl border shadow-sm',
+              critica
+                ? 'border-rose-500/50 bg-rose-500/10'
+                : 'border-amber-500/40 bg-amber-500/10',
+            )}
           >
-            Abrir tab Hijos
-          </button>
-        </div>
-      )}
+            <div className={cn(
+              'shrink-0 w-10 h-10 rounded-xl flex items-center justify-center',
+              critica ? 'bg-rose-500/25 text-rose-700' : 'bg-amber-500/20 text-amber-700',
+            )}>
+              <Calendar size={20} />
+            </div>
+            <div className="flex-1 min-w-0 space-y-1.5">
+              <span className={cn(
+                'text-[11px] font-black uppercase tracking-widest',
+                critica ? 'text-rose-700 dark:text-rose-300' : 'text-amber-700 dark:text-amber-300',
+              )}>
+                Transición a mayoría de edad
+              </span>
+              <ul className="space-y-1 text-sm">
+                {proximosCumplir.map(({ hijo, fechaCumple, diasRestantes }) => {
+                  const itemCritico = diasRestantes <= 30;
+                  return (
+                    <li key={hijo.id} className="text-foreground">
+                      <span className="font-bold">{hijo.nombre}</span>
+                      <span className="text-muted-foreground">
+                        {' '}cumple 18 el {format(fechaCumple, "d 'de' MMMM yyyy", { locale: es })}
+                        {' '}(en{' '}
+                      </span>
+                      <span className={cn(
+                        'font-bold',
+                        itemCritico ? 'text-rose-700 dark:text-rose-300' : 'text-amber-700 dark:text-amber-300',
+                      )}>
+                        {diasRestantes} {diasRestantes === 1 ? 'día' : 'días'}
+                      </span>
+                      <span className="text-muted-foreground">).</span>
+                    </li>
+                  );
+                })}
+                {recienMayores.map(({ hijo, fechaCumple, diasDesde }) => (
+                  <li key={hijo.id} className="text-foreground">
+                    <span className="font-bold">{hijo.nombre}</span>
+                    <span className="text-muted-foreground">
+                      {' '}cumplió 18 el {format(fechaCumple, "d 'de' MMMM yyyy", { locale: es })}
+                      {' '}(hace{' '}
+                    </span>
+                    <span className="font-bold text-rose-700 dark:text-rose-300">
+                      {diasDesde} {diasDesde === 1 ? 'día' : 'días'}
+                    </span>
+                    <span className="text-muted-foreground">) — transición pendiente.</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-[11px] text-muted-foreground">
+                Preparar transición a alimentos art. 663 CCyCN (hijo mayor que estudia, hasta 25 años) y desactivar régimen de cuidado para ese hijo.
+              </p>
+            </div>
+            <button
+              onClick={() => setActiveTab('hijos')}
+              className={cn(
+                'shrink-0 px-3 py-2 rounded-xl text-white text-[10px] font-black uppercase tracking-widest transition-colors',
+                critica ? 'bg-rose-600 hover:bg-rose-700' : 'bg-amber-600 hover:bg-amber-700',
+              )}
+            >
+              Abrir tab Hijos
+            </button>
+          </div>
+        );
+      })()}
 
       {/* ═══════════════════════ BANNER RECONVENCIÓN PENDIENTE (GAP R10 + UX-28) ═══════════════════════ */}
       {/* Aparece si hay al menos una reconvención en estado 'pendiente_traslado'
@@ -1050,6 +1158,14 @@ export const MatterDetail = ({
             <div className="w-px h-8 bg-border mx-1" />
             {/* GAP UX-25: botón "Deshacer mutación" aparece solo cuando hay
                 una mutación de <24h sin deshacer todavía. */}
+            {/* GAP UX-14: jerarquía clara en el header.
+                  - Acciones excepcionales pero urgentes ("Definir tipo" cuando
+                    falta, "Deshacer mutación" en ventana 24h) → siguen visibles
+                    out-of-menu porque su criticidad lo justifica.
+                  - "Mutar tipo" (cuando ya hay tipo definido) → overflow ⋯
+                    porque es uso ocasional.
+                  - "Editar Caso" → secundario (outline neutro).
+                  - "Nueva Acción" → primary prominente (acción más frecuente). */}
             {mutacionReversible && (
               <Button
                 variant="outline"
@@ -1063,29 +1179,21 @@ export const MatterDetail = ({
               </Button>
             )}
             {esDivorcioPrincipal && (() => {
-              // Si el caso se creó con tipo_divorcio = 'Por definir' (todavía
-              // no se sabía si era conjunto o unilateral en la entrevista),
-              // el botón actúa como "Definir tipo" y se destaca para que sea
-              // obvio que falta esa decisión estructural.
               const tipoActualDiv = matter.caseData?.tipo_divorcio;
               const tipoSinDefinir = !tipoActualDiv || tipoActualDiv === 'Por definir';
+              // Solo "Definir tipo" sigue out-of-menu — es una decisión
+              // estructural pendiente que el usuario no debe perderse.
+              if (!tipoSinDefinir) return null;
               return (
                 <Button
-                  variant={tipoSinDefinir ? 'primary' : 'outline'}
+                  variant="primary"
                   size="sm"
-                  className={cn(
-                    'text-[10px] font-black uppercase tracking-widest h-10 px-4 rounded-xl',
-                    tipoSinDefinir
-                      ? 'bg-violet-600 hover:bg-violet-700 text-white animate-in fade-in'
-                      : 'border-violet-500/40 text-violet-700 hover:bg-violet-500/5',
-                  )}
+                  className="text-[10px] font-black uppercase tracking-widest h-10 px-4 rounded-xl bg-violet-600 hover:bg-violet-700 text-white animate-in fade-in"
                   onClick={() => setIsMutarDivorcioOpen(true)}
-                  title={tipoSinDefinir
-                    ? 'Definir si el divorcio es de común acuerdo o unilateral'
-                    : 'Cambiar de común acuerdo ↔ unilateral'}
+                  title="Definir si el divorcio es de común acuerdo o unilateral"
                 >
                   <Scale size={14} className="mr-1.5" />
-                  {tipoSinDefinir ? 'Definir tipo' : 'Mutar tipo'}
+                  Definir tipo
                 </Button>
               );
             })()}
@@ -1106,6 +1214,61 @@ export const MatterDetail = ({
               <Plus size={16} className="mr-2" />
               Nueva Acción
             </Button>
+            {/* Overflow ⋯: acciones excepcionales — Mutar tipo (cuando ya hay
+                tipo definido) y Archivar caso. Solo aparece si hay al menos
+                una opción. Usa <details> nativo: el browser maneja
+                open/close + click-outside. */}
+            {(() => {
+              const tipoActualDiv = matter.caseData?.tipo_divorcio;
+              const tipoSinDefinir = !tipoActualDiv || tipoActualDiv === 'Por definir';
+              const mostrarMutar = esDivorcioPrincipal && !tipoSinDefinir;
+              const mostrarArchivar = matter.status !== 'Archivado';
+              if (!mostrarMutar && !mostrarArchivar) return null;
+              return (
+                <details className="relative group">
+                  <summary
+                    className="list-none cursor-pointer h-10 w-10 rounded-xl border border-border/50 bg-card hover:bg-muted/50 flex items-center justify-center transition-colors"
+                    title="Más acciones"
+                    aria-label="Más acciones"
+                  >
+                    <MoreHorizontal size={16} className="text-foreground/70" />
+                  </summary>
+                  <div
+                    className="absolute right-0 mt-2 w-56 rounded-xl border border-border/60 bg-card shadow-xl z-20 overflow-hidden"
+                    onClick={(e) => {
+                      // Cerrar el details al hacer click en cualquier item.
+                      const details = (e.currentTarget.parentElement as HTMLDetailsElement | null);
+                      if (details) details.open = false;
+                    }}
+                  >
+                    {mostrarMutar && (
+                      <button
+                        type="button"
+                        onClick={() => setIsMutarDivorcioOpen(true)}
+                        className="w-full flex items-center gap-2 px-3 py-2.5 text-[11px] font-bold text-violet-700 hover:bg-violet-500/10 transition-colors"
+                      >
+                        <Scale size={13} />
+                        Mutar tipo de divorcio
+                      </button>
+                    )}
+                    {mostrarArchivar && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (window.confirm(`¿Archivar "${matter.title}"? El caso pasará a estado Archivado y dejará de aparecer en listas activas. El histórico se preserva.`)) {
+                            handleArchiveMatter(matter.id);
+                          }
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2.5 text-[11px] font-bold text-foreground/80 hover:bg-muted/60 transition-colors border-t border-border/40"
+                      >
+                        <Archive size={13} />
+                        Archivar caso
+                      </button>
+                    )}
+                  </div>
+                </details>
+              );
+            })()}
           </div>
         </div>
       </div>

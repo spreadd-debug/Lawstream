@@ -31,6 +31,8 @@ export interface HijoRecienCumplio18 {
 /**
  * Hijos del caso que cumplen 18 entre HOY y `dias` días en el futuro.
  * Excluye los que ya cumplieron 18 (esos van por `recienCumplio18`).
+ * GAP UX-18: también excluye hijos donde el usuario marcó la transición
+ * como gestionada — el banner ya no aplica para ellos.
  */
 export function proximosACumplir18(
   hijos: HijoCaso[],
@@ -40,6 +42,7 @@ export function proximosACumplir18(
   const out: HijoProximoCumplir18[] = [];
   for (const hijo of hijos) {
     if (!hijo.fechaNacimiento) continue;
+    if (hijo.transicion18Gestionada) continue;
     let fechaCumple: Date;
     try {
       fechaCumple = addYears(parseISO(hijo.fechaNacimiento), 18);
@@ -58,6 +61,7 @@ export function proximosACumplir18(
  * Hijos que cumplieron 18 dentro de los últimos `ventanaDias` días —
  * para señalizar que la transición a alimentos art. 663 CCyCN puede
  * estar pendiente de gestionar.
+ * GAP UX-18: también excluye hijos donde la transición ya fue gestionada.
  */
 export function recienCumplio18(
   hijos: HijoCaso[],
@@ -67,6 +71,7 @@ export function recienCumplio18(
   const out: HijoRecienCumplio18[] = [];
   for (const hijo of hijos) {
     if (!hijo.fechaNacimiento) continue;
+    if (hijo.transicion18Gestionada) continue;
     let fechaCumple: Date;
     try {
       fechaCumple = addYears(parseISO(hijo.fechaNacimiento), 18);

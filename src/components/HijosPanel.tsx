@@ -53,7 +53,24 @@ export const HijosPanel: React.FC<HijosPanelProps> = ({ matterId }) => {
   const matter = matters.find(m => m.id === matterId);
   const parentMatterId = matter?.parentMatterId;
   const rootMatterId = parentMatterId ?? matterId;
+  const rootMatter = matters.find(m => m.id === rootMatterId);
   const esSubProceso = !!parentMatterId;
+
+  // GAP UX-16: extraemos el régimen general del caso (vive en caseData del
+  // matter raíz, cargado desde la ficha de Instrucción) para mostrarlo como
+  // referencia al editar el régimen propio de un hijo. Sin esto el usuario
+  // tenía que recordar o ir al tab Flujo a buscarlo.
+  const regimenGeneral = useMemo(() => {
+    const cd = rootMatter?.caseData ?? {};
+    const tipoCuidado         = cd.tipo_cuidado?.trim();
+    const residenciaPrincipal = cd.residencia_principal?.trim();
+    const regimenComunicacion = cd.regimen_comunicacion?.trim();
+    const regimenVacaciones   = cd.regimen_vacaciones?.trim();
+    if (!tipoCuidado && !residenciaPrincipal && !regimenComunicacion && !regimenVacaciones) {
+      return null;
+    }
+    return { tipoCuidado, residenciaPrincipal, regimenComunicacion, regimenVacaciones };
+  }, [rootMatter]);
 
   const hijosDelMatter = useMemo(() => {
     const ids = parentMatterId ? new Set([matterId, parentMatterId]) : new Set([matterId]);
@@ -124,6 +141,7 @@ export const HijosPanel: React.FC<HijosPanelProps> = ({ matterId }) => {
         isOpen={isFormOpen}
         editing={editing}
         nextOrden={hijosDelMatter.length}
+        regimenGeneral={regimenGeneral}
         onClose={() => setIsFormOpen(false)}
         onSave={async (data) => {
           if (editing) {
@@ -152,8 +170,14 @@ const HijoCard: React.FC<{
     ? differenceInCalendarDays(fechaCumple18, new Date())
     : null;
 
-  const cumple18Pronto = diasACumplir18 !== null && diasACumplir18 >= 0 && diasACumplir18 <= 90;
-  const recienCumplio18 = diasACumplir18 !== null && diasACumplir18 < 0 && diasACumplir18 >= -30;
+  // GAP UX-18: si la transición ya fue gestionada, suprimimos los chips
+  // de "cumple 18" — el régimen ya está adaptado.
+  const cumple18Pronto = !h.transicion18Gestionada
+    && diasACumplir18 !== null && diasACumplir18 >= 0 && diasACumplir18 <= 90;
+  const recienCumplio18 = !h.transicion18Gestionada
+    && diasACumplir18 !== null && diasACumplir18 < 0 && diasACumplir18 >= -30;
+  const transicionGestionadaRelevante = !!h.transicion18Gestionada
+    && diasACumplir18 !== null && diasACumplir18 >= -365 && diasACumplir18 <= 90;
   const conRegimenPropio = tieneRegimenPropio(h);
   const tieneSaludEspecial = !!(h.tieneCud === 'si' || h.tieneCud === 'en_tramite' || h.diagnostico || h.terapiasDesc);
 
@@ -193,6 +217,15 @@ const HijoCard: React.FC<{
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-[10px] font-bold uppercase tracking-wider text-amber-800 bg-amber-500/15 border-amber-500/40">
                 <Sparkles size={11} />
                 Recién cumplió 18
+              </span>
+            )}
+            {transicionGestionadaRelevante && (
+              <span
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-500/10 border-emerald-500/30"
+                title="La transición a mayoría de edad fue marcada como gestionada — el banner R3 no aparece para este hijo."
+              >
+                <Heart size={11} />
+                Transición 18 OK
               </span>
             )}
           </div>
@@ -279,15 +312,23 @@ const HijoCard: React.FC<{
 
 // ─── Form modal ─────────────────────────────────────────────────
 
+interface RegimenGeneral {
+  tipoCuidado?: string;
+  residenciaPrincipal?: string;
+  regimenComunicacion?: string;
+  regimenVacaciones?: string;
+}
+
 interface HijoFormProps {
   isOpen: boolean;
   editing: HijoCaso | null;
   nextOrden: number;
+  regimenGeneral: RegimenGeneral | null;
   onClose: () => void;
   onSave: (data: Partial<HijoCaso>) => Promise<void>;
 }
 
-const HijoForm: React.FC<HijoFormProps> = ({ isOpen, editing, nextOrden, onClose, onSave }) => {
+const HijoForm: React.FC<HijoFormProps> = ({ isOpen, editing, nextOrden, regimenGeneral, onClose, onSave }) => {
   const [nombre, setNombre]                       = useState('');
   const [dni, setDni]                             = useState('');
   const [fechaNacimiento, setFechaNacimiento]     = useState('');
@@ -302,6 +343,7 @@ const HijoForm: React.FC<HijoFormProps> = ({ isOpen, editing, nextOrden, onClose
   const [residenciaPrincipal, setResidenciaPrincipal] = useState('');
   const [regimenComunicacion, setRegimenComunicacion] = useState('');
   const [motivoRegimenDistinto, setMotivoRegimenDistinto] = useState('');
+  const [transicion18Gestionada, setTransicion18Gestionada] = useState(false);
   const [notas, setNotas]                         = useState('');
   const [saving, setSaving]                       = useState(false);
 
@@ -321,6 +363,7 @@ const HijoForm: React.FC<HijoFormProps> = ({ isOpen, editing, nextOrden, onClose
     setResidenciaPrincipal(editing?.residenciaPrincipal ?? '');
     setRegimenComunicacion(editing?.regimenComunicacion ?? '');
     setMotivoRegimenDistinto(editing?.motivoRegimenDistinto ?? '');
+    setTransicion18Gestionada(editing?.transicion18Gestionada ?? false);
     setNotas(editing?.notas ?? '');
   }, [isOpen, editing]);
 
@@ -341,6 +384,7 @@ const HijoForm: React.FC<HijoFormProps> = ({ isOpen, editing, nextOrden, onClose
     residenciaPrincipal:    residenciaPrincipal     || undefined,
     regimenComunicacion:    regimenComunicacion.trim() || undefined,
     motivoRegimenDistinto:  motivoRegimenDistinto.trim() || undefined,
+    transicion18Gestionada: transicion18Gestionada,
     notas:                  notas.trim()           || undefined,
     ...(editing ? {} : { orden: nextOrden }),
   });
@@ -362,6 +406,7 @@ const HijoForm: React.FC<HijoFormProps> = ({ isOpen, editing, nextOrden, onClose
     setResidenciaPrincipal('');
     setRegimenComunicacion('');
     setMotivoRegimenDistinto('');
+    setTransicion18Gestionada(false);
     setNotas('');
     // escolaridad y establecimiento se conservan a propósito.
   };
@@ -511,6 +556,32 @@ const HijoForm: React.FC<HijoFormProps> = ({ isOpen, editing, nextOrden, onClose
             <h4 className="text-[10px] font-black uppercase tracking-widest text-violet-700">Régimen propio del hijo</h4>
             <p className="text-[11px] text-muted-foreground">Opcional. Solo cargar si este hijo tiene un régimen distinto al unificado del caso (ej. recomendación del equipo terapéutico, edad, opinión del menor).</p>
           </div>
+
+          {/* GAP UX-16: mini-resumen del régimen general del caso, como
+              referencia para decidir qué overridear. Lee de caseData del
+              matter raíz (cargado desde la ficha de Instrucción). */}
+          {regimenGeneral && (
+            <div className="rounded-xl border border-border/50 bg-muted/20 p-3 text-[11px] space-y-0.5">
+              <div className="text-[9px] font-black uppercase tracking-widest text-muted-foreground mb-1">
+                Régimen general del caso (referencia)
+              </div>
+              {regimenGeneral.tipoCuidado && (
+                <div><span className="font-bold text-foreground/80">Cuidado:</span> <span className="text-foreground/90">{regimenGeneral.tipoCuidado}</span></div>
+              )}
+              {regimenGeneral.residenciaPrincipal && (
+                <div><span className="font-bold text-foreground/80">Residencia:</span> <span className="text-foreground/90">{regimenGeneral.residenciaPrincipal}</span></div>
+              )}
+              {regimenGeneral.regimenComunicacion && (
+                <div className="line-clamp-2"><span className="font-bold text-foreground/80">Comunicación:</span> <span className="text-foreground/90">{regimenGeneral.regimenComunicacion}</span></div>
+              )}
+              {regimenGeneral.regimenVacaciones && (
+                <div className="line-clamp-2"><span className="font-bold text-foreground/80">Vacaciones:</span> <span className="text-foreground/90">{regimenGeneral.regimenVacaciones}</span></div>
+              )}
+              <p className="text-[10px] text-muted-foreground italic mt-1">
+                Dejá los campos en blanco para que este hijo siga el régimen general. Cargá solo lo que difiere.
+              </p>
+            </div>
+          )}
           <div>
             <Label>Cuidado personal (override)</Label>
             <select
@@ -551,6 +622,24 @@ const HijoForm: React.FC<HijoFormProps> = ({ isOpen, editing, nextOrden, onClose
               className="min-h-[60px]"
             />
           </div>
+        </section>
+
+        {/* ── Transición a mayoría de edad gestionada (GAP UX-18) ── */}
+        <section className="border-t border-border/40 pt-5">
+          <label className="flex items-start gap-2 p-3 rounded-xl border border-amber-500/30 bg-amber-500/5 cursor-pointer hover:bg-amber-500/10 transition-colors">
+            <input
+              type="checkbox"
+              checked={transicion18Gestionada}
+              onChange={e => setTransicion18Gestionada(e.target.checked)}
+              className="mt-0.5 shrink-0"
+            />
+            <div className="text-[11px] text-amber-800 dark:text-amber-200 space-y-0.5">
+              <span className="font-bold">Transición a mayoría de edad gestionada</span>
+              <p className="text-amber-700/80 dark:text-amber-300/80">
+                Marcá cuando ya adaptaste el régimen para este hijo (deshabilitar cuidado, dejar solo alimentos art. 663 CCyCN). Mientras esté marcado, el banner de "cumple 18" no aparece para este hijo aunque la fecha lo justifique.
+              </p>
+            </div>
+          </label>
         </section>
 
         {/* ── Notas ── */}

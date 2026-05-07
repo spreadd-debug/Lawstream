@@ -3,7 +3,7 @@ import { useAppContext } from '../lib/AppContext';
 import { HiloPrueba, TipoHilo, OfrecidoPorHilo, EstadoHilo } from '../types';
 import { Modal, Button, Input, Textarea, Label, Badge } from './UI';
 import { cn } from '../lib/utils';
-import { Plus, Trash2, Pencil, Layers, Activity, CheckCircle2, XCircle, MinusCircle, FileSearch } from 'lucide-react';
+import { Plus, Trash2, Pencil, Layers, Activity, CheckCircle2, XCircle, MinusCircle, FileSearch, Eye } from 'lucide-react';
 
 interface HilosPanelProps {
   matterId: string;
@@ -37,10 +37,21 @@ const labelTipo   = (t: TipoHilo)   => TIPO_OPTS.find(o => o.value === t)?.label
 const labelOfrecido = (o: OfrecidoPorHilo) => OFRECIDO_OPTS.find(x => x.value === o)?.label ?? o;
 
 export const HilosPanel: React.FC<HilosPanelProps> = ({ matterId }) => {
-  const { hilos, eventos, handleCreateHilo, handleUpdateHilo, handleDeleteHilo } = useAppContext();
+  const { hilos, eventos, matters, veedores, handleCreateHilo, handleUpdateHilo, handleDeleteHilo } = useAppContext();
   const hilosDelMatter = useMemo(
     () => hilos.filter(h => h.matterId === matterId).sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
     [hilos, matterId],
+  );
+
+  // GAP UX-23: como concesión de descubrimiento, mostramos al final del
+  // panel la lista de veedores judiciales del caso (entidad-persona del
+  // expediente, conceptualmente cercana a peritos). La gestión real sigue
+  // en Patrimonio → Cautelares; acá solo es un atajo visual.
+  const matter = matters.find(m => m.id === matterId);
+  const rootMatterId = matter?.parentMatterId ?? matterId;
+  const veedoresDelCaso = useMemo(
+    () => veedores.filter(v => v.matterId === rootMatterId || v.matterId === matterId),
+    [veedores, matterId, rootMatterId],
   );
   const eventosCountByHilo = useMemo(() => {
     const map: Record<string, number> = {};
@@ -141,6 +152,38 @@ export const HilosPanel: React.FC<HilosPanelProps> = ({ matterId }) => {
           );
         })}
       </div>
+
+      {/* GAP UX-23: lista read-only de veedores del caso. Es la entidad-
+          persona "vecina" a peritos — el usuario que viene a este tab a
+          buscar quién está designado para algo lo encuentra acá sin
+          tener que ir a Patrimonio. La gestión sigue en Patrimonio →
+          Cautelares (creación / edición / vínculo con cautelar). */}
+      {veedoresDelCaso.length > 0 && (
+        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4 mt-2 space-y-2">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-amber-500/15 flex items-center justify-center">
+              <Eye size={13} className="text-amber-700" />
+            </div>
+            <div className="flex-1">
+              <h4 className="text-[11px] font-black uppercase tracking-widest text-amber-800 dark:text-amber-200">
+                Veedores judiciales designados ({veedoresDelCaso.length})
+              </h4>
+              <p className="text-[10px] text-muted-foreground">
+                Personas designadas por orden judicial para vigilar una sociedad o actividad. Gestionalos desde <strong>Patrimonio → Cautelares</strong>.
+              </p>
+            </div>
+          </div>
+          <ul className="space-y-1 text-[12px]">
+            {veedoresDelCaso.map(v => (
+              <li key={v.id} className="text-foreground/90">
+                <span className="font-bold">{v.nombre}</span>
+                {v.matricula && <span className="text-muted-foreground"> · matrícula {v.matricula}</span>}
+                {v.estado && <span className="text-muted-foreground"> · {v.estado}</span>}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <HiloForm
         isOpen={isFormOpen}

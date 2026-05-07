@@ -1203,6 +1203,11 @@ export interface HijoCaso {
   residenciaPrincipal?: string;
   regimenComunicacion?: string;
   motivoRegimenDistinto?: string;
+  // GAP UX-18 — transición a mayoría de edad gestionada (régimen ya
+  // adaptado a alimentos art. 663 CCyCN, sin cuidado personal). Cuando
+  // es true, el banner R3 deja de aparecer para este hijo aunque la
+  // fecha lo justifique.
+  transicion18Gestionada?: boolean;
   // Meta
   orden: number;
   notas?: string;

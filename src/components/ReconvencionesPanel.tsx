@@ -23,6 +23,7 @@ import {
   Plus, Pencil, Trash2, GitMerge, Scale, AlertCircle, CheckCircle2,
   Clock, MinusCircle, FileText,
 } from 'lucide-react';
+import { resolveJurisdiccion, labelDeTipoEvento } from '../lib/plazos';
 
 interface ReconvencionesPanelProps {
   matterId: string;
@@ -50,7 +51,8 @@ const ESTADO_META: Record<EstadoReconvencion, { color: string; icon: React.Compo
 };
 
 export const ReconvencionesPanel: React.FC<ReconvencionesPanelProps> = ({ matterId }) => {
-  const { reconvenciones, handleCreateReconvencion, handleUpdateReconvencion, handleDeleteReconvencion } = useAppContext();
+  const { reconvenciones, matters, handleCreateReconvencion, handleUpdateReconvencion, handleDeleteReconvencion, handleCreateEvento } = useAppContext();
+  const matter = useMemo(() => matters.find(m => m.id === matterId), [matters, matterId]);
 
   const recsDelMatter = useMemo(
     () => reconvenciones.filter(r => r.matterId === matterId).sort((a, b) => b.fechaPresentacion.localeCompare(a.fechaPresentacion)),
@@ -112,11 +114,43 @@ export const ReconvencionesPanel: React.FC<ReconvencionesPanelProps> = ({ matter
         isOpen={isFormOpen}
         editing={editing}
         onClose={() => setIsFormOpen(false)}
-        onSave={async (data) => {
+        onSave={async (data, opts) => {
           if (editing) {
             await handleUpdateReconvencion(editing.id, data);
           } else {
-            await handleCreateReconvencion({ ...data, matterId } as Omit<Reconvencion, 'id' | 'createdAt' | 'updatedAt'>);
+            // GAP UX-27: cuando el usuario opta por registrar también el
+            // evento procesal, lo creamos primero y le pasamos el id a la
+            // reconvención como `eventoPresentacionId`. Así el timeline
+            // muestra el hito y la reconvención queda linkeada.
+            let eventoPresentacionId: string | undefined;
+            if (opts.crearEventoTimeline && matter) {
+              try {
+                const jurisd = resolveJurisdiccion(matter);
+                const labelApelante = data.presentadaPor === 'cliente'
+                  ? 'Mi parte'
+                  : 'Contraparte';
+                const evento = await handleCreateEvento({
+                  matterId,
+                  fecha: data.fechaPresentacion!,
+                  tipo: 'demanda_reconvencional',
+                  titulo: `${labelDeTipoEvento('demanda_reconvencional')} (${labelApelante})`,
+                  descripcion: data.pretensionDesc,
+                  origen: 'manual',
+                  jurisdiccion: jurisd,
+                  documentosUrls: [],
+                });
+                eventoPresentacionId = evento.id;
+              } catch (e) {
+                // Si falla la creación del evento, igual creamos la reconvención
+                // — el usuario puede agregar el evento manualmente después.
+                console.error('[UX-27] No se pudo crear evento procesal:', e);
+              }
+            }
+            await handleCreateReconvencion({
+              ...data,
+              matterId,
+              eventoPresentacionId,
+            } as Omit<Reconvencion, 'id' | 'createdAt' | 'updatedAt'>);
           }
           setIsFormOpen(false);
         }}
@@ -204,7 +238,7 @@ interface ReconvencionFormProps {
   isOpen: boolean;
   editing: Reconvencion | null;
   onClose: () => void;
-  onSave: (data: Partial<Reconvencion>) => Promise<void>;
+  onSave: (data: Partial<Reconvencion>, opts: { crearEventoTimeline: boolean }) => Promise<void>;
 }
 
 const ReconvencionForm: React.FC<ReconvencionFormProps> = ({ isOpen, editing, onClose, onSave }) => {
@@ -216,6 +250,7 @@ const ReconvencionForm: React.FC<ReconvencionFormProps> = ({ isOpen, editing, on
   const [pretensionDesc, setPretensionDesc]     = useState('');
   const [estado, setEstado]                     = useState<EstadoReconvencion>('pendiente_traslado');
   const [notas, setNotas]                       = useState('');
+  const [crearEventoTimeline, setCrearEventoTimeline] = useState(true);
   const [saving, setSaving]                     = useState(false);
 
   React.useEffect(() => {
@@ -228,6 +263,9 @@ const ReconvencionForm: React.FC<ReconvencionFormProps> = ({ isOpen, editing, on
     setPretensionDesc(editing?.pretensionDesc ?? '');
     setEstado(editing?.estado ?? 'pendiente_traslado');
     setNotas(editing?.notas ?? '');
+    // GAP UX-27: si la reconvención ya tiene evento linkeado, no ofrecer
+    // recrearlo al editar. Para nuevas, default true.
+    setCrearEventoTimeline(!editing?.eventoPresentacionId);
   }, [isOpen, editing]);
 
   const togglePretension = (p: PretensionReconvencion) => {
@@ -256,7 +294,7 @@ const ReconvencionForm: React.FC<ReconvencionFormProps> = ({ isOpen, editing, on
         pretensionDesc: pretensionDesc.trim() || undefined,
         estado,
         notas:          notas.trim()          || undefined,
-      });
+      }, { crearEventoTimeline });
     } finally {
       setSaving(false);
     }
@@ -386,12 +424,30 @@ const ReconvencionForm: React.FC<ReconvencionFormProps> = ({ isOpen, editing, on
           />
         </div>
 
-        <div className="flex items-start gap-2 p-3 rounded-xl border border-fuchsia-500/30 bg-fuchsia-500/5 text-[11px] text-fuchsia-800 dark:text-fuchsia-200">
-          <AlertCircle size={14} className="shrink-0 mt-0.5" />
-          <span>
-            Recordá registrar también el evento <strong>"Demanda reconvencional"</strong> en el timeline procesal — eso dispara el plazo automático de contestación (15 días, art. 358 CPCCN).
-          </span>
-        </div>
+        {/* GAP UX-27: en lugar de pedirle al usuario que cargue el evento
+            manualmente en otro lado, ofrecemos crearlo atómicamente con
+            la reconvención. Pre-seleccionado en alta nueva. */}
+        {!editing && (
+          <label className="flex items-start gap-2 p-3 rounded-xl border border-fuchsia-500/30 bg-fuchsia-500/5 text-[11px] text-fuchsia-800 dark:text-fuchsia-200 cursor-pointer hover:bg-fuchsia-500/10 transition-colors">
+            <input
+              type="checkbox"
+              checked={crearEventoTimeline}
+              onChange={e => setCrearEventoTimeline(e.target.checked)}
+              className="mt-0.5 shrink-0"
+            />
+            <span>
+              <strong>Registrar también evento "Demanda reconvencional"</strong> en el timeline procesal con la fecha de presentación. Esto dispara el plazo automático de contestación (15 días, art. 358 CPCCN) y deja el hito visible en el timeline. Recomendado.
+            </span>
+          </label>
+        )}
+        {editing && editing.eventoPresentacionId && (
+          <div className="flex items-start gap-2 p-3 rounded-xl border border-emerald-500/30 bg-emerald-500/5 text-[11px] text-emerald-800 dark:text-emerald-200">
+            <CheckCircle2 size={14} className="shrink-0 mt-0.5" />
+            <span>
+              Esta reconvención está vinculada a un evento del timeline procesal.
+            </span>
+          </div>
+        )}
       </div>
     </Modal>
   );
