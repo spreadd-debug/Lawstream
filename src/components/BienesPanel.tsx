@@ -505,7 +505,26 @@ const BienCard: React.FC<{
             <Badge variant="outline" className="text-[9px]">{BIEN_TIPO_LABELS[b.tipo]}</Badge>
             <Badge variant="outline" className="text-[9px]">{TITULAR_ROL_LABELS[b.titularRol]}</Badge>
             {b.caracter && b.caracter !== 'no_aplica' && (
-              <Badge variant="outline" className="text-[9px]">{BIEN_CARACTER_LABELS[b.caracter]}</Badge>
+              <Badge
+                variant="outline"
+                className={cn(
+                  'text-[9px]',
+                  b.caracter === 'propio' && 'border-violet-500/40 text-violet-700',
+                )}
+              >
+                {BIEN_CARACTER_LABELS[b.caracter]}
+              </Badge>
+            )}
+            {/* GAP UX-30: alerta visible cuando es 'propio' sin motivo
+                cargado — el carácter queda vulnerable a impugnación. */}
+            {b.caracter === 'propio' && !b.motivoCaracter?.trim() && (
+              <span
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-[10px] font-bold uppercase tracking-wider text-amber-700 bg-amber-500/10 border-amber-500/30"
+                title="Falta documentar por qué es propio (anterior al matrimonio, donación, herencia). Editá el bien para completarlo."
+              >
+                <AlertCircle size={11} />
+                Sin motivo del propio
+              </span>
             )}
             {enExterior && (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-[10px] font-bold uppercase tracking-wider text-sky-700 bg-sky-500/10 border-sky-500/30">
@@ -566,6 +585,12 @@ const BienCard: React.FC<{
             )}
           </div>
 
+          {/* GAP UX-30: motivo del carácter propio — clave en liquidación */}
+          {b.caracter === 'propio' && b.motivoCaracter?.trim() && (
+            <div className="text-[11px] text-foreground/90 bg-violet-500/5 border border-violet-500/20 rounded-lg px-3 py-2">
+              <span className="font-bold text-violet-700">Por qué es propio:</span> {b.motivoCaracter}
+            </div>
+          )}
           {b.observaciones && (
             <p className="text-[11px] text-muted-foreground italic line-clamp-2">{b.observaciones}</p>
           )}
@@ -696,6 +721,10 @@ const BienForm: React.FC<BienFormProps> = ({ isOpen, editing, naturaleza, socied
   const [fechaValuacion, setFechaValuacion]   = useState('');
   const [sociedadId, setSociedadId]           = useState('');
   const [caracter, setCaracter]               = useState<BienCaracter | ''>('');
+  // GAP UX-30: justificación del carácter — obligatoria conceptualmente
+  // cuando es 'propio', si no quedó documentado se marca con alerta en la
+  // card. No bloquea el guardado (el usuario puede completarlo después).
+  const [motivoCaracter, setMotivoCaracter]   = useState('');
   const [observaciones, setObservaciones]     = useState('');
   const [notas, setNotas]                     = useState('');
   const [saving, setSaving]                   = useState(false);
@@ -712,6 +741,7 @@ const BienForm: React.FC<BienFormProps> = ({ isOpen, editing, naturaleza, socied
     setFechaValuacion(editing?.fechaValuacionActual ?? '');
     setSociedadId(editing?.sociedadInterpuestaId ?? '');
     setCaracter(editing?.caracter ?? '');
+    setMotivoCaracter(editing?.motivoCaracter ?? '');
     setObservaciones(editing?.observaciones ?? '');
     setNotas(editing?.notas ?? '');
   }, [isOpen, editing]);
@@ -742,6 +772,11 @@ const BienForm: React.FC<BienFormProps> = ({ isOpen, editing, naturaleza, socied
         fechaValuacionActual:  fechaValuacion || undefined,
         sociedadInterpuestaId: sociedadId    || undefined,
         caracter:              (caracter || undefined) as BienCaracter | undefined,
+        // El motivo solo tiene sentido si es 'propio'. Si el usuario cambió
+        // de 'propio' a otro valor, lo limpiamos para que no quede colgado.
+        motivoCaracter:        caracter === 'propio'
+                                 ? (motivoCaracter.trim() || undefined)
+                                 : undefined,
         observaciones:         observaciones.trim() || undefined,
         notas:                 notas.trim()         || undefined,
       });
@@ -833,21 +868,59 @@ const BienForm: React.FC<BienFormProps> = ({ isOpen, editing, naturaleza, socied
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <Label>Fecha de la valuación</Label>
-            <Input type="date" value={fechaValuacion} onChange={e => setFechaValuacion(e.target.value)} />
-          </div>
-          <div>
-            <Label>Carácter (divorcio)</Label>
-            <select value={caracter} onChange={e => setCaracter(e.target.value as BienCaracter | '')} className="w-full h-10 px-3 bg-muted/50 border border-border/50 rounded-xl text-sm font-bold">
-              <option value="">No aplica / sin dato</option>
-              <option value="propio">{BIEN_CARACTER_LABELS.propio}</option>
-              <option value="ganancial">{BIEN_CARACTER_LABELS.ganancial}</option>
-              <option value="comun">{BIEN_CARACTER_LABELS.comun}</option>
-            </select>
-          </div>
+        <div>
+          <Label>Fecha de la valuación</Label>
+          <Input type="date" value={fechaValuacion} onChange={e => setFechaValuacion(e.target.value)} className="md:max-w-xs" />
         </div>
+
+        {/* GAP UX-30: el carácter (propio/ganancial) es estructural en
+            divorcio. Lo destacamos como sección con helper text que
+            explica cada opción — antes vivía perdido al lado de la fecha
+            de valuación, sin contexto, y los usuarios que no son del
+            fuero familiar lo dejaban en blanco o elegían al azar.
+            Cuando es 'propio' aparece una textarea para registrar la
+            causa fuente (anterior al matrimonio, donación, herencia). */}
+        <section className="rounded-xl border border-border/50 bg-muted/10 p-3 space-y-2">
+          <div className="flex items-baseline justify-between gap-3 flex-wrap">
+            <Label className="!mb-0">Carácter del bien (divorcio)</Label>
+            <span className="text-[10px] text-muted-foreground italic">
+              Solo aplica en casos de divorcio / liquidación de comunidad
+            </span>
+          </div>
+          <select
+            value={caracter}
+            onChange={e => setCaracter(e.target.value as BienCaracter | '')}
+            className="w-full h-10 px-3 bg-background border border-border/50 rounded-xl text-sm font-bold"
+          >
+            <option value="">— Sin definir / no aplica —</option>
+            <option value="propio">Propio — anterior al matrimonio, donación o herencia recibida</option>
+            <option value="ganancial">Ganancial — adquirido durante el matrimonio</option>
+            <option value="comun">Común — condominio sin distinción de carácter</option>
+          </select>
+
+          {caracter === 'propio' && (
+            <div className="rounded-lg border border-violet-500/30 bg-violet-500/5 p-3 space-y-2 mt-2">
+              <div className="flex items-baseline justify-between gap-2 flex-wrap">
+                <Label className="!mb-0 text-violet-800 dark:text-violet-200">¿Por qué es propio? *</Label>
+                <span className="text-[10px] text-violet-700 dark:text-violet-300 italic">
+                  importante para defender el carácter en la liquidación
+                </span>
+              </div>
+              <Textarea
+                value={motivoCaracter}
+                onChange={e => setMotivoCaracter(e.target.value)}
+                placeholder='Ej: "Regalo del padre antes del matrimonio (15/03/2010), verificar acta de donación N° 234, Esc. 12 Reg. 47."'
+                className="min-h-[60px] bg-background"
+              />
+              <p className="text-[10px] text-violet-700 dark:text-violet-300 italic">
+                Anotá la causa fuente: anterioridad al matrimonio, donación recibida durante el
+                matrimonio, herencia, permuta o reinversión de un bien propio anterior. Sin
+                documentar este dato, el carácter propio queda vulnerable si la contraparte lo
+                impugna en la liquidación.
+              </p>
+            </div>
+          )}
+        </section>
 
         {/* GAP UX-20: el dropdown aparece siempre (incluso si no hay
             sociedades) para que el botón "+ Nueva sociedad" sea visible

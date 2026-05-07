@@ -71,6 +71,7 @@ import { DeshacerMutacionModal } from './DeshacerMutacionModal';
 import { ResumenAlertasMatter, AlertaResumen, SeveridadAlerta } from './ResumenAlertasMatter';
 import { urgenciaDePlazo, diasRestantes, exhortosPendientes, calcularVencimientoSync, resolveJurisdiccion } from '../lib/plazos';
 import { detectarCruceViolencia } from '../lib/violencia';
+import { detectarSenalesCautelar } from '../lib/cautelaresSugeridas';
 import { proximosACumplir18, recienCumplio18 } from '../lib/hijosTransicion';
 
 interface MatterDetailProps {
@@ -101,7 +102,7 @@ export const MatterDetail = ({
   currentUser, currentUserRole,
 }: MatterDetailProps) => {
   const navigate = useNavigate();
-  const { clients, matters: allMatters, plazos: allPlazos, eventos: allEventos, hijos: allHijos, reconvenciones: allReconvenciones, cautelares: allCautelares, cuotasAlimentarias: allCuotasAlim, handleEditMatter, setEditMatterFocusField, handleArchiveMatter } = useAppContext();
+  const { clients, matters: allMatters, plazos: allPlazos, eventos: allEventos, hijos: allHijos, reconvenciones: allReconvenciones, cautelares: allCautelares, bienes: allBienes, cuotasAlimentarias: allCuotasAlim, handleEditMatter, setEditMatterFocusField, handleArchiveMatter } = useAppContext();
   // GAP 1 — sub-procesos: si este matter tiene padre, mostramos breadcrumb.
   const parentMatter = matter.parentMatterId ? allMatters.find(m => m.id === matter.parentMatterId) : undefined;
   const isSubProceso = matter.kind === 'incidente' || matter.kind === 'apelacion';
@@ -325,6 +326,34 @@ export const MatterDetail = ({
     [allCautelares, patrimonioMatterId],
   );
 
+  // GAP UX-31 — Detección de señales que ameritan cautelar preventiva.
+  // La heurística vive en lib/cautelaresSugeridas.ts; acá filtramos los
+  // recursos del matter de patrimonio (puede ser raíz si es sub-proceso)
+  // y delegamos. La alerta se auto-suprime cuando hay una cautelar
+  // vigente contra la contraparte.
+  const bienesDelMatterPatrimonio = useMemo(
+    () => allBienes.filter(b => b.matterId === patrimonioMatterId),
+    [allBienes, patrimonioMatterId],
+  );
+  const cautelaresDelMatterPatrimonio = useMemo(
+    () => allCautelares.filter(c => c.matterId === patrimonioMatterId),
+    [allCautelares, patrimonioMatterId],
+  );
+  const senalesCautelar = useMemo(
+    () => detectarSenalesCautelar(matter, bienesDelMatterPatrimonio, cautelaresDelMatterPatrimonio),
+    [matter, bienesDelMatterPatrimonio, cautelaresDelMatterPatrimonio],
+  );
+  const lsKeyCautelar = `lawstream:cautelar-preventiva-evaluada:${matter.id}`;
+  const [cautelarPreventivaDismissed, setCautelarPreventivaDismissed] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    try { return localStorage.getItem(lsKeyCautelar) === '1'; } catch { return false; }
+  });
+  const dismissCautelarPreventiva = () => {
+    setCautelarPreventivaDismissed(true);
+    try { localStorage.setItem(lsKeyCautelar, '1'); } catch {}
+  };
+  const mostrarSenalesCautelar = senalesCautelar.ameritaEvaluar && !cautelarPreventivaDismissed;
+
   // GAP UX-9 — Centro de alertas. Cuando se acumulan ≥ 3 alertas activas
   // los banners apilados degradan la legibilidad del header. Mostramos un
   // resumen compacto colapsable; el usuario expande si quiere ver los
@@ -377,8 +406,20 @@ export const MatterDetail = ({
     if (cautelaresVigentes.length > 0) {
       list.push({ id: 'cautelar', severidad: 'alta', titulo: 'Cautelar patrimonial vigente', chip: `Cautelar (${cautelaresVigentes.length})`, tono: 'rose' });
     }
+    // GAP UX-31: señal de potencial vaciamiento — pasivo significativo
+    // de la contraparte sin cautelar vigente. Severidad alta porque la
+    // ventana para pedir inhibición es corta una vez detectada la señal.
+    if (mostrarSenalesCautelar) {
+      list.push({
+        id: 'cautelar-preventiva',
+        severidad: 'alta',
+        titulo: 'Evaluar cautelar preventiva',
+        chip: `Pasivo contraparte (${senalesCautelar.pasivosRelevantes.length})`,
+        tono: 'rose',
+      });
+    }
     return list;
-  }, [jurisdiccionFaltante, tipoDivorcioPorDefinir, tieneMedida, medidaVencida, cruceViolencia.regimenLuceAmplio, parcialmenteFirme, esFamilia, hayTransicionMayoria, transicionMayoriaSeveridad, aplicaReconvencion, reconvencionesPendientes.length, reconvencionSeveridad, exhortosLargos.length, cautelaresVigentes.length]);
+  }, [jurisdiccionFaltante, tipoDivorcioPorDefinir, tieneMedida, medidaVencida, cruceViolencia.regimenLuceAmplio, parcialmenteFirme, esFamilia, hayTransicionMayoria, transicionMayoriaSeveridad, aplicaReconvencion, reconvencionesPendientes.length, reconvencionSeveridad, exhortosLargos.length, cautelaresVigentes.length, mostrarSenalesCautelar, senalesCautelar.pasivosRelevantes.length]);
 
   const debeColapsar = alertasActivas.length >= 3;
   const lsKey = `lawstream:alertas-expandidas:${matter.id}`;
@@ -1029,6 +1070,67 @@ export const MatterDetail = ({
             <p className="text-[11px] text-muted-foreground">
               Considerar pronto despacho o consulta ante Cancillería / autoridad destino. Cuando llegue la contestación, registrá el evento "Exhorto internacional contestado".
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════════════════ BANNER CAUTELAR PREVENTIVA SUGERIDA (GAP UX-31) ═══════════════════════ */}
+      {/* Pasivo significativo cargado para la contraparte sin cautelar
+          vigente — señal de potencial vaciamiento. Banner con CTA al
+          panel de patrimonio para revisar y eventualmente pedir
+          inhibición general / embargo. Se autosuprime cuando se crea
+          una cautelar contra la contraparte; "Ya lo evalué" lo dismissa
+          manualmente con localStorage por matter. */}
+      {mostrarSenalesCautelar && (
+        <div
+          role="alert"
+          className="flex items-start gap-3 p-4 rounded-2xl border border-rose-500/40 bg-rose-500/5 shadow-sm"
+        >
+          <div className="shrink-0 w-10 h-10 rounded-xl bg-rose-500/20 text-rose-700 flex items-center justify-center">
+            <ShieldAlert size={20} />
+          </div>
+          <div className="flex-1 min-w-0 space-y-1.5">
+            <span className="text-[11px] font-black uppercase tracking-widest text-rose-700 dark:text-rose-300">
+              Evaluar cautelar preventiva
+            </span>
+            <p className="text-sm text-foreground">
+              {senalesCautelar.pasivosRelevantes.length === 1
+                ? 'Cargaste un pasivo significativo de la contraparte sin cautelar vigente que lo neutralice. '
+                : `Cargaste ${senalesCautelar.pasivosRelevantes.length} pasivos significativos de la contraparte sin cautelar vigente que los neutralice. `}
+              Puede ser señal de vaciamiento patrimonial — convendría evaluar pedir
+              <strong> inhibición general de bienes</strong> o <strong>embargo preventivo</strong>
+              para proteger la masa ganancial antes de que se complique la liquidación.
+            </p>
+            <ul className="text-[11px] text-muted-foreground space-y-0.5 mt-1">
+              {senalesCautelar.pasivosRelevantes.slice(0, 3).map(s => (
+                <li key={s.bien.id}>
+                  · <strong className="text-foreground/80">{s.bien.descripcion}</strong>
+                  {s.bien.titularDetalle && <span> — {s.bien.titularDetalle}</span>}
+                  {' '}
+                  <span className="font-mono">
+                    ({s.moneda === 'USD' ? 'US$' : s.moneda === 'EUR' ? '€' : '$'}{s.monto.toLocaleString('es-AR')})
+                  </span>
+                </li>
+              ))}
+              {senalesCautelar.pasivosRelevantes.length > 3 && (
+                <li className="italic">+ {senalesCautelar.pasivosRelevantes.length - 3} más…</li>
+              )}
+            </ul>
+          </div>
+          <div className="shrink-0 flex flex-col gap-2">
+            <button
+              onClick={() => setActiveTab('patrimonio')}
+              className="px-3 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-black uppercase tracking-widest transition-colors"
+            >
+              Ir a patrimonio
+            </button>
+            <button
+              onClick={dismissCautelarPreventiva}
+              className="px-3 py-1.5 rounded-xl text-muted-foreground hover:text-foreground text-[10px] font-bold uppercase tracking-widest transition-colors"
+              title="Cerrar la alerta — se reactiva si cargás otro pasivo grande de la contraparte y limpiás localStorage"
+            >
+              Ya lo evalué
+            </button>
           </div>
         </div>
       )}

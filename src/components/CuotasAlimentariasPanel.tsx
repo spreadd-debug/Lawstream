@@ -46,6 +46,9 @@ interface CuotasAlimentariasPanelProps {
 }
 
 const ESTADO_TONE: Record<EstadoCuotaAlimentaria, string> = {
+  // GAP UX-29: el borrador usa violeta para diferenciarlo visualmente de
+  // las cuotas reales (amber/emerald/blue) — leído como "trabajo previo".
+  borrador:   'text-violet-700 bg-violet-500/10 border-violet-500/30',
   provisoria: 'text-amber-700 bg-amber-500/10 border-amber-500/30',
   definitiva: 'text-emerald-700 bg-emerald-500/10 border-emerald-500/30',
   modificada: 'text-blue-700 bg-blue-500/10 border-blue-500/30',
@@ -133,16 +136,30 @@ export const CuotasAlimentariasPanel: React.FC<CuotasAlimentariasPanelProps> = (
     [cuotasAlimentarias, matterId],
   );
 
+  // GAP UX-29: separamos borradores de cuotas reales. Los borradores son
+  // canastas de gastos previas al pedido formal — no forman parte del
+  // historial procesal y no pueden estar "vigentes". Quedan agrupadas
+  // arriba con su propio CTA.
+  const borradores = useMemo(
+    () => cuotasDelMatter.filter(c => c.estado === 'borrador'),
+    [cuotasDelMatter],
+  );
+  const cuotasRealesDelMatter = useMemo(
+    () => cuotasDelMatter.filter(c => c.estado !== 'borrador'),
+    [cuotasDelMatter],
+  );
+
   // GAP UX-35: historial cronológico (más vieja → más nueva) para el
   // mini-stepper. La "vigente" es la más reciente que NO esté extinguida —
-  // si la última está extinguida, no hay vigente actual.
+  // si la última está extinguida, no hay vigente actual. Los borradores
+  // (UX-29) NO entran al historial.
   const historialCuotas = useMemo(() => {
-    const ordenadas = [...cuotasDelMatter].sort(
+    const ordenadas = [...cuotasRealesDelMatter].sort(
       (a, b) => (a.fechaVigenciaDesde ?? '').localeCompare(b.fechaVigenciaDesde ?? ''),
     );
     const vigenteId = [...ordenadas].reverse().find(c => c.estado !== 'extinguida')?.id;
     return ordenadas.map(c => ({ cuota: c, esVigente: c.id === vigenteId }));
-  }, [cuotasDelMatter]);
+  }, [cuotasRealesDelMatter]);
   const hijosDelMatter = useMemo(
     () => hijos.filter(h => h.matterId === matterId),
     [hijos, matterId],
@@ -150,6 +167,15 @@ export const CuotasAlimentariasPanel: React.FC<CuotasAlimentariasPanelProps> = (
 
   const [cuotaFormOpen, setCuotaFormOpen]   = useState(false);
   const [cuotaEditing, setCuotaEditing]     = useState<CuotaAlimentaria | null>(null);
+  // GAP UX-29: estado preseleccionado al abrir el form en modo "nuevo".
+  // Cuando se entra por "Cargar canasta" arranca como borrador, cuando se
+  // entra por "Nueva cuota" arranca como provisoria. En modo edición se
+  // ignora (se usa el estado del item editado).
+  const [nuevaCuotaPreestado, setNuevaCuotaPreestado] = useState<EstadoCuotaAlimentaria>('provisoria');
+  // GAP UX-29: cuando el usuario clickea "Convertir a cuota fijada" desde
+  // un borrador, abrimos un mini-modal que pide los datos faltantes
+  // (monto efectivo, fecha vigencia, fundamento) y muta el estado.
+  const [convertirBorrador, setConvertirBorrador] = useState<CuotaAlimentaria | null>(null);
   const [conceptoFormOpen, setConceptoFormOpen] = useState(false);
   const [conceptoEditing, setConceptoEditing]   = useState<CuotaConceptoEspecie | null>(null);
   const [conceptoCuotaId, setConceptoCuotaId]   = useState<string>('');
@@ -194,17 +220,63 @@ export const CuotasAlimentariasPanel: React.FC<CuotasAlimentariasPanelProps> = (
             </p>
           </div>
         </div>
-        <Button size="sm" onClick={() => { setCuotaEditing(null); setCuotaFormOpen(true); }} className="gap-2">
-          <Plus size={14} /> Nueva cuota
-        </Button>
+        {/* GAP UX-29: dos entradas paralelas. "Canasta" (borrador) es para
+            estructurar gastos durante la entrevista/instrucción, antes de
+            que exista pedido formal. "Cuota" es para el régimen ya fijado
+            (provisoria, definitiva, etc.). */}
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              setCuotaEditing(null);
+              setNuevaCuotaPreestado('borrador');
+              setCuotaFormOpen(true);
+            }}
+            className="gap-2 border-violet-500/40 text-violet-700 hover:bg-violet-500/5"
+            title="Cargar gastos del/los hijos sin pedir cuota todavía — sirve para fundar después un pedido"
+          >
+            <Plus size={14} /> Cargar canasta
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => {
+              setCuotaEditing(null);
+              setNuevaCuotaPreestado('provisoria');
+              setCuotaFormOpen(true);
+            }}
+            className="gap-2"
+          >
+            <Plus size={14} /> Nueva cuota
+          </Button>
+        </div>
       </div>
 
       {cuotasDelMatter.length === 0 && (
-        <div className="rounded-xl border border-dashed border-border/60 p-6 text-center">
-          <Wallet size={24} className="mx-auto text-muted-foreground/40 mb-2" />
-          <p className="text-xs text-muted-foreground">
-            Sin cuotas cargadas. Cuando se fije una cuota provisoria por incidente o una definitiva por sentencia, agregála acá con el desglose por concepto.
-          </p>
+        <div className="rounded-xl border-2 border-dashed border-violet-500/30 bg-violet-500/5 p-6 text-center space-y-3">
+          <Wallet size={24} className="mx-auto text-violet-600/60" />
+          <div className="space-y-1.5">
+            <p className="text-sm font-bold text-foreground">
+              Sin gastos ni cuotas cargados
+            </p>
+            <p className="text-[12px] text-muted-foreground max-w-md mx-auto">
+              Si todavía no se fijó cuota, empezá cargando la <strong>canasta de gastos</strong>:
+              colegio, actividades, prepaga, etc. Eso te queda como base para fundar el pedido
+              de cuota provisoria. Cuando llegue ese momento, convertís la canasta en cuota
+              fijada con un click.
+            </p>
+          </div>
+          <Button
+            size="sm"
+            onClick={() => {
+              setCuotaEditing(null);
+              setNuevaCuotaPreestado('borrador');
+              setCuotaFormOpen(true);
+            }}
+            className="gap-2 bg-violet-600 hover:bg-violet-700 text-white"
+          >
+            <Plus size={14} /> Cargar canasta de gastos
+          </Button>
         </div>
       )}
 
@@ -295,8 +367,47 @@ export const CuotasAlimentariasPanel: React.FC<CuotasAlimentariasPanelProps> = (
         </div>
       )}
 
+      {/* GAP UX-29: bloque de borradores arriba — visualmente separado de
+          las cuotas reales. Cuando el caso evoluciona a pedido formal, el
+          usuario convierte el borrador con "Convertir a cuota fijada". */}
+      {borradores.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 px-1">
+            <Sparkles size={12} className="text-violet-600" />
+            <h4 className="text-[10px] font-black uppercase tracking-widest text-violet-700 dark:text-violet-300">
+              Canasta de gastos (trabajo previo)
+            </h4>
+            <span className="text-[10px] text-muted-foreground italic">
+              — todavía no es cuota fijada
+            </span>
+          </div>
+          <div className="space-y-3">
+            {borradores.map(c => (
+              <CuotaCard
+                key={c.id}
+                cuota={c}
+                conceptos={cuotaConceptosEspecie.filter(ce => ce.cuotaAlimentariaId === c.id)}
+                hijos={hijosDelMatter}
+                puedeImportarTerapias={hijosConTerapias.length > 0}
+                onEdit={() => { setCuotaEditing(c); setCuotaFormOpen(true); }}
+                onDelete={() => onDeleteCuota(c)}
+                onAddConcepto={() => { setConceptoEditing(null); setConceptoCuotaId(c.id); setConceptoFormOpen(true); }}
+                onImportarTerapias={() => setImportarCuotaId(c.id)}
+                onEditConcepto={(ce) => { setConceptoEditing(ce); setConceptoCuotaId(ce.cuotaAlimentariaId); setConceptoFormOpen(true); }}
+                onDeleteConcepto={onDeleteConcepto}
+                onConvertirBorrador={() => setConvertirBorrador(c)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {borradores.length > 0 && cuotasRealesDelMatter.length > 0 && (
+        <div className="border-t border-border/40 pt-1" />
+      )}
+
       <div className="space-y-3">
-        {cuotasDelMatter.map(c => (
+        {cuotasRealesDelMatter.map(c => (
           <CuotaCard
             key={c.id}
             cuota={c}
@@ -316,6 +427,7 @@ export const CuotasAlimentariasPanel: React.FC<CuotasAlimentariasPanelProps> = (
       <CuotaForm
         isOpen={cuotaFormOpen}
         editing={cuotaEditing}
+        nuevoEstadoDefault={nuevaCuotaPreestado}
         hijos={hijosDelMatter}
         onClose={() => setCuotaFormOpen(false)}
         onSave={async (data) => {
@@ -323,9 +435,23 @@ export const CuotasAlimentariasPanel: React.FC<CuotasAlimentariasPanelProps> = (
             await handleUpdateCuotaAlimentaria(cuotaEditing.id, data);
           } else {
             const creada = await handleCreateCuotaAlimentaria({ ...data, matterId } as Omit<CuotaAlimentaria, 'id' | 'createdAt' | 'updatedAt'>);
+            // El prompt post-creación de "agregar conceptos" se muestra
+            // tanto para borradores como para cuotas reales — en ambos
+            // casos los conceptos en especie son lo siguiente a cargar.
             setCuotaRecienCreadaId(creada.id);
           }
           setCuotaFormOpen(false);
+        }}
+      />
+
+      {/* GAP UX-29: convertir borrador → cuota fijada. */}
+      <ConvertirBorradorModal
+        borrador={convertirBorrador}
+        onClose={() => setConvertirBorrador(null)}
+        onConfirm={async (changes) => {
+          if (!convertirBorrador) return;
+          await handleUpdateCuotaAlimentaria(convertirBorrador.id, changes);
+          setConvertirBorrador(null);
         }}
       />
 
@@ -384,7 +510,12 @@ const CuotaCard: React.FC<{
   onImportarTerapias: () => void;
   onEditConcepto: (ce: CuotaConceptoEspecie) => void;
   onDeleteConcepto: (ce: CuotaConceptoEspecie) => Promise<void>;
-}> = ({ cuota: c, conceptos, hijos, puedeImportarTerapias, onEdit, onDelete, onAddConcepto, onImportarTerapias, onEditConcepto, onDeleteConcepto }) => {
+  /** GAP UX-29: solo se pasa cuando la cuota es un borrador. Abre el modal
+   *  que pide los datos faltantes (efectivo, vigencia, fundamento) y muta
+   *  el estado a provisoria/definitiva. */
+  onConvertirBorrador?: () => void;
+}> = ({ cuota: c, conceptos, hijos, puedeImportarTerapias, onEdit, onDelete, onAddConcepto, onImportarTerapias, onEditConcepto, onDeleteConcepto, onConvertirBorrador }) => {
+  const esBorrador = c.estado === 'borrador';
   // Cálculo orientativo del total de la cuota (efectivo + suma de conceptos
   // en la misma moneda y frecuencia que el efectivo). Si difieren, no se
   // totaliza pero (GAP UX-34) avisamos por qué en lugar de ocultarlo.
@@ -428,11 +559,17 @@ const CuotaCard: React.FC<{
             </p>
           )}
 
-          {/* Línea principal: efectivo */}
+          {/* Línea principal: efectivo. En un borrador la ausencia de
+              efectivo es esperable (todavía no se pidió cuota), así que el
+              copy es neutral en lugar de "sin componente cargado". */}
           <div className="text-sm font-bold text-foreground">
             {c.montoEfectivo != null ? (
               <span>
                 Efectivo: {formatMoneda(c.montoEfectivo, c.moneda)} {FRECUENCIA_CUOTA_LABELS[c.frecuencia].toLowerCase()}
+              </span>
+            ) : esBorrador ? (
+              <span className="text-violet-700 dark:text-violet-300 italic font-normal">
+                Canasta sin componente en efectivo (se define al pedir la cuota)
               </span>
             ) : (
               <span className="text-muted-foreground italic font-normal">Sin componente en efectivo cargado</span>
@@ -466,6 +603,19 @@ const CuotaCard: React.FC<{
           {c.notas && <p className="text-[11px] text-muted-foreground italic">{c.notas}</p>}
         </div>
         <div className="flex items-center gap-1 shrink-0">
+          {/* GAP UX-29: convertir borrador → cuota fijada. Solo aparece si
+              el padre nos pasó el handler (lo hace cuando es borrador). */}
+          {esBorrador && onConvertirBorrador && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={onConvertirBorrador}
+              className="h-7 text-[10px] gap-1 border-emerald-500/40 text-emerald-700 hover:bg-emerald-500/5"
+              title="Convertir esta canasta en cuota fijada (provisoria/definitiva)"
+            >
+              <Sparkles size={11} /> Convertir a cuota
+            </Button>
+          )}
           <button onClick={onEdit} className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors" title="Editar">
             <Pencil size={14} />
           </button>
@@ -552,13 +702,17 @@ const CuotaCard: React.FC<{
 interface CuotaFormProps {
   isOpen: boolean;
   editing: CuotaAlimentaria | null;
+  /** Estado inicial cuando se crea una nueva cuota (no aplica en edición).
+   *  GAP UX-29: 'borrador' al entrar por "Cargar canasta", 'provisoria' al
+   *  entrar por "Nueva cuota". */
+  nuevoEstadoDefault?: EstadoCuotaAlimentaria;
   hijos: HijoCaso[];
   onClose: () => void;
   onSave: (data: Partial<CuotaAlimentaria>) => Promise<void>;
 }
 
-const CuotaForm: React.FC<CuotaFormProps> = ({ isOpen, editing, hijos, onClose, onSave }) => {
-  const [estado, setEstado]                     = useState<EstadoCuotaAlimentaria>('provisoria');
+const CuotaForm: React.FC<CuotaFormProps> = ({ isOpen, editing, nuevoEstadoDefault, hijos, onClose, onSave }) => {
+  const [estado, setEstado]                     = useState<EstadoCuotaAlimentaria>(nuevoEstadoDefault ?? 'provisoria');
   const [obligadoRol, setObligadoRol]           = useState<TitularRol>('contraparte');
   const [obligadoDetalle, setObligadoDetalle]   = useState('');
   const [alcance, setAlcance]                   = useState<AlcanceCuota>('todos_los_hijos');
@@ -576,7 +730,7 @@ const CuotaForm: React.FC<CuotaFormProps> = ({ isOpen, editing, hijos, onClose, 
 
   React.useEffect(() => {
     if (!isOpen) return;
-    setEstado(editing?.estado ?? 'provisoria');
+    setEstado(editing?.estado ?? nuevoEstadoDefault ?? 'provisoria');
     setObligadoRol(editing?.obligadoRol ?? 'contraparte');
     setObligadoDetalle(editing?.obligadoDetalle ?? '');
     setAlcance(editing?.alcance ?? 'todos_los_hijos');
@@ -625,25 +779,49 @@ const CuotaForm: React.FC<CuotaFormProps> = ({ isOpen, editing, hijos, onClose, 
     }
   };
 
+  // GAP UX-29: copy y título cambian según estamos en borrador (canasta de
+  // gastos previa) o en una cuota fijada. El form es el mismo, pero la
+  // narrativa es muy distinta y queremos que el usuario tenga claro qué
+  // está cargando.
+  const esBorrador      = estado === 'borrador';
+  const tituloModal     = editing
+    ? (esBorrador ? 'Editar canasta de gastos' : 'Editar cuota alimentaria')
+    : (esBorrador ? 'Cargar canasta de gastos' : 'Nueva cuota alimentaria');
+  const labelBotonGuardar = editing
+    ? 'Guardar cambios'
+    : (esBorrador ? 'Crear canasta' : 'Crear cuota');
+
   return (
     <Modal
       isOpen={isOpen}
       onClose={saving ? () => {} : onClose}
-      title={editing ? 'Editar cuota alimentaria' : 'Nueva cuota alimentaria'}
+      title={tituloModal}
       footer={
         <>
           <Button variant="ghost" onClick={onClose} disabled={saving}>Cancelar</Button>
           <Button variant="primary" onClick={handleSubmit} disabled={saving || !puedeGuardar}>
-            {saving ? 'Guardando…' : (editing ? 'Guardar cambios' : 'Crear cuota')}
+            {saving ? 'Guardando…' : labelBotonGuardar}
           </Button>
         </>
       }
     >
       <div className="space-y-4">
+        {esBorrador && (
+          <div className="flex items-start gap-2 p-3 rounded-xl border border-violet-500/30 bg-violet-500/5 text-[12px] text-violet-800 dark:text-violet-200">
+            <Sparkles size={14} className="shrink-0 mt-0.5" />
+            <span>
+              Esto es una <strong>canasta de gastos</strong> — trabajo previo para fundar después un
+              pedido de cuota. No exige monto en efectivo ni fecha de vigencia: cargás los conceptos
+              reales (colegio, prepaga, terapias) y cuando llegue el momento del pedido formal,
+              convertís la canasta en cuota provisoria con un click.
+            </span>
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-3">
           <div>
             <Label>Estado *</Label>
             <select value={estado} onChange={e => setEstado(e.target.value as EstadoCuotaAlimentaria)} className="w-full h-10 px-3 bg-muted/50 border border-border/50 rounded-xl text-sm font-bold">
+              <option value="borrador">{ESTADO_CUOTA_LABELS.borrador}</option>
               <option value="provisoria">{ESTADO_CUOTA_LABELS.provisoria}</option>
               <option value="definitiva">{ESTADO_CUOTA_LABELS.definitiva}</option>
               <option value="modificada">{ESTADO_CUOTA_LABELS.modificada}</option>
@@ -1163,6 +1341,146 @@ const ImportarTerapiasModal: React.FC<{
             ))}
           </section>
         ))}
+      </div>
+    </Modal>
+  );
+};
+
+// ─── Convertir borrador → cuota fijada (GAP UX-29) ─────────────
+//
+// El borrador tiene cargados los conceptos en especie (canasta) pero le
+// faltan: estado real (provisoria/definitiva), monto en efectivo (opcional
+// si la cuota es 100% en especie), fecha de vigencia y fundamento. Este
+// modal pide los faltantes y dispara handleUpdateCuotaAlimentaria — los
+// conceptos en especie cuelgan de cuota_alimentaria_id, así que se
+// preservan automáticamente sin tocarlos.
+
+interface ConvertirBorradorModalProps {
+  borrador: CuotaAlimentaria | null;
+  onClose: () => void;
+  onConfirm: (changes: Partial<CuotaAlimentaria>) => Promise<void>;
+}
+
+const ConvertirBorradorModal: React.FC<ConvertirBorradorModalProps> = ({ borrador, onClose, onConfirm }) => {
+  const [estadoNuevo, setEstadoNuevo]   = useState<EstadoCuotaAlimentaria>('provisoria');
+  const [montoEfectivo, setMontoEfectivo] = useState('');
+  const [moneda, setMoneda]             = useState<Moneda>('ARS');
+  const [fechaDesde, setFechaDesde]     = useState('');
+  const [fundamento, setFundamento]     = useState('');
+  const [saving, setSaving]             = useState(false);
+
+  React.useEffect(() => {
+    if (!borrador) return;
+    setEstadoNuevo('provisoria');
+    setMontoEfectivo(borrador.montoEfectivo != null ? String(borrador.montoEfectivo) : '');
+    setMoneda(borrador.moneda ?? 'ARS');
+    setFechaDesde(borrador.fechaVigenciaDesde ?? new Date().toISOString().slice(0, 10));
+    setFundamento(borrador.fundamento ?? '');
+  }, [borrador]);
+
+  if (!borrador) return null;
+
+  const puedeGuardar = !!estadoNuevo
+    && estadoNuevo !== 'borrador'
+    && fechaDesde.trim().length > 0
+    && fundamento.trim().length > 0;
+
+  const handleConfirm = async () => {
+    if (!puedeGuardar) return;
+    setSaving(true);
+    try {
+      const monto = montoEfectivo.trim() ? Number(montoEfectivo.replace(',', '.')) : undefined;
+      await onConfirm({
+        estado:              estadoNuevo,
+        montoEfectivo:       Number.isFinite(monto) ? monto : undefined,
+        moneda:              monto != null ? moneda : borrador.moneda,
+        fechaVigenciaDesde:  fechaDesde,
+        fundamento:          fundamento.trim(),
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal
+      isOpen={!!borrador}
+      onClose={saving ? () => {} : onClose}
+      title="Convertir canasta a cuota fijada"
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose} disabled={saving}>Cancelar</Button>
+          <Button variant="primary" onClick={handleConfirm} disabled={saving || !puedeGuardar}>
+            {saving ? 'Convirtiendo…' : 'Confirmar conversión'}
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <div className="flex items-start gap-2 p-3 rounded-xl border border-emerald-500/30 bg-emerald-500/5 text-[12px] text-emerald-800 dark:text-emerald-200">
+          <Sparkles size={14} className="shrink-0 mt-0.5" />
+          <span>
+            Vas a convertir la canasta en cuota fijada. Los conceptos en especie ya cargados
+            (colegio, prepaga, actividades, etc.) se mantienen — solo agregamos los datos del
+            régimen formal: estado, monto en efectivo, fecha de vigencia y fundamento.
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label>Nuevo estado *</Label>
+            <select
+              value={estadoNuevo}
+              onChange={e => setEstadoNuevo(e.target.value as EstadoCuotaAlimentaria)}
+              className="w-full h-10 px-3 bg-muted/50 border border-border/50 rounded-xl text-sm font-bold"
+            >
+              <option value="provisoria">{ESTADO_CUOTA_LABELS.provisoria}</option>
+              <option value="definitiva">{ESTADO_CUOTA_LABELS.definitiva}</option>
+              <option value="modificada">{ESTADO_CUOTA_LABELS.modificada}</option>
+            </select>
+          </div>
+          <div>
+            <Label>Fecha de vigencia desde *</Label>
+            <Input type="date" value={fechaDesde} onChange={e => setFechaDesde(e.target.value)} />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-3 gap-3">
+          <div className="col-span-2">
+            <Label>Monto en efectivo</Label>
+            <Input
+              type="text"
+              value={montoEfectivo}
+              onChange={e => setMontoEfectivo(e.target.value.replace(/[^0-9.,]/g, ''))}
+              placeholder="2000000 (opcional si la cuota es 100% en especie)"
+            />
+          </div>
+          <div>
+            <Label>Moneda</Label>
+            <select
+              value={moneda}
+              onChange={e => setMoneda(e.target.value as Moneda)}
+              className="w-full h-10 px-3 bg-muted/50 border border-border/50 rounded-xl text-sm font-bold"
+            >
+              <option value="ARS">ARS</option>
+              <option value="USD">USD</option>
+              <option value="EUR">EUR</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <Label>Fundamento *</Label>
+          <Textarea
+            value={fundamento}
+            onChange={e => setFundamento(e.target.value)}
+            placeholder='Ej: "Resolución de cuota provisoria del 12/06/2026, Juzgado Civil N° 15, fs. 78"'
+            className="min-h-[70px]"
+          />
+          <p className="text-[10px] text-muted-foreground italic mt-1">
+            Origen documental del régimen — sentencia, resolución, acuerdo homologado.
+          </p>
+        </div>
       </div>
     </Modal>
   );

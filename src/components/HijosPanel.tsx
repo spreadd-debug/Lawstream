@@ -4,6 +4,8 @@ import {
   HijoCaso,
   EstadoCud,
   AcompananteTerapeutico,
+  CuotaAlimentaria,
+  CuotaConceptoEspecie,
   ESTADO_CUD_LABELS,
   ACOMPANANTE_LABELS,
 } from '../types';
@@ -14,9 +16,59 @@ import { es } from 'date-fns/locale';
 import { addYears } from 'date-fns';
 import {
   Plus, Pencil, Trash2, Baby, AlertCircle, Calendar, GraduationCap,
-  Heart, Scale, Sparkles,
+  Heart, Scale, Sparkles, Wallet,
 } from 'lucide-react';
 import { edadEnAnios } from '../lib/hijosTransicion';
+
+// GAP UX-29: resumen de gastos cargados (canasta + cuotas reales) para un
+// hijo específico. Solo cuenta conceptos donde hijoId === h.id (los
+// asignados directo a este hijo). Los conceptos compartidos de la familia
+// se ven en el panel de cuotas.
+interface ResumenGastosHijo {
+  mensualARS: number;
+  mensualUSD: number;
+  conceptosOtraFrecuencia: number;
+  totalConceptos: number;
+  hayBorrador: boolean;
+  hayCuotaReal: boolean;
+}
+
+function resumenGastosDeHijo(
+  hijoId: string,
+  cuotasDelMatter: CuotaAlimentaria[],
+  conceptos: CuotaConceptoEspecie[],
+): ResumenGastosHijo | null {
+  const cuotaIds = new Set(cuotasDelMatter.map(c => c.id));
+  const propios = conceptos.filter(ce => ce.hijoId === hijoId && cuotaIds.has(ce.cuotaAlimentariaId));
+  if (propios.length === 0) return null;
+  let mensualARS = 0;
+  let mensualUSD = 0;
+  let otros = 0;
+  let hayBorrador = false;
+  let hayCuotaReal = false;
+  for (const ce of propios) {
+    const cuota = cuotasDelMatter.find(c => c.id === ce.cuotaAlimentariaId);
+    if (cuota?.estado === 'borrador') hayBorrador = true;
+    else if (cuota) hayCuotaReal = true;
+    if (ce.frecuencia === 'mensual' && ce.montoEstimado != null) {
+      if (ce.moneda === 'USD')      mensualUSD += ce.montoEstimado;
+      else                          mensualARS += ce.montoEstimado;
+    } else {
+      otros++;
+    }
+  }
+  return {
+    mensualARS,
+    mensualUSD,
+    conceptosOtraFrecuencia: otros,
+    totalConceptos:          propios.length,
+    hayBorrador,
+    hayCuotaReal,
+  };
+}
+
+const formatMonto = (n: number, simbolo: string): string =>
+  `${simbolo} ${n.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
 interface HijosPanelProps {
   matterId: string;
@@ -44,7 +96,10 @@ const tieneRegimenPropio = (h: HijoCaso): boolean =>
   !!(h.regimenCuidado || h.residenciaPrincipal || h.regimenComunicacion || h.motivoRegimenDistinto);
 
 export const HijosPanel: React.FC<HijosPanelProps> = ({ matterId }) => {
-  const { hijos, matters, handleCreateHijoCaso, handleUpdateHijoCaso, handleDeleteHijoCaso } = useAppContext();
+  const {
+    hijos, matters, cuotasAlimentarias, cuotaConceptosEspecie,
+    handleCreateHijoCaso, handleUpdateHijoCaso, handleDeleteHijoCaso,
+  } = useAppContext();
 
   // Si este matter es sub-proceso (incidente / apelación), los hijos viven
   // en el expediente raíz (el matter principal del divorcio). El panel lee
@@ -76,6 +131,22 @@ export const HijosPanel: React.FC<HijosPanelProps> = ({ matterId }) => {
     const ids = parentMatterId ? new Set([matterId, parentMatterId]) : new Set([matterId]);
     return hijos.filter(h => ids.has(h.matterId)).sort((a, b) => a.orden - b.orden);
   }, [hijos, matterId, parentMatterId]);
+
+  // GAP UX-29: las cuotas (incluidas las canastas borrador) viven en el
+  // matter raíz cuando este es sub-proceso. El resumen de gastos por hijo
+  // se calcula sobre todas las cuotas del matter raíz.
+  const cuotasDelMatterRaiz = useMemo(
+    () => cuotasAlimentarias.filter(c => c.matterId === rootMatterId),
+    [cuotasAlimentarias, rootMatterId],
+  );
+  const resumenGastosPorHijoId = useMemo(() => {
+    const map = new Map<string, ResumenGastosHijo>();
+    for (const h of hijosDelMatter) {
+      const r = resumenGastosDeHijo(h.id, cuotasDelMatterRaiz, cuotaConceptosEspecie);
+      if (r) map.set(h.id, r);
+    }
+    return map;
+  }, [hijosDelMatter, cuotasDelMatterRaiz, cuotaConceptosEspecie]);
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editing, setEditing] = useState<HijoCaso | null>(null);
@@ -131,6 +202,7 @@ export const HijosPanel: React.FC<HijosPanelProps> = ({ matterId }) => {
           <HijoCard
             key={h.id}
             hijo={h}
+            resumenGastos={resumenGastosPorHijoId.get(h.id)}
             onEdit={() => openEdit(h)}
             onDelete={() => onDelete(h)}
           />
@@ -159,9 +231,12 @@ export const HijosPanel: React.FC<HijosPanelProps> = ({ matterId }) => {
 
 const HijoCard: React.FC<{
   hijo: HijoCaso;
+  /** GAP UX-29: resumen de gastos cargados específicamente para este hijo
+   *  (canasta borrador o cuota fijada). Undefined si no hay nada cargado. */
+  resumenGastos?: ResumenGastosHijo;
   onEdit: () => void;
   onDelete: () => void;
-}> = ({ hijo: h, onEdit, onDelete }) => {
+}> = ({ hijo: h, resumenGastos, onEdit, onDelete }) => {
   const edad = edadEnAnios(h.fechaNacimiento);
   const fechaCumple18 = (() => {
     try { return addYears(parseISO(h.fechaNacimiento), 18); } catch { return null; }
@@ -281,6 +356,44 @@ const HijoCard: React.FC<{
                   {h.motivoRegimenDistinto}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* GAP UX-29: resumen de gastos cargados para este hijo. Sirve
+              de bridge entre el panel de hijos y el panel de cuotas. */}
+          {resumenGastos && (
+            <div className="text-[11px] text-foreground/90 bg-emerald-500/5 border border-emerald-500/20 rounded-lg px-3 py-2 flex items-start gap-2">
+              <Wallet size={12} className="shrink-0 mt-0.5 text-emerald-700" />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-bold text-emerald-700">Gastos cargados:</span>
+                  {resumenGastos.mensualARS > 0 && (
+                    <span className="font-bold text-foreground">
+                      {formatMonto(resumenGastos.mensualARS, '$')}/mes
+                    </span>
+                  )}
+                  {resumenGastos.mensualUSD > 0 && (
+                    <span className="font-bold text-foreground">
+                      {formatMonto(resumenGastos.mensualUSD, 'US$')}/mes
+                    </span>
+                  )}
+                  {resumenGastos.conceptosOtraFrecuencia > 0 && (
+                    <span className="text-muted-foreground italic">
+                      + {resumenGastos.conceptosOtraFrecuencia} con frecuencia/monto distinto
+                    </span>
+                  )}
+                </div>
+                <div className="text-[10px] text-muted-foreground flex items-center gap-2 flex-wrap mt-0.5">
+                  <span>{resumenGastos.totalConceptos} concepto{resumenGastos.totalConceptos === 1 ? '' : 's'} específico{resumenGastos.totalConceptos === 1 ? '' : 's'}</span>
+                  {resumenGastos.hayBorrador && (
+                    <span className="text-violet-700 dark:text-violet-300">· en canasta borrador</span>
+                  )}
+                  {resumenGastos.hayCuotaReal && (
+                    <span className="text-emerald-700 dark:text-emerald-300">· en cuota fijada</span>
+                  )}
+                  <span className="italic">— editá desde la pestaña de cuotas alimentarias</span>
+                </div>
+              </div>
             </div>
           )}
 

@@ -2988,6 +2988,7 @@ const toBien = (r: any): Bien => ({
   fechaValuacionActual:  r.fecha_valuacion_actual   ?? undefined,
   sociedadInterpuestaId: r.sociedad_interpuesta_id  ?? undefined,
   caracter:              r.caracter                 ?? undefined,
+  motivoCaracter:        r.motivo_caracter          ?? undefined,
   observaciones:         r.observaciones            ?? undefined,
   notas:                 r.notas      ?? undefined,
   createdBy:             r.created_by ?? undefined,
@@ -3009,6 +3010,7 @@ const bienToRow = (b: Partial<Bien>): Record<string, unknown> => {
   if (b.fechaValuacionActual  !== undefined) row.fecha_valuacion_actual   = b.fechaValuacionActual  ?? null;
   if (b.sociedadInterpuestaId !== undefined) row.sociedad_interpuesta_id  = b.sociedadInterpuestaId ?? null;
   if (b.caracter              !== undefined) row.caracter                 = b.caracter              ?? null;
+  if (b.motivoCaracter        !== undefined) row.motivo_caracter          = b.motivoCaracter        ?? null;
   if (b.observaciones         !== undefined) row.observaciones            = b.observaciones         ?? null;
   if (b.notas                 !== undefined) row.notas                    = b.notas      ?? null;
   if (b.createdBy             !== undefined) row.created_by               = b.createdBy  ?? null;

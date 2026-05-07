@@ -74,6 +74,16 @@ export const MATTER_TEMPLATES: MatterTemplate[] = [
             ],
           },
           {
+            // GAP UX-31: prompt explícito en la etapa de instrucción para
+            // que el abogado evalúe pedir cautelares preventivas. La señal
+            // automática vive en lib/cautelaresSugeridas.ts (banner cuando
+            // hay pasivo grande de la contraparte sin cautelar), pero la
+            // tarea aparece siempre porque la decisión es contextual y
+            // exige análisis activo aunque no haya señales obvias.
+            task: 'Evaluar cautelares patrimoniales preventivas (inhibición general, embargo) si hay señales de vaciamiento — préstamos nuevos de la contraparte, transferencias, sociedades opacas, etc.',
+            priority: 'recomendado',
+          },
+          {
             task: 'Evaluar urgencia por violencia familiar',
             priority: 'crítico',
             bloqueante: true,
@@ -487,6 +497,16 @@ export const MATTER_TEMPLATES: MatterTemplate[] = [
               { key: 'bienes_gananciales', label: 'Bienes gananciales' },
               { key: 'regimen_patrimonial', label: 'Régimen patrimonial' },
             ],
+          },
+          {
+            // GAP UX-31: prompt explícito en la etapa de instrucción para
+            // que el abogado evalúe pedir cautelares preventivas. La señal
+            // automática vive en lib/cautelaresSugeridas.ts (banner cuando
+            // hay pasivo grande de la contraparte sin cautelar), pero la
+            // tarea aparece siempre porque la decisión es contextual y
+            // exige análisis activo aunque no haya señales obvias.
+            task: 'Evaluar cautelares patrimoniales preventivas (inhibición general, embargo) si hay señales de vaciamiento — préstamos nuevos de la contraparte, transferencias, sociedades opacas, etc.',
+            priority: 'recomendado',
           },
           {
             task: 'Evaluar urgencia por violencia familiar',

@@ -1370,6 +1370,9 @@ export interface Bien {
   fechaValuacionActual?: string;       // 'YYYY-MM-DD'
   sociedadInterpuestaId?: string;
   caracter?: BienCaracter;
+  // GAP UX-30: justificación del carácter — crítico cuando es 'propio'
+  // (anterior al matrimonio, donación, herencia, permuta de propio).
+  motivoCaracter?: string;
   observaciones?: string;
   notas?: string;
   createdBy?: string;
@@ -1591,9 +1594,15 @@ export interface Veedor {
 // hijo (terapias específicas, AT escolar, etc.).
 
 export type EstadoCuotaAlimentaria =
-  | 'provisoria' | 'definitiva' | 'modificada' | 'extinguida';
+  // 'borrador' (GAP UX-29): canasta de gastos en construcción, antes de
+  // que se pida formalmente la cuota. No es una cuota fijada — sirve para
+  // estructurar los gastos reales del/los hijos durante la entrevista o
+  // instrucción, y después se "convierte" a provisoria/definitiva
+  // arrastrando los conceptos en especie ya cargados.
+  | 'borrador' | 'provisoria' | 'definitiva' | 'modificada' | 'extinguida';
 
 export const ESTADO_CUOTA_LABELS: Record<EstadoCuotaAlimentaria, string> = {
+  borrador:    'Borrador (canasta)',
   provisoria:  'Provisoria',
   definitiva:  'Definitiva',
   modificada:  'Modificada',
