@@ -6,7 +6,7 @@ import { labelDeTipoEvento, urgenciaDePlazo, diasRestantes } from '../lib/plazos
 import type { EventoExpediente, Matter, Plazo, HiloPrueba } from '../types';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Plus, Clock, Calendar, CheckCircle2, XCircle, AlertTriangle, Trash2, Layers, PauseCircle, PlayCircle, Users, Bell } from 'lucide-react';
+import { Plus, Clock, Calendar, CheckCircle2, XCircle, AlertTriangle, Trash2, Layers, PauseCircle, PlayCircle, Users, Bell, Diamond } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 // Paleta estable para diferenciar hilos en el timeline. Cada hilo recibe
@@ -251,18 +251,30 @@ const EventoRow: React.FC<{
 
   const hiloColor = hilo ? colorForHilo(hilo.id) : null;
 
+  // GAP UX-37: eventos estructurales (mutación de tipo, deshacer mutación,
+  // cambio de representación) cambian el shape del caso. Se destacan con
+  // borde violeta + ícono diamante para no confundirlos con flujo procesal.
+  const esEventoEstructural = (
+    evento.tipo === 'mutacion_tipo_divorcio' ||
+    evento.tipo === 'deshacer_mutacion_tipo_divorcio' ||
+    evento.tipo === 'cambio_representacion'
+  );
+
   return (
     <li className="relative">
       <span
         className={cn(
-          'absolute -left-[30px] top-2 w-3 h-3 rounded-full ring-4 ring-card',
-          hiloColor ? hiloColor.dot : 'bg-primary',
+          'absolute -left-[30px] top-2 w-3 h-3 ring-4 ring-card',
+          esEventoEstructural ? 'bg-violet-600 rotate-45' : 'rounded-full',
+          esEventoEstructural ? '' : (hiloColor ? hiloColor.dot : 'bg-primary'),
         )}
       />
       <Card
         className={cn(
           'p-4 space-y-3',
-          hiloColor && `border-l-4 ${hiloColor.border}`,
+          esEventoEstructural
+            ? 'border-l-4 border-l-violet-500 bg-violet-500/5'
+            : hiloColor && `border-l-4 ${hiloColor.border}`,
         )}
       >
         <div className="flex items-start justify-between gap-3">
@@ -270,7 +282,13 @@ const EventoRow: React.FC<{
             <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex-wrap">
               <Calendar size={11} />
               <span>{fechaLabel}</span>
-              <Badge variant="default">{labelDeTipoEvento(evento.tipo)}</Badge>
+              <Badge
+                variant="default"
+                className={esEventoEstructural ? 'bg-violet-500/15 text-violet-700 border-violet-500/30 gap-1' : undefined}
+              >
+                {esEventoEstructural && <Diamond size={9} className="fill-violet-700" />}
+                {labelDeTipoEvento(evento.tipo)}
+              </Badge>
               {evento.jurisdiccion && (
                 <span className="text-[9px] font-bold uppercase text-muted-foreground/70">
                   {evento.jurisdiccion}

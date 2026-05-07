@@ -6,3 +6,10 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Local agent / IDE state
+.claude/
+
+# Playwright artifacts
+playwright-report/
+test-results/

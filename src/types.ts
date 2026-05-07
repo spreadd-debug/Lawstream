@@ -13,7 +13,7 @@ export interface UserProfile {
 
 export type Priority = 'Alta' | 'Media' | 'Baja';
 export type MatterStatus = 'Activo' | 'Suspendido' | 'Cerrado' | 'Pausado' | 'Archivado';
-export type MatterType = 'Laboral' | 'Familia' | 'Daños' | 'Comercial' | 'Sucesiones' | 'Civil';
+export type MatterType = 'Laboral' | 'Familia' | 'Daños' | 'Comercial' | 'Sucesiones' | 'Civil' | 'Penal';
 export type MatterHealth = 'Sano' | 'Trabado' | 'Roto' | 'En espera';
 
 export interface Matter {
@@ -71,7 +71,25 @@ export interface Matter {
   // apelaron de la sentencia del padre. Permite mostrar al padre como
   // "parcialmente firme" (GAP 5). Migración 029.
   aspectosApelados?: AspectoApelado[];
+  // Apelante cuando kind='apelacion' (GAP R11, migración 044).
+  // 'cliente' = nuestro cliente apela. 'contraparte' = la otra parte
+  // apela. Permite distinguir apelaciones cruzadas sobre el mismo aspecto
+  // (caso típico: ambas partes apelan compensación por motivos opuestos).
+  apeladoPor?: ApeladoPor;
 }
+
+/**
+ * Quién es el apelante cuando un matter es kind='apelacion'.
+ * Alias semántico de PresentadaPor (R10) — son la misma idea: "actor del
+ * acto procesal" — pero los mantenemos separados conceptualmente para
+ * que mañana puedan divergir si hace falta.
+ */
+export type ApeladoPor = 'cliente' | 'contraparte';
+
+export const APELADO_POR_LABELS: Record<ApeladoPor, string> = {
+  cliente:     'Mi parte',
+  contraparte: 'Contraparte',
+};
 
 /**
  * Naturaleza del matter — distingue casos principales de sub-procesos
@@ -184,13 +202,15 @@ export interface Client {
   ingresosEstimados?: string;
 }
 
+export type TaskStatus = 'Pendiente' | 'Completada' | 'En revisión' | 'Cancelada';
+
 export interface Task {
   id: string;
   matterId?: string;
   consultationId?: string;
   title: string;
   dueDate: string;
-  status: 'Pendiente' | 'Completada' | 'En revisión';
+  status: TaskStatus;
   priority: Priority;
   bloqueante?: boolean;
   generadaAutomaticamente?: boolean;
@@ -200,6 +220,12 @@ export interface Task {
   etapa?: string;
   /** Campos de caseData que satisfacen esta tarea (copiado del template) */
   satisfiedBy?: { key: string; label: string }[];
+  /** Cuando status = 'Cancelada' (migración 042). Guarda el porqué en
+   *  texto legible — típicamente la mutación de tipo de divorcio que
+   *  invalidó la rama de la tarea. */
+  canceladaMotivo?: string;
+  /** Timestamp ISO de la cancelación. */
+  canceladaAt?: string;
 }
 
 export type DocumentStatus = 'Faltante' | 'Solicitado' | 'Recibido' | 'En revisión' | 'Aprobado' | 'Listo para presentar' | 'Presentado';
@@ -253,8 +279,11 @@ export interface FlowTaskDef {
   bloqueante?: boolean;
   /** Solo generar esta tarea si caseData cumple la condición */
   condition?: FlowTaskCondition;
-  /** Auto-completar si caseData[key] tiene valor */
-  autoCompleteIf?: { key: string };
+  /** Auto-completar si caseData[key] tiene valor.
+   *  excludeValues: valores sentinel que NO se consideran "definidos"
+   *  (ej. 'Por definir' como tercer estado de tipo_divorcio — el campo
+   *  está seteado pero la decisión sigue pendiente). */
+  autoCompleteIf?: { key: string; excludeValues?: string[] };
   /** Campos de caseData que satisfacen esta tarea — UI muestra cuáles faltan */
   satisfiedBy?: { key: string; label: string }[];
 }
@@ -694,12 +723,27 @@ export type AuditAction =
   | 'crear_hito' | 'editar_hito'
   | 'crear_evento' | 'editar_evento' | 'eliminar_evento'
   | 'crear_plazo' | 'cumplir_plazo' | 'cancelar_plazo'
+  | 'crear_hijo' | 'editar_hijo' | 'eliminar_hijo'
+  | 'mutar_tipo_divorcio' | 'deshacer_mutacion_tipo_divorcio'
+  | 'crear_reconvencion' | 'editar_reconvencion' | 'eliminar_reconvencion'
+  | 'crear_bien' | 'editar_bien' | 'eliminar_bien'
+  | 'crear_valuacion' | 'eliminar_valuacion'
+  | 'crear_sociedad_interpuesta' | 'editar_sociedad_interpuesta' | 'eliminar_sociedad_interpuesta'
+  | 'crear_causa_relacionada' | 'editar_causa_relacionada' | 'eliminar_causa_relacionada'
+  | 'crear_cautelar' | 'editar_cautelar' | 'eliminar_cautelar'
+  | 'crear_veedor' | 'editar_veedor' | 'eliminar_veedor'
+  | 'crear_cuota_alimentaria' | 'editar_cuota_alimentaria' | 'eliminar_cuota_alimentaria'
+  | 'crear_concepto_especie' | 'editar_concepto_especie' | 'eliminar_concepto_especie'
   | 'login' | 'logout';
 
 export type AuditEntityType =
   | 'matter' | 'client' | 'consultation' | 'task'
   | 'document' | 'profile' | 'assignment' | 'milestone' | 'session'
-  | 'evento' | 'plazo';
+  | 'evento' | 'plazo' | 'hijo_caso' | 'reconvencion'
+  | 'bien' | 'bien_valuacion' | 'sociedad_interpuesta'
+  | 'causa_relacionada'
+  | 'cautelar' | 'veedor'
+  | 'cuota_alimentaria' | 'concepto_especie';
 
 export interface AuditLogEntry {
   id: string;
@@ -756,6 +800,16 @@ export type TipoEvento =
   | 'elevacion_camara'
   | 'sentencia_camara'
   | 'cambio_representacion'
+  | 'mutacion_tipo_divorcio'
+  | 'deshacer_mutacion_tipo_divorcio'
+  | 'demanda_reconvencional'
+  | 'contestacion_reconvencion'
+  | 'exhorto_internacional_librado'
+  | 'exhorto_internacional_contestado'
+  | 'exhorto_internacional_recibido'
+  | 'exhorto_internacional_diligenciado'
+  | 'exequatur_iniciado'
+  | 'exequatur_concedido'
   | 'otro';
 
 export type OrigenEvento = 'manual' | 'scraper_mev' | 'scraper_pjn';
@@ -1098,6 +1152,548 @@ export interface Cedula {
   objeto?: string;
   fechaEmision?: string;    // 'YYYY-MM-DD'
   estadoManual?: EstadoCedulaManual;
+  notas?: string;
+  createdBy?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ── HIJOS DEL CASO (fuero Familia) ──────────────────────────
+// Hijos como entidad de primera clase (migración 041). Soporta:
+//   • R1: datos de discapacidad / terapias / cobertura especial.
+//   • R2: régimen propio del hijo (override opcional del global del matter).
+//   • R3: alerta de cumple 18 (calculada desde fechaNacimiento).
+//
+// Reemplaza al array JSON que vivía en `matter.caseData.hijos` y que solo
+// se renderizaba en el formulario sin consumers reales. La tabla queda
+// lista para recibir FKs futuros (pericial psicológica por hijo, evento
+// de escucha del menor art. 707 CCyCN, etc.).
+
+export type EstadoCud = 'si' | 'no' | 'en_tramite';
+export type AcompananteTerapeutico = 'escolar' | 'domiciliario' | 'no';
+
+export const ESTADO_CUD_LABELS: Record<EstadoCud, string> = {
+  si:         'Sí',
+  no:         'No',
+  en_tramite: 'En trámite',
+};
+
+export const ACOMPANANTE_LABELS: Record<AcompananteTerapeutico, string> = {
+  escolar:      'Escolar (en colegio)',
+  domiciliario: 'Domiciliario',
+  no:           'No requiere',
+};
+
+export interface HijoCaso {
+  id: string;
+  matterId: string;
+  nombre: string;
+  dni?: string;
+  fechaNacimiento: string;       // 'YYYY-MM-DD'
+  escolaridad?: string;
+  establecimiento?: string;
+  // R1
+  tieneCud?: EstadoCud;
+  diagnostico?: string;
+  terapiasDesc?: string;
+  acompananteTerapeutico?: AcompananteTerapeutico;
+  coberturaEspecial?: string;
+  // R2 — override opcional del régimen global del matter
+  regimenCuidado?: string;
+  residenciaPrincipal?: string;
+  regimenComunicacion?: string;
+  motivoRegimenDistinto?: string;
+  // Meta
+  orden: number;
+  notas?: string;
+  createdBy?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ── RECONVENCIONES (GAP R10) ────────────────────────────────
+// Demanda reconvencional: contrademanda planteada por el demandado en el
+// mismo escrito de contestación. NO es sub-proceso (tramita junto con la
+// principal) pero tiene ciclo propio (presentada → traslado → contestada
+// → resuelta) y pretensiones propias.
+
+export type PresentadaPor = 'cliente' | 'contraparte';
+
+export type PretensionReconvencion =
+  | 'compensacion_economica'
+  | 'atribucion_vivienda'
+  | 'cuota_alimentaria'
+  | 'regimen_comunicacion'
+  | 'tenencia'
+  | 'costas'
+  | 'honorarios'
+  | 'danos_perjuicios'
+  | 'nulidad'
+  | 'otra';
+
+export const PRETENSION_LABELS: Record<PretensionReconvencion, string> = {
+  compensacion_economica: 'Compensación económica',
+  atribucion_vivienda:    'Atribución de vivienda',
+  cuota_alimentaria:      'Cuota alimentaria',
+  regimen_comunicacion:   'Régimen de comunicación',
+  tenencia:               'Tenencia / cuidado personal',
+  costas:                 'Costas',
+  honorarios:             'Honorarios',
+  danos_perjuicios:       'Daños y perjuicios',
+  nulidad:                'Nulidad',
+  otra:                   'Otra',
+};
+
+export type EstadoReconvencion =
+  | 'pendiente_traslado'
+  | 'traslado_corrido'
+  | 'contestada'
+  | 'resuelta_por_sentencia'
+  | 'desistida';
+
+export const ESTADO_RECONVENCION_LABELS: Record<EstadoReconvencion, string> = {
+  pendiente_traslado:     'Presentada — pendiente traslado',
+  traslado_corrido:       'Traslado corrido',
+  contestada:             'Contestada',
+  resuelta_por_sentencia: 'Resuelta por sentencia',
+  desistida:              'Desistida',
+};
+
+export interface Reconvencion {
+  id: string;
+  matterId: string;
+  presentadaPor: PresentadaPor;
+  fechaPresentacion: string;     // 'YYYY-MM-DD'
+  // GAP UX-28: fecha en que el juzgado corrió el traslado de la reconvención.
+  // Solo se llena cuando estado = 'traslado_corrido' — es el inicio del plazo
+  // de 15 días hábiles para contestar (art. 357+338 CPCCN / 356+337 CPCC PBA).
+  fechaTrasladoCorrido?: string; // 'YYYY-MM-DD'
+  pretensiones: PretensionReconvencion[];
+  montoReclamado?: string;
+  pretensionDesc?: string;
+  estado: EstadoReconvencion;
+  eventoPresentacionId?: string;
+  eventoContestacionId?: string;
+  notas?: string;
+  createdBy?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ── BIENES / PATRIMONIO (GAP R4 + R9 + R14) ─────────────────
+// Modelo genérico aplicable a divorcio, sucesiones, comercial, daños.
+// Lo único atado a divorcio es el campo `caracter` (propio/ganancial),
+// que es opcional y NULL en otros fueros.
+
+export type BienNaturaleza = 'activo' | 'pasivo';
+
+export type BienTipo =
+  | 'inmueble'
+  | 'vehiculo'
+  | 'cuenta_bancaria'
+  | 'inversion_financiera'
+  | 'sociedad'
+  | 'mobiliario'
+  | 'credito'
+  | 'tarjeta_credito'
+  | 'prestamo_personal'
+  | 'prestamo_prendario'
+  | 'hipoteca'
+  | 'moratoria_fiscal'
+  | 'otro';
+
+export const BIEN_TIPO_LABELS: Record<BienTipo, string> = {
+  inmueble:             'Inmueble',
+  vehiculo:             'Vehículo',
+  cuenta_bancaria:      'Cuenta bancaria',
+  inversion_financiera: 'Inversión / Plazo fijo',
+  sociedad:             'Participación societaria',
+  mobiliario:           'Mobiliario / Electrodomésticos',
+  credito:              'Crédito a cobrar',
+  tarjeta_credito:      'Tarjeta de crédito',
+  prestamo_personal:    'Préstamo personal',
+  prestamo_prendario:   'Préstamo prendario',
+  hipoteca:             'Hipoteca',
+  moratoria_fiscal:     'Moratoria fiscal',
+  otro:                 'Otro',
+};
+
+export type TitularRol = 'cliente' | 'contraparte' | 'ambos' | 'tercero';
+
+export const TITULAR_ROL_LABELS: Record<TitularRol, string> = {
+  cliente:     'Mi parte',
+  contraparte: 'Contraparte',
+  ambos:       'Ambos',
+  tercero:     'Tercero',
+};
+
+export type BienCaracter = 'propio' | 'ganancial' | 'comun' | 'no_aplica';
+
+export const BIEN_CARACTER_LABELS: Record<BienCaracter, string> = {
+  propio:    'Propio',
+  ganancial: 'Ganancial',
+  comun:     'Común',
+  no_aplica: 'No aplica',
+};
+
+export interface SociedadInterpuesta {
+  id: string;
+  matterId: string;
+  denominacion: string;
+  tipoSocietario?: string;
+  jurisdiccion?: string;
+  cuitOIdFiscal?: string;
+  accionistasDesc?: string;
+  observaciones?: string;
+  notas?: string;
+  createdBy?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Bien {
+  id: string;
+  matterId: string;
+  naturaleza: BienNaturaleza;
+  tipo: BienTipo;
+  descripcion: string;
+  pais?: string;
+  titularRol: TitularRol;
+  titularDetalle?: string;
+  valorActual?: number;
+  monedaActual?: Moneda;
+  fechaValuacionActual?: string;       // 'YYYY-MM-DD'
+  sociedadInterpuestaId?: string;
+  caracter?: BienCaracter;
+  observaciones?: string;
+  notas?: string;
+  createdBy?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BienValuacion {
+  id: string;
+  bienId: string;
+  fecha: string;                       // 'YYYY-MM-DD'
+  valor: number;
+  moneda: Moneda;
+  fuente?: string;
+  notas?: string;
+  createdBy?: string;
+  createdAt: string;
+}
+
+// ── CAUSAS RELACIONADAS (GAP R12 — vínculo cross-fuero) ────
+// Causas paralelas que impactan al matter principal pero viven en otro
+// fuero (típicamente penal). Soporta dos modos:
+//   • externa — la lleva otro estudio; solo referenciamos.
+//   • interna — el estudio toma la causa también; FK a otro matter.
+
+export type VinculacionCausa = 'externa' | 'interna';
+
+export type TipoCausaRelacionada =
+  | 'penal'
+  | 'administrativa'
+  | 'civil_paralela'
+  | 'laboral_paralela'
+  | 'concursal'
+  | 'otra';
+
+export const TIPO_CAUSA_LABELS: Record<TipoCausaRelacionada, string> = {
+  penal:            'Penal',
+  administrativa:   'Administrativa',
+  civil_paralela:   'Civil paralela',
+  laboral_paralela: 'Laboral paralela',
+  concursal:        'Concursal',
+  otra:             'Otra',
+};
+
+export type EstadoCausaExterna =
+  | 'en_instruccion'
+  | 'elevada_a_juicio'
+  | 'en_juicio'
+  | 'sentencia'
+  | 'sentencia_firme'
+  | 'archivada'
+  | 'en_apelacion'
+  | 'desconocido';
+
+export const ESTADO_CAUSA_EXTERNA_LABELS: Record<EstadoCausaExterna, string> = {
+  en_instruccion:   'En instrucción',
+  elevada_a_juicio: 'Elevada a juicio',
+  en_juicio:        'En juicio',
+  sentencia:        'Sentencia',
+  sentencia_firme:  'Sentencia firme',
+  archivada:        'Archivada',
+  en_apelacion:     'En apelación',
+  desconocido:      'Desconocido',
+};
+
+export interface CausaRelacionada {
+  id: string;
+  matterId: string;
+  vinculacion: VinculacionCausa;
+  matterRelacionadaId?: string;
+  tipoCausa: TipoCausaRelacionada;
+  caratula?: string;
+  fuero?: string;
+  juzgado?: string;
+  expedienteNumero?: string;
+  jurisdiccion?: string;
+  abogadoExternoNombre?: string;
+  abogadoExternoContacto?: string;
+  estadoExterno?: EstadoCausaExterna;
+  descripcion?: string;
+  impacto?: string;
+  fechaInicio?: string;             // 'YYYY-MM-DD'
+  fechaUltimoMovimiento?: string;
+  notas?: string;
+  createdBy?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ── CAUTELARES PATRIMONIALES + VEEDORES (GAP R15) ───────────
+// Modelo separado del IncidenteTipo='medida_cautelar' (que era genérico).
+// Acá el dato es estructurado: tipo, alcance, fechas del ciclo,
+// inscripción registral, levantamientos parciales/totales.
+//
+// El veedor judicial NO encaja en Perito (rol distinto: vigila en el
+// tiempo y emite informes periódicos, en lugar de un dictamen único).
+
+export type TipoCautelar =
+  | 'inhibicion_general'
+  | 'embargo'
+  | 'intervencion_judicial'
+  | 'secuestro'
+  | 'anotacion_litis'
+  | 'prohibicion_innovar'
+  | 'prohibicion_contratar'
+  | 'otra';
+
+export const TIPO_CAUTELAR_LABELS: Record<TipoCautelar, string> = {
+  inhibicion_general:    'Inhibición general de bienes',
+  embargo:               'Embargo',
+  intervencion_judicial: 'Intervención judicial',
+  secuestro:             'Secuestro',
+  anotacion_litis:       'Anotación de litis',
+  prohibicion_innovar:   'Prohibición de innovar',
+  prohibicion_contratar: 'Prohibición de contratar',
+  otra:                  'Otra',
+};
+
+export type EstadoCautelar =
+  | 'solicitada'
+  | 'concedida'
+  | 'trabada'
+  | 'parcialmente_levantada'
+  | 'levantada'
+  | 'rechazada';
+
+export const ESTADO_CAUTELAR_LABELS: Record<EstadoCautelar, string> = {
+  solicitada:             'Solicitada',
+  concedida:              'Concedida',
+  trabada:                'Trabada',
+  parcialmente_levantada: 'Parcialmente levantada',
+  levantada:              'Levantada',
+  rechazada:              'Rechazada',
+};
+
+export type CaucionTipo = 'real' | 'juratoria' | 'fianza' | 'no_corresponde';
+
+export interface Cautelar {
+  id: string;
+  matterId: string;
+  tipo: TipoCautelar;
+  contraRol: TitularRol;
+  contraDetalle?: string;
+  bienId?: string;
+  sociedadInterpuestaId?: string;
+  alcance?: string;
+  estado: EstadoCautelar;
+  fechaSolicitud?: string;
+  fechaResolucion?: string;
+  fechaTraba?: string;
+  fechaLevantamientoParcial?: string;
+  fechaLevantamientoTotal?: string;
+  fechaRechazo?: string;
+  registroInscripcion?: string;
+  caucionTipo?: CaucionTipo;
+  caucionMontoDesc?: string;
+  observaciones?: string;
+  notas?: string;
+  createdBy?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type EstadoVeedor =
+  | 'designado'
+  | 'aceptado'
+  | 'rechazado'
+  | 'recusado'
+  | 'sustituido'
+  | 'cesado';
+
+export const ESTADO_VEEDOR_LABELS: Record<EstadoVeedor, string> = {
+  designado:  'Designado',
+  aceptado:   'Aceptado',
+  rechazado:  'Rechazado',
+  recusado:   'Recusado',
+  sustituido: 'Sustituido',
+  cesado:     'Cesado',
+};
+
+export type FrecuenciaInformesVeedor =
+  | 'mensual' | 'bimestral' | 'trimestral' | 'semestral' | 'a_requerimiento';
+
+export const FRECUENCIA_INFORMES_LABELS: Record<FrecuenciaInformesVeedor, string> = {
+  mensual:         'Mensual',
+  bimestral:       'Bimestral',
+  trimestral:      'Trimestral',
+  semestral:       'Semestral',
+  a_requerimiento: 'A requerimiento',
+};
+
+export interface Veedor {
+  id: string;
+  matterId: string;
+  cautelarId?: string;
+  nombre: string;
+  especialidad?: string;
+  matricula?: string;
+  email?: string;
+  telefono?: string;
+  estado: EstadoVeedor;
+  alcance?: string;
+  frecuenciaInformes?: FrecuenciaInformesVeedor;
+  fechaDesignacion?: string;
+  fechaAceptacion?: string;
+  fechaCese?: string;
+  honorariosDesc?: string;
+  observaciones?: string;
+  notas?: string;
+  createdBy?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ── CUOTAS ALIMENTARIAS (GAP R13) ───────────────────────────
+// Régimen alimentario con desglose efectivo + componentes en especie.
+// La cuota tiene su propio ciclo de vida (provisoria → definitiva →
+// modificada → extinguida) y conceptos en especie con FK opcional a un
+// hijo (terapias específicas, AT escolar, etc.).
+
+export type EstadoCuotaAlimentaria =
+  | 'provisoria' | 'definitiva' | 'modificada' | 'extinguida';
+
+export const ESTADO_CUOTA_LABELS: Record<EstadoCuotaAlimentaria, string> = {
+  provisoria:  'Provisoria',
+  definitiva:  'Definitiva',
+  modificada:  'Modificada',
+  extinguida:  'Extinguida',
+};
+
+export type AlcanceCuota =
+  | 'todos_los_hijos' | 'hijos_especificos' | 'conyuge' | 'pariente';
+
+export const ALCANCE_CUOTA_LABELS: Record<AlcanceCuota, string> = {
+  todos_los_hijos:   'Todos los hijos',
+  hijos_especificos: 'Hijos específicos',
+  conyuge:           'Cónyuge (art. 432 CCyCN)',
+  pariente:          'Pariente',
+};
+
+export type FrecuenciaCuotaAlim =
+  | 'mensual' | 'quincenal' | 'bimestral' | 'trimestral' | 'semestral' | 'anual' | 'unica' | 'a_demanda';
+
+export const FRECUENCIA_CUOTA_LABELS: Record<FrecuenciaCuotaAlim, string> = {
+  mensual:     'Mensual',
+  quincenal:   'Quincenal',
+  bimestral:   'Bimestral',
+  trimestral:  'Trimestral',
+  semestral:   'Semestral',
+  anual:       'Anual',
+  unica:       'Pago único',
+  a_demanda:   'A demanda',
+};
+
+export type AjusteCuota =
+  | 'sin_ajuste' | 'ipc' | 'salarios_sec' | 'rIPC_y_sentencia' | 'mixto' | 'otro';
+
+export const AJUSTE_CUOTA_LABELS: Record<AjusteCuota, string> = {
+  sin_ajuste:        'Sin ajuste',
+  ipc:               'IPC',
+  salarios_sec:      'Salarios SEC / convenio',
+  rIPC_y_sentencia:  'IPC + lo que fije sentencia',
+  mixto:             'Mixto',
+  otro:              'Otro',
+};
+
+export interface CuotaAlimentaria {
+  id: string;
+  matterId: string;
+  estado: EstadoCuotaAlimentaria;
+  obligadoRol: TitularRol;
+  obligadoDetalle?: string;
+  alcance: AlcanceCuota;
+  hijosCubiertos: string[];        // UUIDs de hijos_caso
+  montoEfectivo?: number;
+  moneda?: Moneda;
+  frecuencia: FrecuenciaCuotaAlim;
+  ajuste?: AjusteCuota;
+  ajusteDesc?: string;
+  fechaVigenciaDesde?: string;     // 'YYYY-MM-DD'
+  fechaVigenciaHasta?: string;
+  fundamento?: string;
+  eventoOrigenId?: string;
+  notas?: string;
+  createdBy?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type CategoriaConceptoEspecie =
+  | 'colegio' | 'prepaga' | 'terapia' | 'acompanante_terapeutico'
+  | 'extracurricular' | 'transporte' | 'gastos_medicos' | 'medicamentos'
+  | 'vestimenta' | 'otro';
+
+export const CATEGORIA_CONCEPTO_LABELS: Record<CategoriaConceptoEspecie, string> = {
+  colegio:                 'Colegio',
+  prepaga:                 'Prepaga / obra social',
+  terapia:                 'Terapia',
+  acompanante_terapeutico: 'Acompañante terapéutico',
+  extracurricular:         'Extracurricular',
+  transporte:              'Transporte',
+  gastos_medicos:          'Gastos médicos',
+  medicamentos:            'Medicamentos',
+  vestimenta:              'Vestimenta',
+  otro:                    'Otro',
+};
+
+export type PagadorConcepto =
+  | 'obligado_directo' | 'reembolso' | 'compartido_50_50' | 'compartido_otro';
+
+export const PAGADOR_CONCEPTO_LABELS: Record<PagadorConcepto, string> = {
+  obligado_directo:  'Obligado paga directo al prestador',
+  reembolso:         'Beneficiario paga, obligado reembolsa',
+  compartido_50_50:  'Compartido 50/50',
+  compartido_otro:   'Compartido (otra proporción)',
+};
+
+export interface CuotaConceptoEspecie {
+  id: string;
+  cuotaAlimentariaId: string;
+  categoria: CategoriaConceptoEspecie;
+  concepto: string;
+  prestador?: string;
+  montoEstimado?: number;
+  moneda?: Moneda;
+  frecuencia: FrecuenciaCuotaAlim;
+  pagador: PagadorConcepto;
+  pagadorDetalle?: string;
+  hijoId?: string;
   notas?: string;
   createdBy?: string;
   createdAt: string;

@@ -11,11 +11,12 @@ import {
   labelDeTipoEvento,
   labelTipoProceso,
   resolveJurisdiccion,
+  getSugerenciasEventoPorEtapa,
 } from '../lib/plazos';
 import { detectPropuestaContactoAmplia } from '../lib/consistencia';
 import { format, parseISO, differenceInCalendarDays } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Calendar, Clock, AlertTriangle, ShieldAlert } from 'lucide-react';
+import { Calendar, Clock, AlertTriangle, ShieldAlert, Sparkles } from 'lucide-react';
 
 interface EventoFormProps {
   isOpen: boolean;
@@ -261,6 +262,37 @@ export const EventoForm: React.FC<EventoFormProps> = ({
 
         <div>
           <label className="block text-[10px] font-black uppercase tracking-[0.1em] text-muted-foreground mb-1.5">Tipo de evento</label>
+          {/* GAP UX-36: chips de sugerencia según la etapa actual del matter.
+              Quien anota un movimiento desde la etapa "Prueba" lo más probable
+              es que sea pericial, testimonial u oficio — no hay razón para
+              hacerle scrollear 30 tipos. */}
+          {(() => {
+            const sugeridos = getSugerenciasEventoPorEtapa(matter?.currentStage);
+            if (sugeridos.length === 0) return null;
+            return (
+              <div className="mb-2 flex flex-wrap items-center gap-1.5">
+                <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-muted-foreground">
+                  <Sparkles size={10} className="text-amber-600" />
+                  Sugeridos en {matter?.currentStage}:
+                </span>
+                {sugeridos.map(t => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setTipo(t)}
+                    className={
+                      'inline-flex items-center px-2 py-0.5 rounded-md border text-[10px] font-bold transition-colors ' +
+                      (tipo === t
+                        ? 'border-amber-500 bg-amber-500/15 text-amber-800 dark:text-amber-200'
+                        : 'border-border/60 bg-card hover:border-amber-500/50 hover:bg-amber-500/5 text-foreground/80')
+                    }
+                  >
+                    {labelDeTipoEvento(t)}
+                  </button>
+                ))}
+              </div>
+            );
+          })()}
           <select
             value={tipo}
             onChange={e => setTipo(e.target.value as TipoEvento)}

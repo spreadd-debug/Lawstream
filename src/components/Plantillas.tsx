@@ -141,6 +141,7 @@ const CATEGORY_COLORS: Record<MatterType, string> = {
   Comercial: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20',
   Sucesiones: 'bg-purple-500/10 text-purple-600 border-purple-500/20',
   Civil: 'bg-slate-500/10 text-slate-600 border-slate-500/20',
+  Penal: 'bg-red-500/10 text-red-600 border-red-500/20',
 };
 
 const CATEGORY_ICONS: Record<MatterType, string> = {
@@ -150,6 +151,7 @@ const CATEGORY_ICONS: Record<MatterType, string> = {
   Comercial: 'C',
   Sucesiones: 'S',
   Civil: 'Ci',
+  Penal: 'P',
 };
 
 interface PlantillasProps {
@@ -203,7 +205,7 @@ export const Plantillas = ({ matters = [], clients = [] }: PlantillasProps) => {
     setPlaceholderValues(prev => ({ ...prev, ...autoValues }));
   };
 
-  const categories: (MatterType | 'Todas')[] = ['Todas', 'Laboral', 'Familia', 'Daños', 'Comercial', 'Sucesiones', 'Civil'];
+  const categories: (MatterType | 'Todas')[] = ['Todas', 'Laboral', 'Familia', 'Daños', 'Comercial', 'Sucesiones', 'Civil', 'Penal'];
 
   const filtered = useMemo(() => {
     return LEGAL_TEMPLATES.filter(t => {

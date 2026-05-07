@@ -33,7 +33,7 @@ import {
   Search,
   X,
 } from 'lucide-react';
-import { Matter, TimelineEvent, Task, LegalDocument, Expediente, MatterMilestone, FlowSnapshot, INCIDENTE_TIPO_LABELS, ASPECTO_APELADO_LABELS } from '../types';
+import { Matter, TimelineEvent, Task, LegalDocument, Expediente, MatterMilestone, FlowSnapshot, INCIDENTE_TIPO_LABELS, ASPECTO_APELADO_LABELS, APELADO_POR_LABELS } from '../types';
 import { Badge, Card, Button, Modal, Input, Textarea, Select } from './UI';
 import { format, parseISO, differenceInCalendarDays } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -59,9 +59,19 @@ import { CompensacionPanel } from './CompensacionPanel';
 import { LetradosPanel } from './LetradosPanel';
 import { HonorariosRegPanel } from './HonorariosRegPanel';
 import { SubProcesosPanel } from './SubProcesosPanel';
+import { CausasRelacionadasPanel } from './CausasRelacionadasPanel';
 import { CedulasPanel } from './CedulasPanel';
-import { urgenciaDePlazo, diasRestantes } from '../lib/plazos';
+import { HijosPanel } from './HijosPanel';
+import { ReconvencionesPanel } from './ReconvencionesPanel';
+import { BienesPanel } from './BienesPanel';
+import { CautelaresPanel } from './CautelaresPanel';
+import { CuotasAlimentariasPanel } from './CuotasAlimentariasPanel';
+import { MutarDivorcioModal } from './MutarDivorcioModal';
+import { DeshacerMutacionModal } from './DeshacerMutacionModal';
+import { ResumenAlertasMatter, AlertaResumen, SeveridadAlerta } from './ResumenAlertasMatter';
+import { urgenciaDePlazo, diasRestantes, exhortosPendientes, calcularVencimientoSync, resolveJurisdiccion } from '../lib/plazos';
 import { detectarCruceViolencia } from '../lib/violencia';
+import { proximosACumplir18, recienCumplio18 } from '../lib/hijosTransicion';
 
 interface MatterDetailProps {
   matter: Matter;
@@ -91,7 +101,7 @@ export const MatterDetail = ({
   currentUser, currentUserRole,
 }: MatterDetailProps) => {
   const navigate = useNavigate();
-  const { clients, matters: allMatters, plazos: allPlazos, eventos: allEventos, handleEditMatter, setEditMatterFocusField, handleArchiveMatter } = useAppContext();
+  const { clients, matters: allMatters, plazos: allPlazos, eventos: allEventos, hijos: allHijos, reconvenciones: allReconvenciones, cautelares: allCautelares, cuotasAlimentarias: allCuotasAlim, handleEditMatter, setEditMatterFocusField, handleArchiveMatter } = useAppContext();
   // GAP 1 — sub-procesos: si este matter tiene padre, mostramos breadcrumb.
   const parentMatter = matter.parentMatterId ? allMatters.find(m => m.id === matter.parentMatterId) : undefined;
   const isSubProceso = matter.kind === 'incidente' || matter.kind === 'apelacion';
@@ -103,7 +113,9 @@ export const MatterDetail = ({
 
   // GAP 5 — parcialmente firme. Estado DERIVADO: si este matter es principal
   // y tiene al menos una apelación-hija con estado != Cerrado/Archivado,
-  // está parcialmente firme. Listamos los aspectos de cada apelación abierta.
+  // está parcialmente firme. Listamos los aspectos de cada apelación abierta
+  // DESAGREGADOS POR APELANTE (GAP R11) para distinguir apelaciones cruzadas
+  // sobre el mismo aspecto (ambas partes apelan compensación por motivos opuestos).
   const apelacionesAbiertas = !isSubProceso
     ? allMatters.filter(m =>
         m.parentMatterId === matter.id
@@ -112,9 +124,6 @@ export const MatterDetail = ({
         && m.status !== 'Archivado'
       )
     : [];
-  const aspectosApeladosAbiertos = Array.from(new Set(
-    apelacionesAbiertas.flatMap(a => a.aspectosApelados ?? [])
-  ));
   const parcialmenteFirme = apelacionesAbiertas.length > 0;
   const clientObj = clients.find(c => c.name === matter.client);
 
@@ -148,6 +157,186 @@ export const MatterDetail = ({
   // GAP 21 — detección de cruce entre medida vigente y régimen propuesto.
   const cruceViolencia = detectarCruceViolencia(cd);
 
+  // GAP R3 — hijos del caso (familia). Calculamos transiciones a mayoría
+  // de edad para mostrar banner amber discreto. Si el matter es sub-proceso
+  // (incidente / apelación), miramos los hijos del expediente raíz, porque
+  // ahí viven — el sub-proceso solo los consume.
+  const hijosDelMatter = useMemo(() => {
+    const ids = matter.parentMatterId
+      ? new Set([matter.id, matter.parentMatterId])
+      : new Set([matter.id]);
+    return allHijos.filter(h => ids.has(h.matterId));
+  }, [allHijos, matter.id, matter.parentMatterId]);
+  const proximosCumplir = useMemo(() => proximosACumplir18(hijosDelMatter), [hijosDelMatter]);
+  const recienMayores   = useMemo(() => recienCumplio18(hijosDelMatter),   [hijosDelMatter]);
+  const hayTransicionMayoria = proximosCumplir.length > 0 || recienMayores.length > 0;
+  // Familia incluye al matter actual o al padre cuando es sub-proceso —
+  // un incidente de aumento de cuota dentro de un divorcio sigue siendo
+  // contexto de Familia aunque el sub-proceso herede otro tipo.
+  const esFamilia = matter.type === 'Familia' || parentMatter?.type === 'Familia';
+
+  // GAP R6 — el botón "Mutar tipo de divorcio" aparece solo en casos
+  // que usan el template de divorcio (CABA o PBA) y que no son
+  // sub-procesos (mutar el divorcio se hace desde el matter principal).
+  const esDivorcioPrincipal = !isSubProceso
+    && (matter.flowTemplateId === 'fam-divorcio' || matter.flowTemplateId === 'fam-divorcio-pba');
+
+  // GAP UX-25 — buscar mutación reciente (<24h) que aún no fue deshecha
+  // para mostrar el botón "Deshacer mutación" junto al de "Mutar tipo".
+  const mutacionReversible = useMemo(() => {
+    if (!esDivorcioPrincipal) return null;
+    const ahora = Date.now();
+    const candidatos = allEventos
+      .filter(e => e.matterId === matter.id && e.tipo === 'mutacion_tipo_divorcio')
+      .filter(e => (ahora - new Date(e.createdAt).getTime()) <= 24 * 60 * 60 * 1000)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    if (candidatos.length === 0) return null;
+    const masReciente = candidatos[0];
+    // ¿Ya fue deshecha?
+    const yaDeshecha = allEventos.some(e =>
+      e.tipo === 'deshacer_mutacion_tipo_divorcio'
+      && (e.metadata as any)?.evento_mutacion_id === masReciente.id,
+    );
+    return yaDeshecha ? null : masReciente;
+  }, [allEventos, matter.id, esDivorcioPrincipal]);
+
+  // GAP R10 — reconvenciones del matter. El tab "Reconvenciones" aparece
+  // en fueros donde la figura existe (Familia / Civil / Daños / Comercial).
+  // En sub-procesos se incluyen las del padre (la reconvención del matter
+  // raíz puede afectar incidentes en cuerda separada).
+  const reconvencionesDelMatter = useMemo(() => {
+    const ids = matter.parentMatterId
+      ? new Set([matter.id, matter.parentMatterId])
+      : new Set([matter.id]);
+    return allReconvenciones.filter(r => ids.has(r.matterId));
+  }, [allReconvenciones, matter.id, matter.parentMatterId]);
+  const reconvencionesPendientes = reconvencionesDelMatter.filter(
+    r => r.estado === 'pendiente_traslado' || r.estado === 'traslado_corrido',
+  );
+  const aplicaReconvencion =
+    matter.type === 'Familia'   || parentMatter?.type === 'Familia'
+    || matter.type === 'Civil'  || parentMatter?.type === 'Civil'
+    || matter.type === 'Daños'  || parentMatter?.type === 'Daños'
+    || matter.type === 'Comercial' || parentMatter?.type === 'Comercial';
+
+  // GAP UX-28 — para cada reconvención con traslado_corrido + fecha cargada,
+  // calculamos el vencimiento del plazo de contestación (15 días hábiles
+  // desde que se corrió). Si vence pronto el banner se vuelve rojo crítico.
+  const reconvencionesConVencimiento = useMemo(() => {
+    let jurisd: ReturnType<typeof resolveJurisdiccion>;
+    try { jurisd = resolveJurisdiccion(matter); } catch { return []; }
+    const hoy = new Date();
+    return reconvencionesPendientes
+      .filter(r => r.estado === 'traslado_corrido' && r.fechaTrasladoCorrido)
+      .map(r => {
+        let venc: Date | null;
+        try {
+          venc = calcularVencimientoSync({
+            fechaInicio: parseISO(r.fechaTrasladoCorrido!),
+            dias: 15,
+            diasHabiles: true,
+            jurisdiccion: jurisd,
+          });
+        } catch { venc = null; }
+        if (!venc) return { reconv: r, vencimiento: null, dias: null };
+        return { reconv: r, vencimiento: venc, dias: differenceInCalendarDays(venc, hoy) };
+      });
+  }, [reconvencionesPendientes, matter]);
+
+  // Severidad agregada del banner: rojo crítico si alguna venció o vence en
+  // ≤2 días hábiles; rojo si alguna vence en ≤5; fucsia normal si todas con
+  // margen amplio o sin fecha cargada.
+  const reconvencionSeveridad: 'critica' | 'alta' | 'normal' = useMemo(() => {
+    if (reconvencionesConVencimiento.some(x => x.dias != null && x.dias <= 2)) return 'critica';
+    if (reconvencionesConVencimiento.some(x => x.dias != null && x.dias <= 5)) return 'alta';
+    return 'normal';
+  }, [reconvencionesConVencimiento]);
+
+  // GAP R8 — exhortos internacionales librados sin contestación posterior
+  // y con más de 90 días de antigüedad. El banner aparece para forzar
+  // seguimiento ante Cancillería / autoridad destino.
+  const exhortosLargos = useMemo(
+    () => exhortosPendientes(allEventos, matter.id, 90),
+    [allEventos, matter.id],
+  );
+
+  // GAP R4 + R9 + R14 — patrimonio del caso. Tab visible en cualquier
+  // fuero excepto Laboral (donde el patrimonio del trabajador no
+  // suele modelarse así). En sub-procesos lee del padre — los bienes
+  // son del expediente principal.
+  const aplicaPatrimonio = matter.type !== 'Laboral';
+  const patrimonioMatterId = matter.parentMatterId ?? matter.id;
+
+  // GAP R15 — cautelares vigentes (trabadas o parcialmente levantadas).
+  // El banner discreto avisa que el patrimonio del caso está bajo medida.
+  const cautelaresVigentes = useMemo(
+    () => allCautelares.filter(c =>
+      c.matterId === patrimonioMatterId
+      && (c.estado === 'trabada' || c.estado === 'parcialmente_levantada' || c.estado === 'concedida')
+    ),
+    [allCautelares, patrimonioMatterId],
+  );
+
+  // GAP UX-9 — Centro de alertas. Cuando se acumulan ≥ 3 alertas activas
+  // los banners apilados degradan la legibilidad del header. Mostramos un
+  // resumen compacto colapsable; el usuario expande si quiere ver los
+  // banners completos.
+  // Tipo de divorcio "Por definir": el caso se creó sin saber si iba a ser
+  // conjunto o unilateral (decisión típica de la entrevista). Visibilizar
+  // como alerta para que no quede olvidado y aparezca arriba.
+  const tipoDivorcioPorDefinir = esDivorcioPrincipal
+    && (!matter.caseData?.tipo_divorcio || matter.caseData.tipo_divorcio === 'Por definir');
+
+  const alertasActivas = useMemo<AlertaResumen[]>(() => {
+    const list: AlertaResumen[] = [];
+    if (jurisdiccionFaltante) {
+      list.push({ id: 'jurisdiccion-faltante', severidad: 'critica', titulo: 'Jurisdicción sin cargar', chip: 'Jurisdicción', tono: 'amber' });
+    }
+    if (tipoDivorcioPorDefinir) {
+      list.push({ id: 'tipo-divorcio-por-definir', severidad: 'alta', titulo: 'Tipo de divorcio por definir', chip: 'Definir tipo', tono: 'violet' });
+    }
+    if (tieneMedida) {
+      const sev: SeveridadAlerta = cruceViolencia.regimenLuceAmplio ? 'critica' : 'media';
+      list.push({ id: 'violencia', severidad: sev, titulo: 'Medida de protección vigente', chip: 'Violencia', tono: 'rose' });
+    }
+    if (parcialmenteFirme) {
+      list.push({ id: 'parcialmente-firme', severidad: 'media', titulo: 'Sentencia parcialmente firme', chip: 'Parcialmente firme', tono: 'amber' });
+    }
+    if (esFamilia && hayTransicionMayoria) {
+      list.push({ id: 'transicion-mayoria', severidad: 'media', titulo: 'Transición a mayoría de edad', chip: 'Cumple 18', tono: 'amber' });
+    }
+    if (aplicaReconvencion && reconvencionesPendientes.length > 0) {
+      // GAP UX-28: si hay un vencimiento ≤2 días o vencido, escalar a crítica
+      // para que aparezca primero en el resumen colapsado.
+      const sev = reconvencionSeveridad === 'critica' ? 'critica' : 'alta';
+      const tono = reconvencionSeveridad === 'critica' ? 'rose' : 'fuchsia';
+      list.push({ id: 'reconvencion', severidad: sev, titulo: 'Reconvención abierta', chip: `Reconvención (${reconvencionesPendientes.length})`, tono });
+    }
+    if (exhortosLargos.length > 0) {
+      list.push({ id: 'exhorto', severidad: 'media', titulo: 'Exhorto internacional pendiente', chip: `Exhorto (${exhortosLargos.length})`, tono: 'sky' });
+    }
+    if (cautelaresVigentes.length > 0) {
+      list.push({ id: 'cautelar', severidad: 'alta', titulo: 'Cautelar patrimonial vigente', chip: `Cautelar (${cautelaresVigentes.length})`, tono: 'rose' });
+    }
+    return list;
+  }, [jurisdiccionFaltante, tipoDivorcioPorDefinir, tieneMedida, cruceViolencia.regimenLuceAmplio, parcialmenteFirme, esFamilia, hayTransicionMayoria, aplicaReconvencion, reconvencionesPendientes.length, reconvencionSeveridad, exhortosLargos.length, cautelaresVigentes.length]);
+
+  const debeColapsar = alertasActivas.length >= 3;
+  const lsKey = `lawstream:alertas-expandidas:${matter.id}`;
+  const [alertasExpandidas, setAlertasExpandidas] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    try { return localStorage.getItem(lsKey) === '1'; } catch { return false; }
+  });
+  const handleToggleAlertas = () => {
+    setAlertasExpandidas(prev => {
+      const next = !prev;
+      try { localStorage.setItem(lsKey, next ? '1' : '0'); } catch {}
+      return next;
+    });
+  };
+  // Mostramos los banners si: hay <3 alertas (siempre se ven) o el usuario eligió expandir.
+  const mostrarBanners = !debeColapsar || alertasExpandidas;
+
   // Plazos activos de este asunto, ordenados por vencimiento — más urgentes primero.
   const matterPlazosActivos = allPlazos
     .filter(p => p.matterId === matter.id && p.estado === 'activo')
@@ -172,9 +361,14 @@ export const MatterDetail = ({
   const [newMilestoneDate, setNewMilestoneDate] = useState('');
   const [docMenuOpen, setDocMenuOpen] = useState<string | null>(null);
   const [fichaOpenStage, setFichaOpenStage] = useState<string | null>(null);
+  const [isMutarDivorcioOpen, setIsMutarDivorcioOpen] = useState(false);
+  const [isDeshacerMutacionOpen, setIsDeshacerMutacionOpen] = useState(false);
 
   // New navigation state
-  const [activeTab, setActiveTab] = useState<'flujo' | 'timeline' | 'hilos' | 'cobranzas' | 'expediente' | 'comunicaciones'>('flujo');
+  const [activeTab, setActiveTab] = useState<'flujo' | 'timeline' | 'hilos' | 'cobranzas' | 'expediente' | 'comunicaciones' | 'hijos' | 'reconvenciones' | 'patrimonio'>('flujo');
+  // GAP UX-32: dentro del tab Hijos hay dos secciones grandes (datos de hijos
+  // y cuotas alimentarias). Sub-tab para no apilarlas.
+  const [hijosSubTab, setHijosSubTab] = useState<'datos' | 'cuotas'>('datos');
   const [viewingStage, setViewingStage] = useState<string | null>(null);
 
   // Pre-filled communication message (from "Solicitar datos" button)
@@ -271,9 +465,12 @@ export const MatterDetail = ({
   const stageTasks = hasStages && selectedStage
     ? tasks.filter(t => t.etapa === selectedStage)
     : tasks;
-  const stageBlockingPending = stageTasks.filter(t => t.bloqueante && t.status !== 'Completada');
-  const stageNonBlockingPending = stageTasks.filter(t => !t.bloqueante && t.status !== 'Completada');
-  const stageCompletedTasks = stageTasks.filter(t => t.status === 'Completada');
+  // Tasks Canceladas (ej. por mutación de tipo de divorcio) se excluyen
+  // del conteo de pendientes y completadas — viven en su propia sección.
+  const stageBlockingPending    = stageTasks.filter(t => t.bloqueante  && t.status !== 'Completada' && t.status !== 'Cancelada');
+  const stageNonBlockingPending = stageTasks.filter(t => !t.bloqueante && t.status !== 'Completada' && t.status !== 'Cancelada');
+  const stageCompletedTasks     = stageTasks.filter(t => t.status === 'Completada');
+  const stageCancelledTasks     = stageTasks.filter(t => t.status === 'Cancelada');
 
   // Documents filtered by stage (using associatedAction which stores stage name)
   const stageDocs = hasStages && selectedStage
@@ -337,7 +534,21 @@ export const MatterDetail = ({
         </div>
       )}
 
-      {/* ═══════════════════════ BANNER PARCIALMENTE FIRME (GAP 5) ═══════════════════════ */}
+      {/* ═══════════════════════ CENTRO DE ALERTAS (GAP UX-9) ═══════════════════════ */}
+      {/* Si hay ≥3 alertas activas mostramos un resumen compacto en lugar
+          de apilar todos los banners. El usuario expande con un click si
+          quiere verlos uno por uno (decisión persistida en localStorage). */}
+      {debeColapsar && (
+        <ResumenAlertasMatter
+          alertas={alertasActivas}
+          expandido={alertasExpandidas}
+          onToggle={handleToggleAlertas}
+        />
+      )}
+
+      {mostrarBanners && (<>
+
+      {/* ═══════════════════════ BANNER PARCIALMENTE FIRME (GAP 5 + R11) ═══════════════════════ */}
       {parcialmenteFirme && (
         <div
           role="alert"
@@ -346,26 +557,53 @@ export const MatterDetail = ({
           <div className="shrink-0 w-10 h-10 rounded-xl bg-amber-500/20 text-amber-700 flex items-center justify-center">
             <Scale size={20} />
           </div>
-          <div className="flex-1 min-w-0 space-y-1">
+          <div className="flex-1 min-w-0 space-y-1.5">
             <span className="text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-300">
               Sentencia parcialmente firme
             </span>
-            {aspectosApeladosAbiertos.length > 0 ? (
-              <p className="text-sm font-bold text-foreground">
-                Apelados: {aspectosApeladosAbiertos.map(a => ASPECTO_APELADO_LABELS[a]).join(', ')}.
-                <span className="font-normal text-muted-foreground"> El resto quedó firme.</span>
+            {/* GAP R11 — desagregamos por apelante. Si la misma apelación tiene
+                varios aspectos, los listamos juntos. Si dos partes apelan el mismo
+                aspecto, aparecen en líneas separadas (apelaciones cruzadas). */}
+            <ul className="space-y-1 text-sm">
+              {apelacionesAbiertas.map(a => {
+                const apelanteLabel = a.apeladoPor
+                  ? APELADO_POR_LABELS[a.apeladoPor]
+                  : 'Apelante sin identificar';
+                const aspectosTxt = (a.aspectosApelados ?? []).length > 0
+                  ? a.aspectosApelados!.map(asp => ASPECTO_APELADO_LABELS[asp]).join(', ')
+                  : 'aspectos no detallados';
+                return (
+                  <li key={a.id} className="text-foreground">
+                    <span className="font-bold">{apelanteLabel}</span>
+                    <span className="text-muted-foreground"> apela: </span>
+                    <span className="text-foreground">{aspectosTxt}.</span>
+                  </li>
+                );
+              })}
+            </ul>
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <p className="text-[11px] text-muted-foreground flex-1 min-w-0">
+                {apelacionesAbiertas.length === 1
+                  ? 'Hay 1 sub-proceso de Cámara en trámite.'
+                  : `Hay ${apelacionesAbiertas.length} sub-procesos de Cámara en trámite${apelacionesAbiertas.some((a, i, arr) => arr.findIndex(x => x.id !== a.id && (x.aspectosApelados ?? []).some(asp => (a.aspectosApelados ?? []).includes(asp))) >= 0) ? ' — incluyen apelación cruzada sobre el/los mismo/s aspecto/s' : ''}.`}
               </p>
-            ) : (
-              <p className="text-sm font-bold text-foreground">
-                Hay {apelacionesAbiertas.length} apelación{apelacionesAbiertas.length === 1 ? '' : 'es'} en trámite — sin aspectos detallados.
-              </p>
-            )}
-            <p className="text-[11px] text-muted-foreground">
-              {apelacionesAbiertas.length === 1
-                ? 'Hay 1 sub-proceso de Cámara en trámite.'
-                : `Hay ${apelacionesAbiertas.length} sub-procesos de Cámara en trámite.`}
-              {' '}Verlos en tab Expediente → Sub-procesos.
-            </p>
+              {/* GAP UX-31: convertir el "verlo en tab Expediente → Sub-procesos"
+                  en CTA real. Cambia activeTab y scrollea al panel. */}
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('expediente');
+                  requestAnimationFrame(() => {
+                    document.getElementById('subprocesos-section')
+                      ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  });
+                }}
+                className="shrink-0 inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-[10px] font-black uppercase tracking-widest text-amber-800 dark:text-amber-200 transition-colors"
+              >
+                Ver sub-procesos
+                <ChevronRight size={13} />
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -397,6 +635,35 @@ export const MatterDetail = ({
             className="shrink-0 px-3 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-black uppercase tracking-widest transition-colors"
           >
             Completar jurisdicción
+          </button>
+        </div>
+      )}
+
+      {/* ═══════════════════════ BANNER TIPO DE DIVORCIO POR DEFINIR ═══════════════════════ */}
+      {/* Caso de divorcio creado sin saber todavía si era conjunto o unilateral
+          (decisión típica que recién se cierra después de la propuesta extrajudicial).
+          Visibilizamos arriba del stepper con un CTA directo al modal "Definir tipo". */}
+      {tipoDivorcioPorDefinir && (
+        <div
+          role="alert"
+          className="flex items-start gap-3 p-4 rounded-2xl border border-violet-500/40 bg-violet-500/10 shadow-sm"
+        >
+          <div className="shrink-0 w-10 h-10 rounded-xl bg-violet-500/20 text-violet-700 flex items-center justify-center">
+            <Scale size={20} />
+          </div>
+          <div className="flex-1 min-w-0 space-y-1">
+            <span className="text-[11px] font-black uppercase tracking-widest text-violet-700 dark:text-violet-300">
+              Tipo de divorcio por definir
+            </span>
+            <p className="text-sm font-bold text-foreground">
+              Este caso se creó sin definir si es de común acuerdo o unilateral. Hasta que se decida, el flujo no genera las tareas específicas de cada rama (preparación de demanda, presentación conjunta, mediación, traslados, etc.).
+            </p>
+          </div>
+          <button
+            onClick={() => setIsMutarDivorcioOpen(true)}
+            className="shrink-0 px-3 py-2 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-[10px] font-black uppercase tracking-widest transition-colors"
+          >
+            Definir tipo
           </button>
         </div>
       )}
@@ -482,6 +749,234 @@ export const MatterDetail = ({
         </div>
       )}
 
+      {/* ═══════════════════════ BANNER TRANSICIÓN MAYORÍA DE EDAD (GAP R3) ═══════════════════════ */}
+      {/* Familia: avisa cuando un hijo está cerca de cumplir 18 (90 días) o
+          recién los cumplió (30 días). La cuota muta a alimentos art. 663
+          CCyCN ("hijo mayor que estudia") y deja de aplicar el cuidado. */}
+      {esFamilia && hayTransicionMayoria && (
+        <div
+          role="alert"
+          className="flex items-start gap-3 p-4 rounded-2xl border border-amber-500/40 bg-amber-500/10 shadow-sm"
+        >
+          <div className="shrink-0 w-10 h-10 rounded-xl bg-amber-500/20 text-amber-700 flex items-center justify-center">
+            <Calendar size={20} />
+          </div>
+          <div className="flex-1 min-w-0 space-y-1.5">
+            <span className="text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-300">
+              Transición a mayoría de edad
+            </span>
+            <ul className="space-y-1 text-sm">
+              {proximosCumplir.map(({ hijo, fechaCumple, diasRestantes }) => (
+                <li key={hijo.id} className="text-foreground">
+                  <span className="font-bold">{hijo.nombre}</span>
+                  <span className="text-muted-foreground">
+                    {' '}cumple 18 el {format(fechaCumple, "d 'de' MMMM yyyy", { locale: es })}
+                    {' '}(en {diasRestantes} {diasRestantes === 1 ? 'día' : 'días'}).
+                  </span>
+                </li>
+              ))}
+              {recienMayores.map(({ hijo, fechaCumple, diasDesde }) => (
+                <li key={hijo.id} className="text-foreground">
+                  <span className="font-bold">{hijo.nombre}</span>
+                  <span className="text-muted-foreground">
+                    {' '}cumplió 18 el {format(fechaCumple, "d 'de' MMMM yyyy", { locale: es })}
+                    {' '}(hace {diasDesde} {diasDesde === 1 ? 'día' : 'días'}).
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <p className="text-[11px] text-muted-foreground">
+              Preparar transición a alimentos art. 663 CCyCN (hijo mayor que estudia, hasta 25 años) y desactivar régimen de cuidado para ese hijo.
+            </p>
+          </div>
+          <button
+            onClick={() => setActiveTab('hijos')}
+            className="shrink-0 px-3 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-black uppercase tracking-widest transition-colors"
+          >
+            Abrir tab Hijos
+          </button>
+        </div>
+      )}
+
+      {/* ═══════════════════════ BANNER RECONVENCIÓN PENDIENTE (GAP R10 + UX-28) ═══════════════════════ */}
+      {/* Aparece si hay al menos una reconvención en estado 'pendiente_traslado'
+          o 'traslado_corrido'. Cuando hay traslado corrido + fecha cargada se
+          muestra el vencimiento; si está crítico el banner se vuelve rojo. */}
+      {aplicaReconvencion && reconvencionesPendientes.length > 0 && (
+        <div
+          role="alert"
+          className={cn(
+            'flex items-start gap-3 p-4 rounded-2xl border shadow-sm',
+            reconvencionSeveridad === 'critica'
+              ? 'border-rose-600/60 bg-rose-500/15 ring-1 ring-rose-500/30'
+              : reconvencionSeveridad === 'alta'
+              ? 'border-rose-500/40 bg-rose-500/10'
+              : 'border-fuchsia-500/40 bg-fuchsia-500/10',
+          )}
+        >
+          <div className={cn(
+            'shrink-0 w-10 h-10 rounded-xl flex items-center justify-center',
+            reconvencionSeveridad === 'critica'
+              ? 'bg-rose-500/25 text-rose-700'
+              : reconvencionSeveridad === 'alta'
+              ? 'bg-rose-500/20 text-rose-700'
+              : 'bg-fuchsia-500/20 text-fuchsia-700',
+          )}>
+            <Layers size={20} />
+          </div>
+          <div className="flex-1 min-w-0 space-y-1.5">
+            <span className={cn(
+              'text-[11px] font-black uppercase tracking-widest',
+              reconvencionSeveridad !== 'normal'
+                ? 'text-rose-700 dark:text-rose-300'
+                : 'text-fuchsia-700 dark:text-fuchsia-300',
+            )}>
+              {reconvencionesPendientes.length === 1 ? 'Reconvención abierta' : 'Reconvenciones abiertas'}
+            </span>
+            <ul className="space-y-1 text-sm">
+              {reconvencionesPendientes.map(r => {
+                const venc = reconvencionesConVencimiento.find(x => x.reconv.id === r.id);
+                const dias = venc?.dias;
+                const venceTxt = (() => {
+                  if (r.estado !== 'traslado_corrido') return null;
+                  if (!r.fechaTrasladoCorrido) {
+                    return { txt: 'cargá la fecha del traslado para ver el vencimiento', tone: 'muted' as const };
+                  }
+                  if (!venc?.vencimiento || dias == null) return null;
+                  const fechaTxt = format(venc.vencimiento, "d 'de' MMM yyyy", { locale: es });
+                  if (dias < 0)  return { txt: `VENCIDO hace ${-dias} día${-dias === 1 ? '' : 's'} (era ${fechaTxt})`, tone: 'critica' as const };
+                  if (dias === 0) return { txt: `vence HOY (${fechaTxt})`, tone: 'critica' as const };
+                  if (dias <= 2)  return { txt: `vence el ${fechaTxt} — quedan ${dias} día${dias === 1 ? '' : 's'}`, tone: 'critica' as const };
+                  if (dias <= 5)  return { txt: `vence el ${fechaTxt} — quedan ${dias} días`, tone: 'alta' as const };
+                  return { txt: `vence el ${fechaTxt} — quedan ${dias} días`, tone: 'normal' as const };
+                })();
+                return (
+                  <li key={r.id} className="text-foreground">
+                    <span className="font-bold">
+                      {r.presentadaPor === 'cliente' ? 'Mi parte reconviene' : 'La contraparte reconviene'}
+                    </span>
+                    <span className="text-muted-foreground">
+                      {' '}({r.pretensiones.length} pretensión{r.pretensiones.length === 1 ? '' : 'es'} —{' '}
+                      {r.estado === 'pendiente_traslado' ? 'pendiente de traslado' : 'traslado corrido, en plazo de contestación'}).
+                    </span>
+                    {venceTxt && (
+                      <div className={cn(
+                        'mt-0.5 text-[11px] font-bold inline-block',
+                        venceTxt.tone === 'critica' ? 'text-rose-700 dark:text-rose-300'
+                          : venceTxt.tone === 'alta'  ? 'text-rose-600 dark:text-rose-400'
+                          : venceTxt.tone === 'muted' ? 'text-muted-foreground italic font-normal'
+                          : 'text-fuchsia-700 dark:text-fuchsia-300',
+                      )}>
+                        Plazo de contestación {venceTxt.txt}.
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+          <button
+            onClick={() => setActiveTab('reconvenciones')}
+            className={cn(
+              'shrink-0 px-3 py-2 rounded-xl text-white text-[10px] font-black uppercase tracking-widest transition-colors',
+              reconvencionSeveridad !== 'normal'
+                ? 'bg-rose-600 hover:bg-rose-700'
+                : 'bg-fuchsia-600 hover:bg-fuchsia-700',
+            )}
+          >
+            Ver reconvenciones
+          </button>
+        </div>
+      )}
+
+      {/* ═══════════════════════ BANNER EXHORTO INTERNACIONAL PENDIENTE (GAP R8) ═══════════════════════ */}
+      {exhortosLargos.length > 0 && (
+        <div
+          role="alert"
+          className="flex items-start gap-3 p-4 rounded-2xl border border-sky-500/40 bg-sky-500/10 shadow-sm"
+        >
+          <div className="shrink-0 w-10 h-10 rounded-xl bg-sky-500/20 text-sky-700 flex items-center justify-center">
+            <Send size={20} />
+          </div>
+          <div className="flex-1 min-w-0 space-y-1">
+            <span className="text-[11px] font-black uppercase tracking-widest text-sky-700 dark:text-sky-300">
+              {exhortosLargos.length === 1 ? 'Exhorto internacional pendiente' : 'Exhortos internacionales pendientes'}
+            </span>
+            <ul className="space-y-0.5 text-sm">
+              {exhortosLargos.map(ex => {
+                const pais = (ex.metadata?.pais as string | undefined)?.trim();
+                const autoridad = (ex.metadata?.autoridad_destino as string | undefined)?.trim();
+                return (
+                  <li key={ex.eventoLibradoId} className="text-foreground">
+                    <span className="font-bold">
+                      Librado el {format(parseISO(ex.fechaLibrado), "d 'de' MMMM yyyy", { locale: es })}
+                    </span>
+                    <span className="text-muted-foreground">
+                      {' '}— {ex.diasDesde} días sin contestación{pais ? ` (${pais}` : ''}{pais && autoridad ? `, ${autoridad}` : autoridad ? ` (${autoridad}` : ''}{(pais || autoridad) ? ')' : ''}.
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+            <p className="text-[11px] text-muted-foreground">
+              Considerar pronto despacho o consulta ante Cancillería / autoridad destino. Cuando llegue la contestación, registrá el evento "Exhorto internacional contestado".
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════════════════ BANNER CAUTELAR PATRIMONIAL VIGENTE (GAP R15) ═══════════════════════ */}
+      {cautelaresVigentes.length > 0 && (
+        <div
+          role="alert"
+          className="flex items-start gap-3 p-4 rounded-2xl border border-rose-500/40 bg-rose-500/10 shadow-sm"
+        >
+          <div className="shrink-0 w-10 h-10 rounded-xl bg-rose-500/20 text-rose-700 flex items-center justify-center">
+            <ShieldAlert size={20} />
+          </div>
+          <div className="flex-1 min-w-0 space-y-1">
+            <span className="text-[11px] font-black uppercase tracking-widest text-rose-700 dark:text-rose-300">
+              {cautelaresVigentes.length === 1 ? 'Cautelar patrimonial vigente' : 'Cautelares patrimoniales vigentes'}
+            </span>
+            <ul className="space-y-0.5 text-sm">
+              {cautelaresVigentes.slice(0, 3).map(c => {
+                const tipoLabel = c.tipo === 'inhibicion_general'    ? 'Inhibición general'
+                                : c.tipo === 'embargo'               ? 'Embargo'
+                                : c.tipo === 'intervencion_judicial' ? 'Intervención judicial'
+                                : c.tipo === 'secuestro'             ? 'Secuestro'
+                                : c.tipo === 'anotacion_litis'       ? 'Anotación de litis'
+                                : c.tipo === 'prohibicion_innovar'   ? 'Prohibición de innovar'
+                                : c.tipo === 'prohibicion_contratar' ? 'Prohibición de contratar'
+                                : 'Otra';
+                return (
+                  <li key={c.id} className="text-foreground">
+                    <span className="font-bold">{tipoLabel}</span>
+                    {c.alcance && <span className="text-muted-foreground"> — {c.alcance}</span>}
+                    {c.estado === 'parcialmente_levantada' && (
+                      <span className="ml-1 text-amber-700 font-bold">(parcialmente levantada)</span>
+                    )}
+                  </li>
+                );
+              })}
+              {cautelaresVigentes.length > 3 && (
+                <li className="text-muted-foreground italic">+ {cautelaresVigentes.length - 3} más…</li>
+              )}
+            </ul>
+            <p className="text-[11px] text-muted-foreground">
+              Considerar al asesorar operaciones del cliente. Detalle y levantamientos en el tab Patrimonio.
+            </p>
+          </div>
+          <button
+            onClick={() => setActiveTab('patrimonio')}
+            className="shrink-0 px-3 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-black uppercase tracking-widest transition-colors"
+          >
+            Ver patrimonio
+          </button>
+        </div>
+      )}
+
+      </>)}{/* end {mostrarBanners} — GAP UX-9 */}
+
       {/* ═══════════════════════ HEADER ═══════════════════════ */}
       <div className="flex flex-col gap-4">
         <button
@@ -553,6 +1048,47 @@ export const MatterDetail = ({
               <Coins size={16} />
             </button>
             <div className="w-px h-8 bg-border mx-1" />
+            {/* GAP UX-25: botón "Deshacer mutación" aparece solo cuando hay
+                una mutación de <24h sin deshacer todavía. */}
+            {mutacionReversible && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-[10px] font-black uppercase tracking-widest h-10 px-4 rounded-xl border-amber-500/40 text-amber-700 hover:bg-amber-500/5 animate-in fade-in"
+                onClick={() => setIsDeshacerMutacionOpen(true)}
+                title="Revertir la mutación reciente del tipo de divorcio"
+              >
+                <RefreshCw size={14} className="mr-1.5" />
+                Deshacer mutación
+              </Button>
+            )}
+            {esDivorcioPrincipal && (() => {
+              // Si el caso se creó con tipo_divorcio = 'Por definir' (todavía
+              // no se sabía si era conjunto o unilateral en la entrevista),
+              // el botón actúa como "Definir tipo" y se destaca para que sea
+              // obvio que falta esa decisión estructural.
+              const tipoActualDiv = matter.caseData?.tipo_divorcio;
+              const tipoSinDefinir = !tipoActualDiv || tipoActualDiv === 'Por definir';
+              return (
+                <Button
+                  variant={tipoSinDefinir ? 'primary' : 'outline'}
+                  size="sm"
+                  className={cn(
+                    'text-[10px] font-black uppercase tracking-widest h-10 px-4 rounded-xl',
+                    tipoSinDefinir
+                      ? 'bg-violet-600 hover:bg-violet-700 text-white animate-in fade-in'
+                      : 'border-violet-500/40 text-violet-700 hover:bg-violet-500/5',
+                  )}
+                  onClick={() => setIsMutarDivorcioOpen(true)}
+                  title={tipoSinDefinir
+                    ? 'Definir si el divorcio es de común acuerdo o unilateral'
+                    : 'Cambiar de común acuerdo ↔ unilateral'}
+                >
+                  <Scale size={14} className="mr-1.5" />
+                  {tipoSinDefinir ? 'Definir tipo' : 'Mutar tipo'}
+                </Button>
+              );
+            })()}
             <Button
               variant="outline"
               size="sm"
@@ -930,6 +1466,9 @@ export const MatterDetail = ({
           {([
             { key: 'flujo' as const, label: 'Flujo', icon: Zap },
             { key: 'timeline' as const, label: 'Timeline', icon: Clock },
+            ...(esFamilia ? [{ key: 'hijos' as const, label: 'Hijos', icon: User }] : []),
+            ...(aplicaPatrimonio ? [{ key: 'patrimonio' as const, label: 'Patrimonio', icon: Coins }] : []),
+            ...(aplicaReconvencion ? [{ key: 'reconvenciones' as const, label: 'Reconvenciones', icon: Layers }] : []),
             { key: 'hilos' as const, label: 'Prueba (hilos y peritos)', icon: Layers },
             { key: 'cobranzas' as const, label: 'Cobranzas', icon: Coins },
             { key: 'expediente' as const, label: 'Expediente', icon: FileText },
@@ -1066,6 +1605,36 @@ export const MatterDetail = ({
               </section>
             )}
 
+            {/* Cancelled tasks (rama superada — ej. mutación de tipo de divorcio, GAP R6) */}
+            {stageCancelledTasks.length > 0 && (
+              <section className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-1.5 h-5 bg-zinc-400 rounded-full" />
+                  <h4 className="text-sm font-black text-muted-foreground uppercase tracking-widest">Canceladas (rama superada)</h4>
+                  <span className="text-[10px] font-black text-muted-foreground opacity-50">{stageCancelledTasks.length}</span>
+                </div>
+                <div className="grid grid-cols-1 gap-1.5">
+                  {stageCancelledTasks.map(task => (
+                    <div
+                      key={task.id}
+                      className="rounded-xl border border-border/40 bg-muted/20 px-3 py-2 opacity-70"
+                      title={task.canceladaMotivo || 'Cancelada'}
+                    >
+                      <div className="flex items-start gap-2">
+                        <Ban size={13} className="shrink-0 mt-0.5 text-zinc-500" />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[12px] font-bold text-foreground/70 line-through">{task.title}</div>
+                          {task.canceladaMotivo && (
+                            <div className="text-[10px] text-muted-foreground italic mt-0.5">{task.canceladaMotivo}</div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
             {/* Empty state */}
             {stageTasks.length === 0 && hasStages && (
               <div className="py-12 text-center border-2 border-dashed border-border/50 rounded-3xl bg-muted/5">
@@ -1189,6 +1758,67 @@ export const MatterDetail = ({
           <TimelinePanel matter={matter} />
         )}
 
+        {/* ─────────── TAB: HIJOS (familia, GAP R1+R2+R3 + R13) ─────────── */}
+        {activeTab === 'hijos' && esFamilia && (() => {
+          // GAP UX-32: sub-tabs adentro del tab para que las cuotas no
+          // queden enterradas debajo de la lista de hijos cuando la lista
+          // ocupa toda la pantalla.
+          const cuotaMatterId = matter.parentMatterId ?? matter.id;
+          const cantHijos = hijosDelMatter.length;
+          const cantCuotas = allCuotasAlim.filter(c => c.matterId === cuotaMatterId).length;
+          return (
+            <div className="py-8 space-y-6">
+              <div className="flex items-center gap-1.5 border-b border-border/50">
+                {([
+                  { key: 'datos',  label: 'Datos de los hijos', count: cantHijos },
+                  { key: 'cuotas', label: 'Cuotas y obligaciones', count: cantCuotas },
+                ] as const).map(t => {
+                  const isActive = hijosSubTab === t.key;
+                  return (
+                    <button
+                      key={t.key}
+                      type="button"
+                      onClick={() => setHijosSubTab(t.key)}
+                      className={cn(
+                        'inline-flex items-center gap-2 px-4 py-2.5 text-[11px] font-black uppercase tracking-widest transition-all border-b-2 -mb-px',
+                        isActive
+                          ? 'border-sky-600 text-sky-700'
+                          : 'border-transparent text-muted-foreground hover:text-foreground',
+                      )}
+                    >
+                      {t.label}
+                      <span className={cn(
+                        'inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black',
+                        isActive ? 'bg-sky-500/15 text-sky-700 border border-sky-500/30' : 'bg-muted text-muted-foreground',
+                      )}>
+                        {t.count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              {hijosSubTab === 'datos' && <HijosPanel matterId={matter.id} />}
+              {hijosSubTab === 'cuotas' && <CuotasAlimentariasPanel matterId={cuotaMatterId} />}
+            </div>
+          );
+        })()}
+
+        {/* ─────────── TAB: RECONVENCIONES (GAP R10) ─────────── */}
+        {activeTab === 'reconvenciones' && aplicaReconvencion && (
+          <div className="py-8">
+            <ReconvencionesPanel matterId={matter.parentMatterId ?? matter.id} />
+          </div>
+        )}
+
+        {/* ─────────── TAB: PATRIMONIO (GAP R4 + R9 + R14 + R15) ─────────── */}
+        {activeTab === 'patrimonio' && aplicaPatrimonio && (
+          <div className="py-8 space-y-10">
+            <BienesPanel matterId={patrimonioMatterId} />
+            <div className="border-t border-border/40" />
+            <CautelaresPanel matterId={patrimonioMatterId} />
+          </div>
+        )}
+
         {/* ─────────── TAB: HILOS Y PERITOS ─────────── */}
         {activeTab === 'hilos' && (
           <div className="py-8 space-y-10">
@@ -1213,7 +1843,7 @@ export const MatterDetail = ({
             {/* Sub-procesos (incidentes y apelaciones) — GAP 1.
                 Solo lo mostramos en casos principales para evitar anidamiento. */}
             {!isSubProceso && (
-              <section>
+              <section id="subprocesos-section">
                 <SubProcesosPanel
                   matter={matter}
                   onOpenMatter={(id) => navigate(`/asuntos/${id}`)}
@@ -1221,8 +1851,15 @@ export const MatterDetail = ({
               </section>
             )}
 
+            {/* Causas relacionadas (cross-fuero) — GAP R12.
+                Cualquier matter puede tener una causa paralela (penal,
+                administrativa, etc.) que impacte su trámite. */}
+            <section className="border-t border-border/40 pt-8">
+              <CausasRelacionadasPanel matterId={matter.id} />
+            </section>
+
             {/* Letrados de la parte / contraparte */}
-            <section>
+            <section className="border-t border-border/40 pt-8">
               <LetradosPanel matterId={matter.id} />
             </section>
 
@@ -1630,6 +2267,22 @@ export const MatterDetail = ({
           />
         );
       })()}
+
+      {/* Modal: Mutar tipo de divorcio (GAP R6) */}
+      {esDivorcioPrincipal && (
+        <MutarDivorcioModal
+          isOpen={isMutarDivorcioOpen}
+          matter={matter}
+          onClose={() => setIsMutarDivorcioOpen(false)}
+        />
+      )}
+
+      {/* Modal: Deshacer mutación reciente (GAP UX-25) */}
+      <DeshacerMutacionModal
+        isOpen={isDeshacerMutacionOpen}
+        evento={mutacionReversible}
+        onClose={() => setIsDeshacerMutacionOpen(false)}
+      />
 
       {/* Solicitar Documentación Modal */}
       <Modal

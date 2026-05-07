@@ -60,6 +60,12 @@ interface CrearAsuntoProps {
 export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCreateClient }: CrearAsuntoProps) => {
   const [step, setStep] = useState(1);
   const [direction, setDirection] = useState(1); // 1 = forward, -1 = backward
+  // GAP UX-1: en Familia/Sucesiones el tipo de proceso es siempre Ordinario.
+  // Lo dejamos colapsado para reducir ruido visual en el caso 99%.
+  const [tipoProcesoExpandido, setTipoProcesoExpandido] = useState(false);
+  // GAP UX-6: cuando el template tiene ≥3 secciones, Step 2 se renderiza
+  // con sub-pestañas. Esta es la sección activa.
+  const [activeWizardSectionIdx, setActiveWizardSectionIdx] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCreatingClient, setIsCreatingClient] = useState(false);
   const [abogados, setAbogados] = useState<{ id: string; full_name: string; role: string }[]>([]);
@@ -202,22 +208,32 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
 
   const validateStep = (currentStep: number) => {
     switch (currentStep) {
-      case 1:
+      case 1: {
         // Si hay wizard, el título se auto-genera en paso 2 — no exigirlo acá.
         // Jurisdicción siempre obligatoria (migración 017 la vuelve top-level).
-        return (hasWizardStep || formData.title) && formData.type && formData.jurisdiction && formData.subtype && selectedClient;
+        const baseOk = (hasWizardStep || formData.title) && formData.type && formData.jurisdiction && formData.subtype && selectedClient;
+        // GAP UX-2: en divorcio el tipo es estructural y se elige en Step 1.
+        // Tres valores aceptados: 'De común acuerdo' | 'Unilateral' | 'Por definir'.
+        // Este último es para el caso típico en que durante la entrevista todavía
+        // no se sabe si la contraparte va a firmar conjunto.
+        if (formData.subtype === 'Divorcio' && !formData.caseData.tipo_divorcio) return false;
+        // GAP UX-3: en presentación conjunta el cónyuge 2 es co-presentante,
+        // su nombre es obligatorio desde el inicio. En unilateral es opcional.
+        if (formData.subtype === 'Divorcio'
+          && formData.caseData.tipo_divorcio === 'De común acuerdo'
+          && !formData.caseData.conyuge2_nombre?.trim()) {
+          return false;
+        }
+        return baseOk;
+      }
       case 2:
         if (!hasWizardStep) return formData.responsible && formData.assignedAttorneyIds.length > 0 && formData.nextAction && formData.nextActionDate;
-        // Validate required wizard fields + que la carátula se haya generado
-        return formData.title && wizardSections.every(section =>
-          section.fields.filter(f => f.required).every(f => {
-            const val = formData.caseData[f.key];
-            if (f.type === 'repeatable') {
-              try { return JSON.parse(val || '[]').length > 0; } catch { return false; }
-            }
-            return val?.trim();
-          })
-        );
+        // GAP UX-7: ya no exigimos TODOS los `required` para avanzar — los
+        // datos del divorcio rara vez se conocen completos en la primera
+        // entrevista. El usuario puede avanzar y completar después desde
+        // la ficha de Instrucción del caso. Solo exigimos que la carátula
+        // se haya generado (lo demás se advierte visualmente).
+        return !!formData.title;
       case 3:
         if (hasWizardStep) return formData.responsible && formData.assignedAttorneyIds.length > 0 && formData.nextAction && formData.nextActionDate;
         return true;
@@ -289,6 +305,38 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
   const nextStep = () => { setDirection(1); setStep(s => Math.min(s + 1, totalSteps)); };
   const prevStep = () => { setDirection(-1); setStep(s => Math.max(s - 1, 1)); };
 
+  // GAP UX-6/UX-7: contador por sección y total de campos `required` sin
+  // completar en Step 2. La versión por-sección alimenta los badges de las
+  // sub-pestañas; el total se muestra junto a Continuar.
+  const camposFaltantesPorSeccion = useMemo(() => {
+    if (!hasWizardStep) return [] as number[];
+    return wizardSections.map(section => {
+      let n = 0;
+      for (const f of section.fields) {
+        if (!f.required) continue;
+        const val = formData.caseData[f.key];
+        const ok = f.type === 'repeatable'
+          ? (() => { try { return JSON.parse(val || '[]').length > 0; } catch { return false; } })()
+          : !!val?.trim();
+        if (!ok) n++;
+      }
+      return n;
+    });
+  }, [hasWizardStep, wizardSections, formData.caseData]);
+
+  const camposFaltantesStep2 = useMemo(
+    () => camposFaltantesPorSeccion.reduce((a, b) => a + b, 0),
+    [camposFaltantesPorSeccion],
+  );
+
+  // GAP UX-6: si cambia el template (otro subtipo) o desaparece la sección
+  // activa, volver a la primera sección.
+  useEffect(() => {
+    if (activeWizardSectionIdx >= wizardSections.length) {
+      setActiveWizardSectionIdx(0);
+    }
+  }, [wizardSections.length, activeWizardSectionIdx]);
+
   const hasUnsavedData = formData.type !== '' || formData.title !== '' || selectedClient !== null;
   const confirmExit = () => {
     if (!hasUnsavedData || window.confirm('Tenés datos cargados. ¿Seguro que querés salir?')) {
@@ -353,7 +401,16 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
     return ['identification', 'datos-caso', 'operatividad', 'estructura', 'revision'][step - 1];
   };
 
-  const renderWizardFieldsStep = () => (
+  const renderWizardFieldsStep = () => {
+    const IconMap: Record<string, any> = { User, UserPlus, Calendar, FileText, Building2, AlertCircle, Briefcase, Scale };
+    // GAP UX-6: con ≥3 secciones se usan sub-pestañas. Con 1-2 se mantiene
+    // el scroll vertical (no aporta nada partir tan poco).
+    const useTabs = wizardSections.length >= 3;
+    const visibleSections = useTabs
+      ? [wizardSections[activeWizardSectionIdx]].filter(Boolean)
+      : wizardSections;
+
+    return (
     <div className="space-y-8">
       <div className="space-y-2">
         <div className="flex items-center justify-between">
@@ -368,9 +425,43 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
         </p>
       </div>
 
+      {useTabs && (
+        <div className="flex flex-wrap gap-1.5 border-b border-border/50 -mb-2">
+          {wizardSections.map((s, idx) => {
+            const TabIcon = IconMap[s.icon] || FileText;
+            const faltantes = camposFaltantesPorSeccion[idx] || 0;
+            const total = s.fields.filter(f => f.required).length;
+            const completa = total > 0 && faltantes === 0;
+            const isActive = idx === activeWizardSectionIdx;
+            return (
+              <button
+                key={s.title}
+                type="button"
+                onClick={() => setActiveWizardSectionIdx(idx)}
+                className={cn(
+                  'inline-flex items-center gap-2 px-3.5 py-2.5 rounded-t-xl text-[11px] font-black uppercase tracking-widest transition-all border-b-2 -mb-px',
+                  isActive
+                    ? 'bg-card border-teal-700 text-teal-700'
+                    : 'bg-transparent border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/40',
+                )}
+              >
+                <TabIcon size={13} />
+                <span>{s.title}</span>
+                {faltantes > 0 ? (
+                  <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-700 text-[10px] font-black">
+                    {faltantes}
+                  </span>
+                ) : completa ? (
+                  <Check size={13} className="text-emerald-600" />
+                ) : null}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       <div className="space-y-8">
-        {wizardSections.map((section) => {
-          const IconMap: Record<string, any> = { User, UserPlus, Calendar, FileText, Building2, AlertCircle, Briefcase };
+        {visibleSections.map((section) => {
           const SectionIcon = IconMap[section.icon] || FileText;
           return (
             <div key={section.title} className="space-y-4">
@@ -524,8 +615,45 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
           );
         })}
       </div>
+
+      {useTabs && (
+        <div className="flex items-center justify-between pt-2 border-t border-border/40">
+          <button
+            type="button"
+            disabled={activeWizardSectionIdx === 0}
+            onClick={() => setActiveWizardSectionIdx(i => Math.max(0, i - 1))}
+            className={cn(
+              'inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest transition-colors',
+              activeWizardSectionIdx === 0
+                ? 'text-muted-foreground/40 cursor-not-allowed'
+                : 'text-muted-foreground hover:text-foreground',
+            )}
+          >
+            <ArrowLeft size={13} />
+            Sección anterior
+          </button>
+          <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+            {activeWizardSectionIdx + 1} / {wizardSections.length}
+          </span>
+          <button
+            type="button"
+            disabled={activeWizardSectionIdx >= wizardSections.length - 1}
+            onClick={() => setActiveWizardSectionIdx(i => Math.min(wizardSections.length - 1, i + 1))}
+            className={cn(
+              'inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest transition-colors',
+              activeWizardSectionIdx >= wizardSections.length - 1
+                ? 'text-muted-foreground/40 cursor-not-allowed'
+                : 'text-teal-700 hover:text-teal-800',
+            )}
+          >
+            Siguiente sección
+            <ArrowRight size={13} />
+          </button>
+        </div>
+      )}
     </div>
-  );
+    );
+  };
 
   const renderStep = () => {
     const logical = getLogicalStep();
@@ -650,55 +778,93 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
               </motion.div>
             )}
 
-            {/* Tipo de proceso — no obligatorio, default 'ordinario'.
+            {/* GAP UX-1: Tipo de proceso — colapsado por default en
+                Familia/Sucesiones (siempre Ordinario, mostrarlo es ruido).
+                Visible expandido en Civil/Daños/Comercial/Laboral.
                 "Sumario" está disponible SOLO cuando jurisdicción = PBA
                 (en Nación quedó derogado por Ley 25.488 de 2002). */}
-            {formData.type && formData.jurisdiction && (
-              <motion.div
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.2 }}
-                className="space-y-3"
-              >
-                <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-lg bg-amber-500/10 flex items-center justify-center">
-                    <Scale size={13} className="text-amber-600" />
-                  </div>
-                  <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">
-                    Tipo de proceso
-                  </Label>
-                  <span className="text-[10px] text-muted-foreground font-normal">(opcional — default ordinario)</span>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {[
-                    { value: 'ordinario',  label: 'Ordinario',  hint: 'Juicio ordinario civil (99% de los casos)' },
-                    { value: 'sumario',    label: 'Sumario',    hint: 'Exclusivo de Provincia de Buenos Aires',           onlyPBA: true },
-                    { value: 'sumarisimo', label: 'Sumarísimo', hint: 'Plazos más cortos — CPCCN 498 / CPCC PBA 496' },
-                  ].map(tp => {
-                    const disabled = tp.onlyPBA && formData.jurisdiction !== 'PBA';
-                    return (
+            {formData.type && formData.jurisdiction && (() => {
+              const colapsablePorDefault = formData.type === 'Familia' || formData.type === 'Sucesiones';
+              const expandido = !colapsablePorDefault || tipoProcesoExpandido;
+              const tipoProcesoLabel = formData.tipoProceso === 'sumario' ? 'Sumario'
+                : formData.tipoProceso === 'sumarisimo' ? 'Sumarísimo' : 'Ordinario';
+
+              if (!expandido) {
+                return (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setTipoProcesoExpandido(true)}
+                      className="inline-flex items-center gap-1.5 text-[11px] font-bold text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      <Scale size={11} />
+                      <span>Tipo de proceso: <strong className="text-foreground">{tipoProcesoLabel}</strong></span>
+                      <span className="text-muted-foreground/60 italic">— cambiar</span>
+                    </button>
+                  </motion.div>
+                );
+              }
+
+              return (
+                <motion.div
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="space-y-3"
+                >
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-lg bg-amber-500/10 flex items-center justify-center">
+                      <Scale size={13} className="text-amber-600" />
+                    </div>
+                    <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">
+                      Tipo de proceso
+                    </Label>
+                    <span className="text-[10px] text-muted-foreground font-normal">(opcional — default ordinario)</span>
+                    {colapsablePorDefault && (
                       <button
-                        key={tp.value}
-                        disabled={disabled}
-                        onClick={() => setFormData({...formData, tipoProceso: tp.value as typeof formData.tipoProceso })}
-                        title={disabled ? 'El juicio sumario sólo existe en la Provincia de Buenos Aires' : tp.hint}
-                        className={cn(
-                          "px-4 py-2.5 rounded-xl border-2 text-sm font-bold transition-all duration-200",
-                          disabled
-                            ? "border-border/30 bg-muted/20 text-muted-foreground/40 cursor-not-allowed opacity-50"
-                            : formData.tipoProceso === tp.value
-                              ? "border-amber-500 bg-amber-500/10 text-amber-700 shadow-sm"
-                              : "border-border/50 bg-card/50 text-muted-foreground hover:border-amber-500/30 hover:text-foreground"
-                        )}
+                        type="button"
+                        onClick={() => setTipoProcesoExpandido(false)}
+                        className="ml-auto text-[10px] text-muted-foreground hover:text-foreground italic"
                       >
-                        {tp.label}
-                        {!disabled && formData.tipoProceso === tp.value && <Check size={14} className="inline ml-2 text-amber-500" />}
+                        ocultar
                       </button>
-                    );
-                  })}
-                </div>
-              </motion.div>
-            )}
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { value: 'ordinario',  label: 'Ordinario',  hint: 'Juicio ordinario civil (99% de los casos)' },
+                      { value: 'sumario',    label: 'Sumario',    hint: 'Exclusivo de Provincia de Buenos Aires',           onlyPBA: true },
+                      { value: 'sumarisimo', label: 'Sumarísimo', hint: 'Plazos más cortos — CPCCN 498 / CPCC PBA 496' },
+                    ].map(tp => {
+                      const disabled = tp.onlyPBA && formData.jurisdiction !== 'PBA';
+                      return (
+                        <button
+                          key={tp.value}
+                          disabled={disabled}
+                          onClick={() => setFormData({...formData, tipoProceso: tp.value as typeof formData.tipoProceso })}
+                          title={disabled ? 'El juicio sumario sólo existe en la Provincia de Buenos Aires' : tp.hint}
+                          className={cn(
+                            "px-4 py-2.5 rounded-xl border-2 text-sm font-bold transition-all duration-200",
+                            disabled
+                              ? "border-border/30 bg-muted/20 text-muted-foreground/40 cursor-not-allowed opacity-50"
+                              : formData.tipoProceso === tp.value
+                                ? "border-amber-500 bg-amber-500/10 text-amber-700 shadow-sm"
+                                : "border-border/50 bg-card/50 text-muted-foreground hover:border-amber-500/30 hover:text-foreground"
+                          )}
+                        >
+                          {tp.label}
+                          {!disabled && formData.tipoProceso === tp.value && <Check size={14} className="inline ml-2 text-amber-500" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </motion.div>
+              );
+            })()}
 
             {/* Subtipo — filtrado por jurisdicción cuando aplica */}
             {formData.type && formData.jurisdiction && availableSubtypes.length > 0 && (
@@ -732,6 +898,85 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
                     </button>
                   ))}
                 </div>
+              </motion.div>
+            )}
+
+            {/* GAP UX-2: Tipo de divorcio — decisión estructural visible
+                en Step 1 cuando el subtipo es Divorcio. Define qué tareas
+                se generan y qué template aplica al matter. */}
+            {formData.subtype === 'Divorcio' && (
+              <motion.div
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.18 }}
+                className="space-y-3"
+              >
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-lg bg-violet-500/10 flex items-center justify-center">
+                    <Scale size={13} className="text-violet-600" />
+                  </div>
+                  <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">
+                    Tipo de divorcio <span className="text-rose-500">*</span>
+                  </Label>
+                  <span className="text-[10px] text-muted-foreground italic">— define el flujo procesal completo</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {[
+                    {
+                      value: 'De común acuerdo',
+                      titulo: 'Presentación conjunta',
+                      desc: 'Ambos cónyuges firman juntos con sus letrados. Convenio regulador acordado.',
+                      icon: '🤝',
+                    },
+                    {
+                      value: 'Unilateral',
+                      titulo: 'Demanda unilateral',
+                      desc: 'Solo nuestro cliente promueve. Traslado a la contraparte. Puede haber contrapropuesta.',
+                      icon: '⚖️',
+                    },
+                    {
+                      // GAP: en la entrevista inicial muchas veces no se sabe el
+                      // tipo todavía (depende de la respuesta de la contraparte
+                      // a la propuesta extrajudicial). Permitir crear el caso
+                      // sin forzar la decisión y definirlo después.
+                      value: 'Por definir',
+                      titulo: 'Por definir',
+                      desc: 'Aún no se sabe — depende de la contraparte. Se decide después con el botón "Definir tipo" del caso.',
+                      icon: '⏳',
+                    },
+                  ].map(t => {
+                    const selected = formData.caseData.tipo_divorcio === t.value;
+                    return (
+                      <button
+                        key={t.value}
+                        onClick={() => setFormData({
+                          ...formData,
+                          caseData: { ...formData.caseData, tipo_divorcio: t.value },
+                        })}
+                        className={cn(
+                          'p-4 rounded-2xl border-2 text-left transition-all',
+                          selected
+                            ? 'border-violet-500 bg-violet-500/5 shadow-sm ring-1 ring-violet-500/30'
+                            : 'border-border/50 bg-card/50 hover:border-violet-500/30',
+                        )}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-2xl leading-none">{t.icon}</span>
+                            <div className="text-sm font-black text-foreground">{t.titulo}</div>
+                          </div>
+                          {selected && <Check size={18} className="text-violet-600 shrink-0" />}
+                        </div>
+                        <p className="text-[11px] text-muted-foreground mt-2 leading-snug">{t.desc}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-[10px] text-muted-foreground italic">
+                  Si elegís "Por definir", el flujo se crea sin las tareas específicas de cada rama —
+                  las generamos cuando definas el tipo desde el caso. Si más adelante una parte retira la
+                  conformidad o se llega a un acuerdo, también podés mutarlo desde "Mutar tipo".
+                </p>
               </motion.div>
             )}
 
@@ -866,6 +1111,66 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
                   </div>
                 )}
               </div>
+
+              {/* GAP UX-3: Datos del Cónyuge 2 — solo en divorcio.
+                  En presentación conjunta es co-presentante; sus datos son
+                  obligatorios desde el primer momento. En unilateral es
+                  opcional (puede no conocerse al inicio). */}
+              {formData.subtype === 'Divorcio' && (
+                <div className="space-y-3 pt-5 mt-5 border-t border-border/40">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-lg bg-teal-500/10 flex items-center justify-center">
+                        <UserPlus size={13} className="text-teal-600" />
+                      </div>
+                      <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">
+                        Cónyuge 2 (otra parte)
+                        {formData.caseData.tipo_divorcio === 'De común acuerdo' && (
+                          <span className="text-rose-500 ml-1">*</span>
+                        )}
+                      </Label>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground italic">
+                      {formData.caseData.tipo_divorcio === 'De común acuerdo'
+                        ? 'co-presentante en demanda conjunta'
+                        : formData.caseData.tipo_divorcio === 'Unilateral'
+                          ? 'demandado/a — opcional al inicio'
+                          : formData.caseData.tipo_divorcio === 'Por definir'
+                            ? 'datos opcionales — se completan cuando definas el tipo'
+                            : 'datos básicos del otro cónyuge'}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <Input
+                      placeholder="Apellido, Nombre"
+                      className="bg-muted/20 border-border/50 h-11 md:col-span-2"
+                      value={formData.caseData.conyuge2_nombre || ''}
+                      onChange={e => setFormData({
+                        ...formData,
+                        caseData: { ...formData.caseData, conyuge2_nombre: e.target.value },
+                      })}
+                    />
+                    <Input
+                      placeholder="DNI (12.345.678)"
+                      className="bg-muted/20 border-border/50 h-11"
+                      value={formData.caseData.conyuge2_dni || ''}
+                      onChange={e => setFormData({
+                        ...formData,
+                        caseData: { ...formData.caseData, conyuge2_dni: e.target.value },
+                      })}
+                    />
+                    <Input
+                      placeholder="Domicilio actual"
+                      className="bg-muted/20 border-border/50 h-11"
+                      value={formData.caseData.conyuge2_domicilio || ''}
+                      onChange={e => setFormData({
+                        ...formData,
+                        caseData: { ...formData.caseData, conyuge2_domicilio: e.target.value },
+                      })}
+                    />
+                  </div>
+                </div>
+              )}
 
               {/* Carátula */}
               <div className="space-y-3">
@@ -1558,6 +1863,18 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
             </Button>
             
             <div className="flex items-center gap-4">
+              {/* GAP UX-7: advertencia no bloqueante de campos sin completar
+                  en Step 2. El usuario puede avanzar igual y completar
+                  después desde la ficha de Instrucción del caso. */}
+              {step === 2 && hasWizardStep && camposFaltantesStep2 > 0 && (
+                <span
+                  className="hidden md:inline-flex items-center gap-1.5 text-[10px] font-bold text-amber-700 bg-amber-500/10 border border-amber-500/30 rounded-md px-2.5 py-1.5"
+                  title="Podés completarlos después desde la ficha de Instrucción del caso"
+                >
+                  <Info size={11} />
+                  {camposFaltantesStep2} campo{camposFaltantesStep2 === 1 ? '' : 's'} sin completar
+                </span>
+              )}
               <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Paso {step} de {totalSteps}</span>
               {step < totalSteps ? (
                 <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} transition={{ type: 'spring', stiffness: 400, damping: 20 }}>
@@ -1609,13 +1926,28 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
                 {/* Matter Identity */}
                 <div className="space-y-4">
                   <div className="space-y-1">
-                    <div className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.2em]">Asunto</div>
+                    <div className="flex items-center gap-1.5">
+                      <div className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.2em]">Asunto</div>
+                      {/* GAP UX-5: indicador "preliminar" cuando la carátula
+                          fue auto-generada y aún no se confirmó manualmente. */}
+                      {formData.title && !titleManuallyEdited && (
+                        <span className="inline-flex items-center gap-1 text-[8px] font-black uppercase tracking-widest text-teal-700 bg-teal-500/10 border border-teal-500/30 rounded-md px-1.5 py-0.5">
+                          <Zap size={8} className="fill-teal-500" />
+                          Preliminar
+                        </span>
+                      )}
+                    </div>
                     <div className={cn(
                       "text-base font-black tracking-tight transition-all",
                       formData.title ? "text-foreground" : "text-muted-foreground/30 italic"
                     )}>
                       {formData.title || 'Sin título aún'}
                     </div>
+                    {formData.title && !titleManuallyEdited && (
+                      <p className="text-[9px] text-muted-foreground italic">
+                        Se actualiza automáticamente — podés editarla en el campo "Carátula".
+                      </p>
+                    )}
                     {formData.subtype && (
                       <div className="text-[10px] font-bold text-primary animate-in fade-in slide-in-from-left-2">
                         {formData.subtype}

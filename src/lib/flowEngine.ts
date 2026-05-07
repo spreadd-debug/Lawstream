@@ -26,8 +26,11 @@ function computeCurrentStage(
   tasks: Task[],
 ): string {
   // Walk stages in order. A stage is "complete" when all its bloqueante tasks are Completada.
+  // Tasks Canceladas (ej. canceladas por mutación de tipo de divorcio) se
+  // excluyen del conteo: no atascan ni cuentan como completadas — son
+  // historia de una rama del flujo que ya no aplica.
   for (const stage of stages) {
-    const stageTasks = tasks.filter(t => t.etapa === stage.name);
+    const stageTasks = tasks.filter(t => t.etapa === stage.name && t.status !== 'Cancelada');
     const blockingTasks = stageTasks.filter(t => t.bloqueante);
 
     if (blockingTasks.length === 0) {
@@ -180,7 +183,10 @@ function computeProgress(
   tasks: Task[],
   matterId: string,
 ): number {
-  const matterTasks = tasks.filter(t => t.matterId === matterId);
+  // Canceladas no entran en el denominador — fueron parte de una rama
+  // del flujo que ya no aplica (ej. tareas de "De común acuerdo" tras
+  // mutación a "Unilateral").
+  const matterTasks = tasks.filter(t => t.matterId === matterId && t.status !== 'Cancelada');
   if (matterTasks.length === 0) return 0;
   const completed = matterTasks.filter(t => t.status === 'Completada').length;
   return Math.round((completed / matterTasks.length) * 100);
@@ -225,7 +231,7 @@ export function getFlowSnapshot(
 
 // ── Evaluación de condiciones ──────────────────────────────────
 
-function evaluateCondition(
+export function evaluateCondition(
   cond: FlowTaskCondition,
   caseData: Record<string, string>,
 ): boolean {
@@ -233,6 +239,19 @@ function evaluateCondition(
   if (cond.equals !== undefined) return val === cond.equals;
   if (cond.notEquals !== undefined) return val !== cond.notEquals;
   return !!val; // exists check
+}
+
+// Decide si el campo está "definido" para auto-completar la tarea asociada.
+// Usa excludeValues para tratar sentinels como 'Por definir' como NO-definido.
+function shouldAutoComplete(
+  rule: { key: string; excludeValues?: string[] } | undefined,
+  caseData: Record<string, string>,
+): boolean {
+  if (!rule) return false;
+  const val = caseData[rule.key];
+  if (!val) return false;
+  if (rule.excludeValues?.includes(val)) return false;
+  return true;
 }
 
 /**
@@ -266,7 +285,7 @@ export function instantiateFlow(
         if (t.condition && !evaluateCondition(t.condition, cd)) return;
 
         // Auto-complete if caseData already has the answer
-        const autoCompleted = t.autoCompleteIf && cd[t.autoCompleteIf.key];
+        const autoCompleted = shouldAutoComplete(t.autoCompleteIf, cd);
 
         tasks.push({
           matterId,
@@ -353,4 +372,83 @@ export function instantiateFlow(
   }
 
   return { tasks, documents, milestones };
+}
+
+// ── Regeneración idempotente para mutaciones de caseData ──────
+//
+// Cuando el caseData del matter muta (ej. tipo_divorcio: De común acuerdo
+// → Unilateral), las tareas del template que dependen de la condición
+// vieja quedan inconsistentes. Este helper compara el estado actual de
+// tasks en DB contra lo que el template AHORA pide y devuelve:
+//
+//   • aCancelar — tasks Pendiente cuya condition ya no matchea.
+//                 Tasks Completada NO se cancelan: tienen valor histórico.
+//   • aCrear    — tasks del template (etapa, title) cuya condition matchea
+//                 ahora y que no existen en DB todavía.
+//
+// El llamador es responsable de persistir cancelación + creación + audit.
+
+export function regenerarTareasFaltantes(
+  matter: Matter,
+  template: MatterTemplate,
+  existingTasks: Task[],
+): { aCancelar: Task[]; aCrear: Omit<Task, 'id'>[] } {
+  const cd = matter.caseData ?? {};
+  const aCancelar: Task[] = [];
+  const aCrear: Omit<Task, 'id'>[] = [];
+
+  if (!template.stages || template.stages.length === 0) {
+    return { aCancelar, aCrear };
+  }
+
+  // Indexar tasks existentes del matter por (etapa, title) — comparamos
+  // así porque title es estable a través de regeneraciones.
+  const tasksDelMatter = existingTasks.filter(t => t.matterId === matter.id);
+  const existingByKey = new Map<string, Task>();
+  for (const t of tasksDelMatter) {
+    existingByKey.set(`${t.etapa ?? ''}::${t.title}`, t);
+  }
+
+  // Set de keys que SÍ están en el template hoy (con condición matcheando).
+  const expectedKeys = new Set<string>();
+
+  for (const stage of template.stages) {
+    for (const taskDef of stage.tasks) {
+      const conditionMatches = taskDef.condition
+        ? evaluateCondition(taskDef.condition, cd)
+        : true;
+      const key = `${stage.name}::${taskDef.task}`;
+      if (conditionMatches) expectedKeys.add(key);
+
+      const existing = existingByKey.get(key);
+      if (existing) {
+        // Existe en DB. Si la condición ya NO matchea y la tarea está
+        // pendiente, marcarla para cancelar. Tasks Completada o Cancelada
+        // se preservan (historia + idempotencia).
+        if (!conditionMatches && existing.status === 'Pendiente') {
+          aCancelar.push(existing);
+        }
+      } else {
+        // No existe en DB. Si matchea, crear.
+        if (conditionMatches) {
+          const autoCompleted = shouldAutoComplete(taskDef.autoCompleteIf, cd);
+          aCrear.push({
+            matterId: matter.id,
+            title: taskDef.task,
+            dueDate: '',
+            status: autoCompleted ? 'Completada' : 'Pendiente',
+            priority: taskDef.priority === 'crítico' ? 'Alta' : taskDef.priority === 'recomendado' ? 'Media' : 'Baja',
+            bloqueante: taskDef.bloqueante ?? (taskDef.priority === 'crítico'),
+            generadaAutomaticamente: true,
+            triggerEstado: `flow:${template.id}`,
+            etapa: stage.name,
+            ...(autoCompleted ? { completedAt: new Date().toISOString(), completedBy: 'Sistema' } : {}),
+            ...(taskDef.satisfiedBy ? { satisfiedBy: taskDef.satisfiedBy } : {}),
+          });
+        }
+      }
+    }
+  }
+
+  return { aCancelar, aCrear };
 }

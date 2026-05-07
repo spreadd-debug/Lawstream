@@ -42,10 +42,14 @@ export const MATTER_TEMPLATES: MatterTemplate[] = [
             ],
           },
           {
+            // Si el alta se hizo con tipo_divorcio = 'Por definir' (caso típico:
+            // todavía no se sabe si la contraparte va a firmar conjunto), la
+            // tarea sigue pendiente hasta que se decida — el sentinel NO la
+            // auto-completa.
             task: 'Determinar si es unilateral o de común acuerdo',
             priority: 'crítico',
             bloqueante: true,
-            autoCompleteIf: { key: 'tipo_divorcio' },
+            autoCompleteIf: { key: 'tipo_divorcio', excludeValues: ['Por definir'] },
           },
           {
             task: 'Verificar datos personales de ambos cónyuges',
@@ -106,17 +110,11 @@ export const MATTER_TEMPLATES: MatterTemplate[] = [
             icon: 'User',
             fields: [
               {
-                key: 'hijos',
-                label: 'Datos de cada hijo/a',
-                type: 'repeatable',
-                addLabel: 'Agregar hijo/a',
-                subFields: [
-                  { key: 'nombre', label: 'Nombre completo', type: 'text', placeholder: 'Apellido, Nombre', required: true },
-                  { key: 'dni', label: 'DNI', type: 'text', placeholder: '12.345.678' },
-                  { key: 'fecha_nacimiento', label: 'Fecha de nacimiento', type: 'date', required: true },
-                  { key: 'escolaridad', label: 'Escolaridad (grado/año)', type: 'text', placeholder: 'Ej: 5° grado' },
-                  { key: 'establecimiento', label: 'Establecimiento educativo', type: 'text', placeholder: 'Nombre del colegio' },
-                ],
+                key: 'hijos_panel_info',
+                label: 'Hijos del caso',
+                type: 'info',
+                tone: 'info',
+                body: 'Los datos de cada hijo (incluyendo discapacidad, terapias y régimen propio) se gestionan en el tab "Hijos" del caso. Allí cargás, editás y ves alertas automáticas de cumple 18.',
               },
             ],
           },
@@ -209,40 +207,15 @@ export const MATTER_TEMPLATES: MatterTemplate[] = [
             ],
           },
           {
-            title: 'Bienes a Liquidar',
+            title: 'Bienes y Deudas',
             icon: 'Building2',
             fields: [
               {
-                key: 'bienes',
-                label: 'Detalle de bienes',
-                type: 'repeatable',
-                addLabel: 'Agregar bien',
-                subFields: [
-                  { key: 'tipo', label: 'Tipo de bien', type: 'select', options: ['Inmueble', 'Vehículo', 'Cuenta bancaria', 'Plazo fijo / Inversión', 'Mobiliario / Electrodomésticos', 'Emprendimiento / Negocio', 'Otro'], required: true },
-                  { key: 'descripcion', label: 'Descripción', type: 'text', placeholder: 'Ej: Depto 3 amb. Av. Cabildo 2876, 4°A, CABA', required: true },
-                  { key: 'valor_estimado', label: 'Valor estimado', type: 'text', placeholder: 'Ej: US$ 230.000 o $18.000.000' },
-                  { key: 'titular', label: 'Titular', type: 'select', options: ['Cónyuge 1', 'Cónyuge 2', 'Ambos', 'Tercero'] },
-                  { key: 'observaciones', label: 'Observaciones', type: 'text', placeholder: 'Ej: Hipoteca con saldo US$ 35.000' },
-                ],
-              },
-            ],
-          },
-          {
-            title: 'Deudas',
-            icon: 'AlertCircle',
-            fields: [
-              {
-                key: 'deudas',
-                label: 'Detalle de deudas',
-                type: 'repeatable',
-                addLabel: 'Agregar deuda',
-                subFields: [
-                  { key: 'tipo', label: 'Tipo', type: 'select', options: ['Hipoteca', 'Tarjeta de crédito', 'Préstamo personal', 'Préstamo prendario', 'Otra'], required: true },
-                  { key: 'acreedor', label: 'Acreedor', type: 'text', placeholder: 'Ej: Banco Nación', required: true },
-                  { key: 'monto', label: 'Saldo deudor', type: 'text', placeholder: 'Ej: $1.200.000 o US$ 35.000' },
-                  { key: 'titular', label: 'A nombre de', type: 'select', options: ['Cónyuge 1', 'Cónyuge 2', 'Ambos'] },
-                  { key: 'observaciones', label: 'Observaciones', type: 'text', placeholder: 'Ej: Tomado para refacciones en 2023' },
-                ],
+                key: 'patrimonio_panel_info',
+                label: 'Patrimonio del caso',
+                type: 'info',
+                tone: 'info',
+                body: 'Los bienes (activos), deudas (pasivos), valuaciones históricas y sociedades interpuestas se gestionan en el tab "Patrimonio" del caso. Soporta país, sociedad uruguaya/extranjera que titulariza el bien y snapshots temporales para detectar evolución patrimonial.',
               },
             ],
           },
@@ -484,10 +457,14 @@ export const MATTER_TEMPLATES: MatterTemplate[] = [
             ],
           },
           {
+            // Si el alta se hizo con tipo_divorcio = 'Por definir' (caso típico:
+            // todavía no se sabe si la contraparte va a firmar conjunto), la
+            // tarea sigue pendiente hasta que se decida — el sentinel NO la
+            // auto-completa.
             task: 'Determinar si es unilateral o de común acuerdo',
             priority: 'crítico',
             bloqueante: true,
-            autoCompleteIf: { key: 'tipo_divorcio' },
+            autoCompleteIf: { key: 'tipo_divorcio', excludeValues: ['Por definir'] },
           },
           {
             task: 'Verificar datos personales de ambos cónyuges',
@@ -550,17 +527,11 @@ export const MATTER_TEMPLATES: MatterTemplate[] = [
             icon: 'User',
             fields: [
               {
-                key: 'hijos',
-                label: 'Datos de cada hijo/a',
-                type: 'repeatable',
-                addLabel: 'Agregar hijo/a',
-                subFields: [
-                  { key: 'nombre', label: 'Nombre completo', type: 'text', placeholder: 'Apellido, Nombre', required: true },
-                  { key: 'dni', label: 'DNI', type: 'text', placeholder: '12.345.678' },
-                  { key: 'fecha_nacimiento', label: 'Fecha de nacimiento', type: 'date', required: true },
-                  { key: 'escolaridad', label: 'Escolaridad (grado/año)', type: 'text', placeholder: 'Ej: 5° grado' },
-                  { key: 'establecimiento', label: 'Establecimiento educativo', type: 'text', placeholder: 'Nombre del colegio' },
-                ],
+                key: 'hijos_panel_info',
+                label: 'Hijos del caso',
+                type: 'info',
+                tone: 'info',
+                body: 'Los datos de cada hijo (incluyendo discapacidad, terapias y régimen propio) se gestionan en el tab "Hijos" del caso. Allí cargás, editás y ves alertas automáticas de cumple 18.',
               },
             ],
           },
@@ -648,40 +619,15 @@ export const MATTER_TEMPLATES: MatterTemplate[] = [
             ],
           },
           {
-            title: 'Bienes a Liquidar',
+            title: 'Bienes y Deudas',
             icon: 'Building2',
             fields: [
               {
-                key: 'bienes',
-                label: 'Detalle de bienes',
-                type: 'repeatable',
-                addLabel: 'Agregar bien',
-                subFields: [
-                  { key: 'tipo', label: 'Tipo de bien', type: 'select', options: ['Inmueble', 'Vehículo', 'Cuenta bancaria', 'Plazo fijo / Inversión', 'Mobiliario / Electrodomésticos', 'Emprendimiento / Negocio', 'Otro'], required: true },
-                  { key: 'descripcion', label: 'Descripción', type: 'text', placeholder: 'Ej: Casa en calle Mitre 1234, La Plata', required: true },
-                  { key: 'valor_estimado', label: 'Valor estimado', type: 'text', placeholder: 'Ej: US$ 230.000 o $18.000.000' },
-                  { key: 'titular', label: 'Titular', type: 'select', options: ['Cónyuge 1', 'Cónyuge 2', 'Ambos', 'Tercero'] },
-                  { key: 'observaciones', label: 'Observaciones', type: 'text', placeholder: 'Ej: Hipoteca con saldo US$ 35.000' },
-                ],
-              },
-            ],
-          },
-          {
-            title: 'Deudas',
-            icon: 'AlertCircle',
-            fields: [
-              {
-                key: 'deudas',
-                label: 'Detalle de deudas',
-                type: 'repeatable',
-                addLabel: 'Agregar deuda',
-                subFields: [
-                  { key: 'tipo', label: 'Tipo', type: 'select', options: ['Hipoteca', 'Tarjeta de crédito', 'Préstamo personal', 'Préstamo prendario', 'Otra'], required: true },
-                  { key: 'acreedor', label: 'Acreedor', type: 'text', placeholder: 'Ej: Banco Provincia', required: true },
-                  { key: 'monto', label: 'Saldo deudor', type: 'text', placeholder: 'Ej: $1.200.000 o US$ 35.000' },
-                  { key: 'titular', label: 'A nombre de', type: 'select', options: ['Cónyuge 1', 'Cónyuge 2', 'Ambos'] },
-                  { key: 'observaciones', label: 'Observaciones', type: 'text' },
-                ],
+                key: 'patrimonio_panel_info',
+                label: 'Patrimonio del caso',
+                type: 'info',
+                tone: 'info',
+                body: 'Los bienes (activos), deudas (pasivos), valuaciones históricas y sociedades interpuestas se gestionan en el tab "Patrimonio" del caso. Soporta país, sociedad uruguaya/extranjera que titulariza el bien y snapshots temporales para detectar evolución patrimonial.',
               },
             ],
           },
@@ -3114,20 +3060,16 @@ export const WIZARD_FIELDS_BY_TEMPLATE: Record<string, WizardSection[]> = {
         { key: 'conyuge1_domicilio', label: 'Domicilio actual', type: 'text', placeholder: 'Dirección...' },
       ],
     },
-    {
-      title: 'Datos del Otro Cónyuge',
-      icon: 'UserPlus',
-      fields: [
-        { key: 'conyuge2_nombre', label: 'Nombre completo', type: 'text', placeholder: 'Apellido, Nombre', required: true },
-        { key: 'conyuge2_dni', label: 'DNI', type: 'text', placeholder: '12.345.678' },
-        { key: 'conyuge2_domicilio', label: 'Domicilio actual', type: 'text', placeholder: 'Dirección...' },
-      ],
-    },
+    // GAP UX-3: la sección "Datos del Otro Cónyuge" se movió al Step 1
+    // del wizard de creación (CrearAsunto.tsx). Se piden junto al cliente
+    // porque en presentación conjunta el cónyuge 2 es co-presentante.
     {
       title: 'Situación',
       icon: 'FileText',
       fields: [
-        { key: 'tipo_divorcio', label: 'Tipo de divorcio', type: 'select', options: ['Unilateral', 'De común acuerdo'], required: true },
+        // GAP UX-2: tipo_divorcio movido al Step 1 del wizard de creación
+        // (decisión estructural — define todo el flujo). Se pregunta en
+        // CrearAsunto.tsx con UI dedicada al lado de "Materia: Divorcio".
         { key: 'fecha_matrimonio', label: 'Fecha de matrimonio (si la sabe)', type: 'date' },
         { key: 'hijos_menores', label: 'Cantidad de hijos menores', type: 'number', placeholder: '0' },
         { key: 'bienes_gananciales', label: '¿Hay bienes gananciales a liquidar?', type: 'select', options: ['Sí', 'No', 'Por determinar'] },
@@ -3147,20 +3089,15 @@ export const WIZARD_FIELDS_BY_TEMPLATE: Record<string, WizardSection[]> = {
         { key: 'conyuge1_domicilio', label: 'Domicilio actual', type: 'text', placeholder: 'Dirección...' },
       ],
     },
-    {
-      title: 'Datos del Otro Cónyuge',
-      icon: 'UserPlus',
-      fields: [
-        { key: 'conyuge2_nombre', label: 'Nombre completo', type: 'text', placeholder: 'Apellido, Nombre', required: true },
-        { key: 'conyuge2_dni', label: 'DNI', type: 'text', placeholder: '12.345.678' },
-        { key: 'conyuge2_domicilio', label: 'Domicilio actual', type: 'text', placeholder: 'Dirección...' },
-      ],
-    },
+    // GAP UX-3: la sección "Datos del Otro Cónyuge" se movió al Step 1
+    // del wizard de creación (CrearAsunto.tsx).
     {
       title: 'Situación',
       icon: 'FileText',
       fields: [
-        { key: 'tipo_divorcio', label: 'Tipo de divorcio', type: 'select', options: ['Unilateral', 'De común acuerdo'], required: true },
+        // GAP UX-2: tipo_divorcio movido al Step 1 del wizard de creación
+        // (decisión estructural — define todo el flujo). Se pregunta en
+        // CrearAsunto.tsx con UI dedicada al lado de "Materia: Divorcio".
         { key: 'fecha_matrimonio', label: 'Fecha de matrimonio (si la sabe)', type: 'date' },
         { key: 'hijos_menores', label: 'Cantidad de hijos menores', type: 'number', placeholder: '0' },
         { key: 'bienes_gananciales', label: '¿Hay bienes gananciales a liquidar?', type: 'select', options: ['Sí', 'No', 'Por determinar'] },
@@ -3925,8 +3862,11 @@ const CARATULA_MAP: Record<string, CaratulaConfig> = {
   'lab-plataformas':        { actor: 'trabajador_nombre', demandado: 'plataforma_nombre', objeto: (d) => d.motivo_reclamo?.toLowerCase() || 'reclamo laboral' },
 
   // ── FAMILIA ──
-  'fam-divorcio':           { actor: 'conyuge1_nombre', demandado: 'conyuge2_nombre', objeto: 'divorcio' },
-  'fam-divorcio-pba':       { actor: 'conyuge1_nombre', demandado: 'conyuge2_nombre', objeto: 'divorcio' },
+  // GAP UX-5: actorFallback='client' permite previsualizar la carátula
+  // desde el Step 1 del wizard, cuando todavía no se cargó conyuge1_nombre
+  // pero sí el cliente principal (que conceptualmente es el cónyuge 1).
+  'fam-divorcio':           { actor: 'conyuge1_nombre', actorFallback: 'client', demandado: 'conyuge2_nombre', objeto: 'divorcio' },
+  'fam-divorcio-pba':       { actor: 'conyuge1_nombre', actorFallback: 'client', demandado: 'conyuge2_nombre', objeto: 'divorcio' },
   'fam-alimentos':          { actor: 'hijo_nombre', demandado: 'alimentante_nombre', objeto: 'alimentos' },
   'fam-cuidado':            { actor: 'nino_nombre', actorFallback: 'client', demandado: 'otro_progenitor_nombre', objeto: 'cuidado personal' },
   'fam-comunicacion':       { actor: 'nino_nombre', actorFallback: 'client', demandado: 'otro_progenitor_nombre', objeto: 'régimen de comunicación' },

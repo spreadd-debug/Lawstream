@@ -352,6 +352,38 @@ export const PLAZOS_POR_EVENTO: Record<TipoEvento, PlazosConVariantes> = {
     ],
   },
   cambio_representacion: { default: [] },
+  mutacion_tipo_divorcio: { default: [] },
+  deshacer_mutacion_tipo_divorcio: { default: [] },
+  demanda_reconvencional: {
+    default: [
+      { tipo: 'Contestar reconvención', dias: 15, diasHabiles: true, descripcion: 'Art. 358 CPCCN / 354 CPCC PBA — traslado de la reconvención (juicio ordinario)' },
+    ],
+    porTipoProceso: {
+      sumarisimo: [
+        { tipo: 'Contestar reconvención', dias: 5, diasHabiles: true, descripcion: 'Art. 498 CPCCN / 496 CPCC PBA — sumarísimo' },
+      ],
+    },
+    porJurisdiccionYProceso: {
+      'pba:sumario': [
+        { tipo: 'Contestar reconvención', dias: 10, diasHabiles: true, descripcion: 'Art. 484 CPCC PBA — juicio sumario (solo PBA)' },
+      ],
+    },
+  },
+  contestacion_reconvencion: { default: [] },
+  // Trámites internacionales (GAP R8). NO disparan plazos procesales
+  // automáticos: el ciclo del exhorto depende del país/vía (Convenio
+  // La Haya 1965, CIDIP, vía consular) y va de 1 a 12 meses. El equipo
+  // los gestiona manualmente; el banner de MatterDetail avisa si quedan
+  // >90 días sin contestación.
+  exhorto_internacional_librado:    { default: [] },
+  exhorto_internacional_contestado: { default: [] },
+  // GAP UX-38: dirección inbound — otro juzgado nos manda un exhorto y
+  // nuestro tribunal local lo cumple. Sin plazo automático: la diligencia
+  // se enmarca dentro del que fija la rogante.
+  exhorto_internacional_recibido:      { default: [] },
+  exhorto_internacional_diligenciado:  { default: [] },
+  exequatur_iniciado:               { default: [] },
+  exequatur_concedido:              { default: [] },
   otro: { default: [] },
 };
 
@@ -405,6 +437,60 @@ export function diasRestantes(fechaVencimiento: string): number {
 }
 
 // ─────────────────────────────────────────────────────────────────
+// GAP R8 — Detección de exhortos internacionales pendientes
+// ─────────────────────────────────────────────────────────────────
+//
+// Un exhorto internacional librado debería volver contestado dentro de
+// un rango razonable (1-12 meses según país/vía). Cuando lleva muchos
+// días sin contestación es señal de que conviene hacer seguimiento ante
+// Cancillería o la autoridad destino. El banner de MatterDetail muestra
+// los exhortos librados sin contestación posterior >90 días por default.
+//
+// Toma la lista completa de eventos del matter; un exhorto se considera
+// pendiente si NO existe un `exhorto_internacional_contestado` con fecha
+// igual o posterior al librado.
+
+export interface ExhortoPendiente {
+  eventoLibradoId: string;
+  fechaLibrado: string;             // 'YYYY-MM-DD'
+  diasDesde: number;
+  metadata?: Record<string, unknown>;
+}
+
+export function exhortosPendientes<T extends {
+  id: string;
+  matterId: string;
+  tipo: string;
+  fecha: string;
+  metadata?: Record<string, unknown>;
+}>(
+  eventos: T[],
+  matterId: string,
+  umbralDias = 90,
+  hoy: Date = new Date(),
+): ExhortoPendiente[] {
+  const delMatter = eventos.filter(e => e.matterId === matterId);
+  const librados   = delMatter.filter(e => e.tipo === 'exhorto_internacional_librado');
+  const contestados = delMatter.filter(e => e.tipo === 'exhorto_internacional_contestado');
+
+  const pendientes: ExhortoPendiente[] = [];
+  for (const lib of librados) {
+    const tieneContestacion = contestados.some(c => c.fecha >= lib.fecha);
+    if (tieneContestacion) continue;
+    const dias = differenceInCalendarDays(hoy, parseISO(lib.fecha));
+    if (dias >= umbralDias) {
+      pendientes.push({
+        eventoLibradoId: lib.id,
+        fechaLibrado:    lib.fecha,
+        diasDesde:       dias,
+        metadata:        lib.metadata,
+      });
+    }
+  }
+  return pendientes.sort((a, b) => b.diasDesde - a.diasDesde);
+}
+
+// ─────────────────────────────────────────────────────────────────
 // Metadata presentacional de los tipos de evento
 // ─────────────────────────────────────────────────────────────────
 
@@ -443,9 +529,59 @@ export const TIPOS_EVENTO: TipoEventoDef[] = [
   { tipo: 'elevacion_camara',          label: 'Elevación a Cámara',           descripcionCorta: 'El expediente sube a Cámara' },
   { tipo: 'sentencia_camara',          label: 'Sentencia de Cámara',          descripcionCorta: 'Resuelve la apelación — abre plazo REF' },
   { tipo: 'cambio_representacion',     label: 'Cambio de representación',     descripcionCorta: 'Renuncia o cesión de patrocinio' },
-  { tipo: 'otro',                      label: 'Otro',                         descripcionCorta: 'Movimiento no tipificado' },
+  { tipo: 'mutacion_tipo_divorcio',           label: 'Mutación de tipo de divorcio',          descripcionCorta: 'De común acuerdo ↔ contencioso' },
+  { tipo: 'deshacer_mutacion_tipo_divorcio',  label: 'Deshacer mutación de tipo de divorcio', descripcionCorta: 'Revertir mutación reciente (≤24h)' },
+  { tipo: 'demanda_reconvencional',         label: 'Demanda reconvencional',       descripcionCorta: 'Contrademanda — dispara plazo de contestación' },
+  { tipo: 'contestacion_reconvencion',      label: 'Contestación de reconvención', descripcionCorta: 'Se contesta la reconvención' },
+  { tipo: 'exhorto_internacional_librado',     label: 'Exhorto internacional librado',     descripcionCorta: 'Sale del juzgado local hacia autoridad extranjera' },
+  { tipo: 'exhorto_internacional_contestado',  label: 'Exhorto internacional contestado',  descripcionCorta: 'Vuelve diligenciado al juzgado local' },
+  { tipo: 'exhorto_internacional_recibido',    label: 'Exhorto internacional recibido',    descripcionCorta: 'Llega un exhorto del extranjero al juzgado local' },
+  { tipo: 'exhorto_internacional_diligenciado',label: 'Exhorto internacional diligenciado',descripcionCorta: 'Se cumple el exhorto recibido y se devuelve a la rogante' },
+  { tipo: 'exequatur_iniciado',             label: 'Exequátur iniciado',           descripcionCorta: 'Se inicia reconocimiento de sentencia en el extranjero' },
+  { tipo: 'exequatur_concedido',            label: 'Exequátur concedido',          descripcionCorta: 'La autoridad extranjera reconoce la sentencia' },
+  { tipo: 'otro',                           label: 'Otro',                         descripcionCorta: 'Movimiento no tipificado' },
 ];
 
 export function labelDeTipoEvento(tipo: TipoEvento): string {
   return TIPOS_EVENTO.find(t => t.tipo === tipo)?.label || tipo;
+}
+
+// GAP UX-36: tipos de evento más probables según la etapa actual del matter.
+// El form de "Nueva acción" pre-muestra estos como chips clickables arriba
+// del dropdown completo, así no hay que navegar 30+ tipos para los casos
+// dominantes. Match case-insensitive por substring del nombre de la etapa
+// (los templates usan distintas convenciones — "Demanda", "Etapa de prueba",
+// "Sentencia / Apelación", etc.).
+const SUGERENCIAS_EVENTO_POR_ETAPA: Array<{ match: RegExp; tipos: TipoEvento[] }> = [
+  // Inicio / Instrucción del caso — recolección, primeras presentaciones.
+  { match: /(inicio|instrucci|consulta)/i, tipos: ['presentacion_propia', 'notificacion_recibida', 'oficio_provisto', 'oficio_diligenciado'] },
+  // Demanda y traslado — actos típicos de la apertura.
+  { match: /(demanda|traslado|contestaci)/i, tipos: ['traslado', 'presentacion_propia', 'presentacion_contraria', 'oficio_provisto', 'demanda_reconvencional'] },
+  // Reconvención — eje del cluster reconvencional.
+  { match: /(reconvenci)/i, tipos: ['demanda_reconvencional', 'contestacion_reconvencion', 'traslado'] },
+  // Etapa de prueba — pericial, testimonial, oficios.
+  { match: /(prueba|pericial|testimon|audien)/i, tipos: ['pericia_designada', 'aceptacion_perito', 'pericia_presentada', 'audiencia_testimonial', 'audiencia_fijada', 'ofrecimiento_prueba', 'oficio_provisto', 'oficio_diligenciado'] },
+  // Alegatos / autos para sentencia.
+  { match: /(alegat|autos)/i, tipos: ['autos_para_alegar', 'autos_para_sentencia', 'presentacion_propia'] },
+  // Sentencia / honorarios.
+  { match: /(sentencia)/i, tipos: ['sentencia', 'regulacion_honorarios', 'recurso_interpuesto', 'notificacion_recibida'] },
+  // Apelación / Cámara.
+  { match: /(apelaci|c[aá]mara|recurso)/i, tipos: ['expresion_agravios', 'contestacion_agravios', 'elevacion_camara', 'sentencia_camara', 'recurso_interpuesto'] },
+  // Ejecución / cumplimiento.
+  { match: /(ejecuci|cumplim|cobr)/i, tipos: ['presentacion_propia', 'oficio_provisto', 'oficio_diligenciado', 'resolucion'] },
+  // Mediación / negociación.
+  { match: /(mediaci|negoci|conciliaci)/i, tipos: ['presentacion_propia', 'audiencia_celebrada', 'audiencia_suspendida'] },
+];
+
+export function getSugerenciasEventoPorEtapa(currentStage: string | undefined): TipoEvento[] {
+  if (!currentStage) return [];
+  const validos = new Set(TIPOS_EVENTO.map(t => t.tipo));
+  for (const r of SUGERENCIAS_EVENTO_POR_ETAPA) {
+    if (r.match.test(currentStage)) {
+      // Filtrar tipos que efectivamente existan (defensa contra typos en mapeos).
+      const filtrados = r.tipos.filter(t => validos.has(t));
+      if (filtrados.length > 0) return filtrados.slice(0, 5);
+    }
+  }
+  return [];
 }

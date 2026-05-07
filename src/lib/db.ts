@@ -78,6 +78,37 @@ import {
   HonorarioRegulado,
   Cedula,
   CedulaIntento,
+  HijoCaso,
+  Reconvencion,
+  PresentadaPor,
+  PretensionReconvencion,
+  EstadoReconvencion,
+  Bien,
+  BienValuacion,
+  SociedadInterpuesta,
+  BienNaturaleza,
+  BienTipo,
+  TitularRol,
+  BienCaracter,
+  CausaRelacionada,
+  VinculacionCausa,
+  TipoCausaRelacionada,
+  EstadoCausaExterna,
+  Cautelar,
+  TipoCautelar,
+  EstadoCautelar,
+  CaucionTipo,
+  Veedor,
+  EstadoVeedor,
+  FrecuenciaInformesVeedor,
+  CuotaAlimentaria,
+  CuotaConceptoEspecie,
+  EstadoCuotaAlimentaria,
+  AlcanceCuota,
+  FrecuenciaCuotaAlim,
+  AjusteCuota,
+  CategoriaConceptoEspecie,
+  PagadorConcepto,
 } from '../types';
 
 // ── Profiles ──────────────────────────────────────────────────────
@@ -178,6 +209,7 @@ const toMatter = (r: any): Matter => ({
   parentMatterId:   r.parent_matter_id ?? undefined,
   incidenteTipo:    r.incidente_tipo   ?? undefined,
   aspectosApelados: r.aspectos_apelados ?? undefined,
+  apeladoPor:       r.apelado_por       ?? undefined,
 });
 
 const toClient = (r: any): Client => ({
@@ -245,6 +277,8 @@ const toTask = (r: any): Task => ({
   completedAt:              r.completed_at      ?? undefined,
   completedBy:              r.completed_by      ?? undefined,
   etapa:                    r.etapa             ?? undefined,
+  canceladaMotivo:          r.cancelada_motivo  ?? undefined,
+  canceladaAt:              r.cancelada_at      ?? undefined,
 });
 
 const toTimeline = (r: any): TimelineEvent => ({
@@ -285,6 +319,7 @@ const matterToRow = (m: Partial<Matter>) => ({
   ...(m.parentMatterId   !== undefined && { parent_matter_id: m.parentMatterId ?? null }),
   ...(m.incidenteTipo    !== undefined && { incidente_tipo:   m.incidenteTipo ?? null }),
   ...(m.aspectosApelados !== undefined && { aspectos_apelados: m.aspectosApelados ?? null }),
+  ...(m.apeladoPor       !== undefined && { apelado_por:       m.apeladoPor       ?? null }),
 });
 
 const clientToRow = (c: Partial<Client>) => ({
@@ -1083,12 +1118,14 @@ export const createTask = async (task: Omit<Task, 'id'>): Promise<Task> => {
 
 export const updateTask = async (id: string, changes: Partial<Task>): Promise<void> => {
   const row: any = {};
-  if (changes.status      !== undefined) row.status       = changes.status;
-  if (changes.title       !== undefined) row.title        = changes.title;
-  if (changes.dueDate     !== undefined) row.due_date     = changes.dueDate || null;
-  if (changes.priority    !== undefined) row.priority     = changes.priority;
-  if (changes.completedAt !== undefined) row.completed_at = changes.completedAt;
-  if (changes.completedBy !== undefined) row.completed_by = changes.completedBy;
+  if (changes.status            !== undefined) row.status            = changes.status;
+  if (changes.title             !== undefined) row.title             = changes.title;
+  if (changes.dueDate           !== undefined) row.due_date          = changes.dueDate || null;
+  if (changes.priority          !== undefined) row.priority          = changes.priority;
+  if (changes.completedAt       !== undefined) row.completed_at      = changes.completedAt;
+  if (changes.completedBy       !== undefined) row.completed_by      = changes.completedBy;
+  if (changes.canceladaMotivo   !== undefined) row.cancelada_motivo  = changes.canceladaMotivo ?? null;
+  if (changes.canceladaAt       !== undefined) row.cancelada_at      = changes.canceladaAt     ?? null;
   const { error } = await supabase.from('tasks').update(row).eq('id', id);
   if (error) throw error;
 };
@@ -2740,5 +2777,741 @@ export const deleteCedulaIntento = async (id: string): Promise<void> => {
     .from('cedula_intentos')
     .delete()
     .eq('id', id);
+  if (error) throw error;
+};
+
+// ── Hijos del caso (migración 041) ────────────────────────────────
+
+const toHijoCaso = (r: any): HijoCaso => ({
+  id:                     r.id,
+  matterId:               r.matter_id,
+  nombre:                 r.nombre,
+  dni:                    r.dni                     ?? undefined,
+  fechaNacimiento:        r.fecha_nacimiento,
+  escolaridad:            r.escolaridad             ?? undefined,
+  establecimiento:        r.establecimiento         ?? undefined,
+  tieneCud:               r.tiene_cud               ?? undefined,
+  diagnostico:            r.diagnostico             ?? undefined,
+  terapiasDesc:           r.terapias_desc           ?? undefined,
+  acompananteTerapeutico: r.acompanante_terapeutico ?? undefined,
+  coberturaEspecial:      r.cobertura_especial      ?? undefined,
+  regimenCuidado:         r.regimen_cuidado         ?? undefined,
+  residenciaPrincipal:    r.residencia_principal    ?? undefined,
+  regimenComunicacion:    r.regimen_comunicacion    ?? undefined,
+  motivoRegimenDistinto:  r.motivo_regimen_distinto ?? undefined,
+  orden:                  r.orden ?? 0,
+  notas:                  r.notas      ?? undefined,
+  createdBy:              r.created_by ?? undefined,
+  createdAt:              r.created_at,
+  updatedAt:              r.updated_at,
+});
+
+const hijoCasoToRow = (h: Partial<HijoCaso>): Record<string, unknown> => {
+  const row: Record<string, unknown> = {};
+  if (h.matterId               !== undefined) row.matter_id               = h.matterId;
+  if (h.nombre                 !== undefined) row.nombre                  = h.nombre;
+  if (h.dni                    !== undefined) row.dni                     = h.dni                    ?? null;
+  if (h.fechaNacimiento        !== undefined) row.fecha_nacimiento        = h.fechaNacimiento;
+  if (h.escolaridad            !== undefined) row.escolaridad             = h.escolaridad            ?? null;
+  if (h.establecimiento        !== undefined) row.establecimiento         = h.establecimiento        ?? null;
+  if (h.tieneCud               !== undefined) row.tiene_cud               = h.tieneCud               ?? null;
+  if (h.diagnostico            !== undefined) row.diagnostico             = h.diagnostico            ?? null;
+  if (h.terapiasDesc           !== undefined) row.terapias_desc           = h.terapiasDesc           ?? null;
+  if (h.acompananteTerapeutico !== undefined) row.acompanante_terapeutico = h.acompananteTerapeutico ?? null;
+  if (h.coberturaEspecial      !== undefined) row.cobertura_especial      = h.coberturaEspecial      ?? null;
+  if (h.regimenCuidado         !== undefined) row.regimen_cuidado         = h.regimenCuidado         ?? null;
+  if (h.residenciaPrincipal    !== undefined) row.residencia_principal    = h.residenciaPrincipal    ?? null;
+  if (h.regimenComunicacion    !== undefined) row.regimen_comunicacion    = h.regimenComunicacion    ?? null;
+  if (h.motivoRegimenDistinto  !== undefined) row.motivo_regimen_distinto = h.motivoRegimenDistinto  ?? null;
+  if (h.orden                  !== undefined) row.orden                   = h.orden;
+  if (h.notas                  !== undefined) row.notas                   = h.notas      ?? null;
+  if (h.createdBy              !== undefined) row.created_by              = h.createdBy  ?? null;
+  return row;
+};
+
+export const fetchHijosCaso = async (): Promise<HijoCaso[]> => {
+  const { data, error } = await supabase
+    .from('hijos_caso')
+    .select('*')
+    .order('matter_id', { ascending: true })
+    .order('orden',     { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map(toHijoCaso);
+};
+
+export const createHijoCaso = async (
+  h: Omit<HijoCaso, 'id' | 'createdAt' | 'updatedAt'>,
+): Promise<HijoCaso> => {
+  const { data, error } = await supabase
+    .from('hijos_caso')
+    .insert(hijoCasoToRow(h))
+    .select()
+    .single();
+  if (error) throw error;
+  return toHijoCaso(data);
+};
+
+export const updateHijoCaso = async (id: string, changes: Partial<HijoCaso>): Promise<void> => {
+  const { error } = await supabase
+    .from('hijos_caso')
+    .update(hijoCasoToRow(changes))
+    .eq('id', id);
+  if (error) throw error;
+};
+
+export const deleteHijoCaso = async (id: string): Promise<void> => {
+  const { error } = await supabase
+    .from('hijos_caso')
+    .delete()
+    .eq('id', id);
+  if (error) throw error;
+};
+
+// ── Reconvenciones (migración 043 — GAP R10) ───────────────────────
+
+const toReconvencion = (r: any): Reconvencion => ({
+  id:                   r.id,
+  matterId:             r.matter_id,
+  presentadaPor:        r.presentada_por as PresentadaPor,
+  fechaPresentacion:    r.fecha_presentacion,
+  fechaTrasladoCorrido: r.fecha_traslado_corrido ?? undefined,
+  pretensiones:         (r.pretensiones ?? []) as PretensionReconvencion[],
+  montoReclamado:       r.monto_reclamado        ?? undefined,
+  pretensionDesc:       r.pretension_desc        ?? undefined,
+  estado:               r.estado as EstadoReconvencion,
+  eventoPresentacionId: r.evento_presentacion_id ?? undefined,
+  eventoContestacionId: r.evento_contestacion_id ?? undefined,
+  notas:                r.notas      ?? undefined,
+  createdBy:            r.created_by ?? undefined,
+  createdAt:            r.created_at,
+  updatedAt:            r.updated_at,
+});
+
+const reconvencionToRow = (r: Partial<Reconvencion>): Record<string, unknown> => {
+  const row: Record<string, unknown> = {};
+  if (r.matterId             !== undefined) row.matter_id                = r.matterId;
+  if (r.presentadaPor        !== undefined) row.presentada_por           = r.presentadaPor;
+  if (r.fechaPresentacion    !== undefined) row.fecha_presentacion       = r.fechaPresentacion;
+  if (r.fechaTrasladoCorrido !== undefined) row.fecha_traslado_corrido   = r.fechaTrasladoCorrido ?? null;
+  if (r.pretensiones         !== undefined) row.pretensiones             = r.pretensiones;
+  if (r.montoReclamado       !== undefined) row.monto_reclamado          = r.montoReclamado       ?? null;
+  if (r.pretensionDesc       !== undefined) row.pretension_desc          = r.pretensionDesc       ?? null;
+  if (r.estado               !== undefined) row.estado                   = r.estado;
+  if (r.eventoPresentacionId !== undefined) row.evento_presentacion_id   = r.eventoPresentacionId ?? null;
+  if (r.eventoContestacionId !== undefined) row.evento_contestacion_id   = r.eventoContestacionId ?? null;
+  if (r.notas                !== undefined) row.notas                    = r.notas      ?? null;
+  if (r.createdBy            !== undefined) row.created_by               = r.createdBy  ?? null;
+  return row;
+};
+
+export const fetchReconvenciones = async (): Promise<Reconvencion[]> => {
+  const { data, error } = await supabase
+    .from('reconvenciones')
+    .select('*')
+    .order('fecha_presentacion', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(toReconvencion);
+};
+
+export const createReconvencion = async (
+  r: Omit<Reconvencion, 'id' | 'createdAt' | 'updatedAt'>,
+): Promise<Reconvencion> => {
+  const { data, error } = await supabase
+    .from('reconvenciones')
+    .insert(reconvencionToRow(r))
+    .select()
+    .single();
+  if (error) throw error;
+  return toReconvencion(data);
+};
+
+export const updateReconvencion = async (id: string, changes: Partial<Reconvencion>): Promise<void> => {
+  const { error } = await supabase
+    .from('reconvenciones')
+    .update(reconvencionToRow(changes))
+    .eq('id', id);
+  if (error) throw error;
+};
+
+export const deleteReconvencion = async (id: string): Promise<void> => {
+  const { error } = await supabase
+    .from('reconvenciones')
+    .delete()
+    .eq('id', id);
+  if (error) throw error;
+};
+
+// ── Bienes / patrimonio (migración 045 — GAP R4 + R9 + R14) ───────
+
+const toSociedadInterpuesta = (r: any): SociedadInterpuesta => ({
+  id:               r.id,
+  matterId:         r.matter_id,
+  denominacion:     r.denominacion,
+  tipoSocietario:   r.tipo_societario   ?? undefined,
+  jurisdiccion:     r.jurisdiccion      ?? undefined,
+  cuitOIdFiscal:    r.cuit_o_id_fiscal  ?? undefined,
+  accionistasDesc:  r.accionistas_desc  ?? undefined,
+  observaciones:    r.observaciones     ?? undefined,
+  notas:            r.notas      ?? undefined,
+  createdBy:        r.created_by ?? undefined,
+  createdAt:        r.created_at,
+  updatedAt:        r.updated_at,
+});
+
+const sociedadInterpuestaToRow = (s: Partial<SociedadInterpuesta>): Record<string, unknown> => {
+  const row: Record<string, unknown> = {};
+  if (s.matterId        !== undefined) row.matter_id        = s.matterId;
+  if (s.denominacion    !== undefined) row.denominacion     = s.denominacion;
+  if (s.tipoSocietario  !== undefined) row.tipo_societario  = s.tipoSocietario  ?? null;
+  if (s.jurisdiccion    !== undefined) row.jurisdiccion     = s.jurisdiccion    ?? null;
+  if (s.cuitOIdFiscal   !== undefined) row.cuit_o_id_fiscal = s.cuitOIdFiscal   ?? null;
+  if (s.accionistasDesc !== undefined) row.accionistas_desc = s.accionistasDesc ?? null;
+  if (s.observaciones   !== undefined) row.observaciones    = s.observaciones   ?? null;
+  if (s.notas           !== undefined) row.notas            = s.notas      ?? null;
+  if (s.createdBy       !== undefined) row.created_by       = s.createdBy  ?? null;
+  return row;
+};
+
+const toBien = (r: any): Bien => ({
+  id:                    r.id,
+  matterId:              r.matter_id,
+  naturaleza:            r.naturaleza as BienNaturaleza,
+  tipo:                  r.tipo       as BienTipo,
+  descripcion:           r.descripcion,
+  pais:                  r.pais                     ?? undefined,
+  titularRol:            r.titular_rol               as TitularRol,
+  titularDetalle:        r.titular_detalle          ?? undefined,
+  valorActual:           r.valor_actual != null ? Number(r.valor_actual) : undefined,
+  monedaActual:          r.moneda_actual            ?? undefined,
+  fechaValuacionActual:  r.fecha_valuacion_actual   ?? undefined,
+  sociedadInterpuestaId: r.sociedad_interpuesta_id  ?? undefined,
+  caracter:              r.caracter                 ?? undefined,
+  observaciones:         r.observaciones            ?? undefined,
+  notas:                 r.notas      ?? undefined,
+  createdBy:             r.created_by ?? undefined,
+  createdAt:             r.created_at,
+  updatedAt:             r.updated_at,
+});
+
+const bienToRow = (b: Partial<Bien>): Record<string, unknown> => {
+  const row: Record<string, unknown> = {};
+  if (b.matterId              !== undefined) row.matter_id                = b.matterId;
+  if (b.naturaleza            !== undefined) row.naturaleza               = b.naturaleza;
+  if (b.tipo                  !== undefined) row.tipo                     = b.tipo;
+  if (b.descripcion           !== undefined) row.descripcion              = b.descripcion;
+  if (b.pais                  !== undefined) row.pais                     = b.pais                  ?? null;
+  if (b.titularRol            !== undefined) row.titular_rol              = b.titularRol;
+  if (b.titularDetalle        !== undefined) row.titular_detalle          = b.titularDetalle        ?? null;
+  if (b.valorActual           !== undefined) row.valor_actual             = b.valorActual           ?? null;
+  if (b.monedaActual          !== undefined) row.moneda_actual            = b.monedaActual          ?? null;
+  if (b.fechaValuacionActual  !== undefined) row.fecha_valuacion_actual   = b.fechaValuacionActual  ?? null;
+  if (b.sociedadInterpuestaId !== undefined) row.sociedad_interpuesta_id  = b.sociedadInterpuestaId ?? null;
+  if (b.caracter              !== undefined) row.caracter                 = b.caracter              ?? null;
+  if (b.observaciones         !== undefined) row.observaciones            = b.observaciones         ?? null;
+  if (b.notas                 !== undefined) row.notas                    = b.notas      ?? null;
+  if (b.createdBy             !== undefined) row.created_by               = b.createdBy  ?? null;
+  return row;
+};
+
+const toBienValuacion = (r: any): BienValuacion => ({
+  id:        r.id,
+  bienId:    r.bien_id,
+  fecha:     r.fecha,
+  valor:     Number(r.valor),
+  moneda:    r.moneda,
+  fuente:    r.fuente     ?? undefined,
+  notas:     r.notas      ?? undefined,
+  createdBy: r.created_by ?? undefined,
+  createdAt: r.created_at,
+});
+
+const bienValuacionToRow = (v: Partial<BienValuacion>): Record<string, unknown> => {
+  const row: Record<string, unknown> = {};
+  if (v.bienId    !== undefined) row.bien_id    = v.bienId;
+  if (v.fecha     !== undefined) row.fecha      = v.fecha;
+  if (v.valor     !== undefined) row.valor      = v.valor;
+  if (v.moneda    !== undefined) row.moneda     = v.moneda;
+  if (v.fuente    !== undefined) row.fuente     = v.fuente     ?? null;
+  if (v.notas     !== undefined) row.notas      = v.notas      ?? null;
+  if (v.createdBy !== undefined) row.created_by = v.createdBy  ?? null;
+  return row;
+};
+
+// — Sociedades interpuestas
+export const fetchSociedadesInterpuestas = async (): Promise<SociedadInterpuesta[]> => {
+  const { data, error } = await supabase
+    .from('sociedades_interpuestas')
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(toSociedadInterpuesta);
+};
+
+export const createSociedadInterpuesta = async (
+  s: Omit<SociedadInterpuesta, 'id' | 'createdAt' | 'updatedAt'>,
+): Promise<SociedadInterpuesta> => {
+  const { data, error } = await supabase
+    .from('sociedades_interpuestas')
+    .insert(sociedadInterpuestaToRow(s))
+    .select()
+    .single();
+  if (error) throw error;
+  return toSociedadInterpuesta(data);
+};
+
+export const updateSociedadInterpuesta = async (id: string, changes: Partial<SociedadInterpuesta>): Promise<void> => {
+  const { error } = await supabase
+    .from('sociedades_interpuestas')
+    .update(sociedadInterpuestaToRow(changes))
+    .eq('id', id);
+  if (error) throw error;
+};
+
+export const deleteSociedadInterpuesta = async (id: string): Promise<void> => {
+  const { error } = await supabase
+    .from('sociedades_interpuestas')
+    .delete()
+    .eq('id', id);
+  if (error) throw error;
+};
+
+// — Bienes
+export const fetchBienes = async (): Promise<Bien[]> => {
+  const { data, error } = await supabase
+    .from('bienes')
+    .select('*')
+    .order('matter_id', { ascending: true })
+    .order('naturaleza', { ascending: true })
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map(toBien);
+};
+
+export const createBien = async (
+  b: Omit<Bien, 'id' | 'createdAt' | 'updatedAt'>,
+): Promise<Bien> => {
+  const { data, error } = await supabase
+    .from('bienes')
+    .insert(bienToRow(b))
+    .select()
+    .single();
+  if (error) throw error;
+  return toBien(data);
+};
+
+export const updateBien = async (id: string, changes: Partial<Bien>): Promise<void> => {
+  const { error } = await supabase
+    .from('bienes')
+    .update(bienToRow(changes))
+    .eq('id', id);
+  if (error) throw error;
+};
+
+export const deleteBien = async (id: string): Promise<void> => {
+  const { error } = await supabase
+    .from('bienes')
+    .delete()
+    .eq('id', id);
+  if (error) throw error;
+};
+
+// — Valuaciones (snapshots temporales)
+export const fetchBienValuaciones = async (): Promise<BienValuacion[]> => {
+  const { data, error } = await supabase
+    .from('bien_valuaciones')
+    .select('*')
+    .order('fecha', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(toBienValuacion);
+};
+
+export const createBienValuacion = async (
+  v: Omit<BienValuacion, 'id' | 'createdAt'>,
+): Promise<BienValuacion> => {
+  const { data, error } = await supabase
+    .from('bien_valuaciones')
+    .insert(bienValuacionToRow(v))
+    .select()
+    .single();
+  if (error) throw error;
+  return toBienValuacion(data);
+};
+
+export const deleteBienValuacion = async (id: string): Promise<void> => {
+  const { error } = await supabase
+    .from('bien_valuaciones')
+    .delete()
+    .eq('id', id);
+  if (error) throw error;
+};
+
+// ── Causas relacionadas (migración 046 — GAP R12) ─────────────────
+
+const toCausaRelacionada = (r: any): CausaRelacionada => ({
+  id:                     r.id,
+  matterId:               r.matter_id,
+  vinculacion:            r.vinculacion as VinculacionCausa,
+  matterRelacionadaId:    r.matter_relacionada_id ?? undefined,
+  tipoCausa:              r.tipo_causa as TipoCausaRelacionada,
+  caratula:               r.caratula                ?? undefined,
+  fuero:                  r.fuero                   ?? undefined,
+  juzgado:                r.juzgado                 ?? undefined,
+  expedienteNumero:       r.expediente_numero       ?? undefined,
+  jurisdiccion:           r.jurisdiccion            ?? undefined,
+  abogadoExternoNombre:   r.abogado_externo_nombre  ?? undefined,
+  abogadoExternoContacto: r.abogado_externo_contacto ?? undefined,
+  estadoExterno:          r.estado_externo          ?? undefined,
+  descripcion:            r.descripcion             ?? undefined,
+  impacto:                r.impacto                 ?? undefined,
+  fechaInicio:            r.fecha_inicio            ?? undefined,
+  fechaUltimoMovimiento:  r.fecha_ultimo_movimiento ?? undefined,
+  notas:                  r.notas      ?? undefined,
+  createdBy:              r.created_by ?? undefined,
+  createdAt:              r.created_at,
+  updatedAt:              r.updated_at,
+});
+
+const causaRelacionadaToRow = (c: Partial<CausaRelacionada>): Record<string, unknown> => {
+  const row: Record<string, unknown> = {};
+  if (c.matterId               !== undefined) row.matter_id                 = c.matterId;
+  if (c.vinculacion            !== undefined) row.vinculacion               = c.vinculacion;
+  if (c.matterRelacionadaId    !== undefined) row.matter_relacionada_id     = c.matterRelacionadaId    ?? null;
+  if (c.tipoCausa              !== undefined) row.tipo_causa                = c.tipoCausa;
+  if (c.caratula               !== undefined) row.caratula                  = c.caratula               ?? null;
+  if (c.fuero                  !== undefined) row.fuero                     = c.fuero                  ?? null;
+  if (c.juzgado                !== undefined) row.juzgado                   = c.juzgado                ?? null;
+  if (c.expedienteNumero       !== undefined) row.expediente_numero         = c.expedienteNumero       ?? null;
+  if (c.jurisdiccion           !== undefined) row.jurisdiccion              = c.jurisdiccion           ?? null;
+  if (c.abogadoExternoNombre   !== undefined) row.abogado_externo_nombre    = c.abogadoExternoNombre   ?? null;
+  if (c.abogadoExternoContacto !== undefined) row.abogado_externo_contacto  = c.abogadoExternoContacto ?? null;
+  if (c.estadoExterno          !== undefined) row.estado_externo            = c.estadoExterno          ?? null;
+  if (c.descripcion            !== undefined) row.descripcion               = c.descripcion            ?? null;
+  if (c.impacto                !== undefined) row.impacto                   = c.impacto                ?? null;
+  if (c.fechaInicio            !== undefined) row.fecha_inicio              = c.fechaInicio            ?? null;
+  if (c.fechaUltimoMovimiento  !== undefined) row.fecha_ultimo_movimiento   = c.fechaUltimoMovimiento  ?? null;
+  if (c.notas                  !== undefined) row.notas                     = c.notas      ?? null;
+  if (c.createdBy              !== undefined) row.created_by                = c.createdBy  ?? null;
+  return row;
+};
+
+export const fetchCausasRelacionadas = async (): Promise<CausaRelacionada[]> => {
+  const { data, error } = await supabase
+    .from('causas_relacionadas')
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(toCausaRelacionada);
+};
+
+export const createCausaRelacionada = async (
+  c: Omit<CausaRelacionada, 'id' | 'createdAt' | 'updatedAt'>,
+): Promise<CausaRelacionada> => {
+  const { data, error } = await supabase
+    .from('causas_relacionadas')
+    .insert(causaRelacionadaToRow(c))
+    .select()
+    .single();
+  if (error) throw error;
+  return toCausaRelacionada(data);
+};
+
+export const updateCausaRelacionada = async (id: string, changes: Partial<CausaRelacionada>): Promise<void> => {
+  const { error } = await supabase
+    .from('causas_relacionadas')
+    .update(causaRelacionadaToRow(changes))
+    .eq('id', id);
+  if (error) throw error;
+};
+
+export const deleteCausaRelacionada = async (id: string): Promise<void> => {
+  const { error } = await supabase
+    .from('causas_relacionadas')
+    .delete()
+    .eq('id', id);
+  if (error) throw error;
+};
+
+// ── Cautelares + Veedores (migración 047 — GAP R15) ───────────────
+
+const toCautelar = (r: any): Cautelar => ({
+  id:                        r.id,
+  matterId:                  r.matter_id,
+  tipo:                      r.tipo                        as TipoCautelar,
+  contraRol:                 r.contra_rol                  as TitularRol,
+  contraDetalle:             r.contra_detalle              ?? undefined,
+  bienId:                    r.bien_id                     ?? undefined,
+  sociedadInterpuestaId:     r.sociedad_interpuesta_id     ?? undefined,
+  alcance:                   r.alcance                     ?? undefined,
+  estado:                    r.estado                      as EstadoCautelar,
+  fechaSolicitud:            r.fecha_solicitud             ?? undefined,
+  fechaResolucion:           r.fecha_resolucion            ?? undefined,
+  fechaTraba:                r.fecha_traba                 ?? undefined,
+  fechaLevantamientoParcial: r.fecha_levantamiento_parcial ?? undefined,
+  fechaLevantamientoTotal:   r.fecha_levantamiento_total   ?? undefined,
+  fechaRechazo:              r.fecha_rechazo               ?? undefined,
+  registroInscripcion:       r.registro_inscripcion        ?? undefined,
+  caucionTipo:               r.caucion_tipo                ?? undefined,
+  caucionMontoDesc:          r.caucion_monto_desc          ?? undefined,
+  observaciones:             r.observaciones               ?? undefined,
+  notas:                     r.notas      ?? undefined,
+  createdBy:                 r.created_by ?? undefined,
+  createdAt:                 r.created_at,
+  updatedAt:                 r.updated_at,
+});
+
+const cautelarToRow = (c: Partial<Cautelar>): Record<string, unknown> => {
+  const row: Record<string, unknown> = {};
+  if (c.matterId                  !== undefined) row.matter_id                    = c.matterId;
+  if (c.tipo                      !== undefined) row.tipo                         = c.tipo;
+  if (c.contraRol                 !== undefined) row.contra_rol                   = c.contraRol;
+  if (c.contraDetalle             !== undefined) row.contra_detalle               = c.contraDetalle             ?? null;
+  if (c.bienId                    !== undefined) row.bien_id                      = c.bienId                    ?? null;
+  if (c.sociedadInterpuestaId     !== undefined) row.sociedad_interpuesta_id      = c.sociedadInterpuestaId     ?? null;
+  if (c.alcance                   !== undefined) row.alcance                      = c.alcance                   ?? null;
+  if (c.estado                    !== undefined) row.estado                       = c.estado;
+  if (c.fechaSolicitud            !== undefined) row.fecha_solicitud              = c.fechaSolicitud            ?? null;
+  if (c.fechaResolucion           !== undefined) row.fecha_resolucion             = c.fechaResolucion           ?? null;
+  if (c.fechaTraba                !== undefined) row.fecha_traba                  = c.fechaTraba                ?? null;
+  if (c.fechaLevantamientoParcial !== undefined) row.fecha_levantamiento_parcial  = c.fechaLevantamientoParcial ?? null;
+  if (c.fechaLevantamientoTotal   !== undefined) row.fecha_levantamiento_total    = c.fechaLevantamientoTotal   ?? null;
+  if (c.fechaRechazo              !== undefined) row.fecha_rechazo                = c.fechaRechazo              ?? null;
+  if (c.registroInscripcion       !== undefined) row.registro_inscripcion         = c.registroInscripcion       ?? null;
+  if (c.caucionTipo               !== undefined) row.caucion_tipo                 = c.caucionTipo               ?? null;
+  if (c.caucionMontoDesc          !== undefined) row.caucion_monto_desc           = c.caucionMontoDesc          ?? null;
+  if (c.observaciones             !== undefined) row.observaciones                = c.observaciones             ?? null;
+  if (c.notas                     !== undefined) row.notas                        = c.notas      ?? null;
+  if (c.createdBy                 !== undefined) row.created_by                   = c.createdBy  ?? null;
+  return row;
+};
+
+const toVeedor = (r: any): Veedor => ({
+  id:                  r.id,
+  matterId:            r.matter_id,
+  cautelarId:          r.cautelar_id          ?? undefined,
+  nombre:              r.nombre,
+  especialidad:        r.especialidad         ?? undefined,
+  matricula:           r.matricula            ?? undefined,
+  email:               r.email                ?? undefined,
+  telefono:            r.telefono             ?? undefined,
+  estado:              r.estado               as EstadoVeedor,
+  alcance:             r.alcance              ?? undefined,
+  frecuenciaInformes:  r.frecuencia_informes  ?? undefined,
+  fechaDesignacion:    r.fecha_designacion    ?? undefined,
+  fechaAceptacion:     r.fecha_aceptacion     ?? undefined,
+  fechaCese:           r.fecha_cese           ?? undefined,
+  honorariosDesc:      r.honorarios_desc      ?? undefined,
+  observaciones:       r.observaciones        ?? undefined,
+  notas:               r.notas      ?? undefined,
+  createdBy:           r.created_by ?? undefined,
+  createdAt:           r.created_at,
+  updatedAt:           r.updated_at,
+});
+
+const veedorToRow = (v: Partial<Veedor>): Record<string, unknown> => {
+  const row: Record<string, unknown> = {};
+  if (v.matterId           !== undefined) row.matter_id            = v.matterId;
+  if (v.cautelarId         !== undefined) row.cautelar_id          = v.cautelarId         ?? null;
+  if (v.nombre             !== undefined) row.nombre               = v.nombre;
+  if (v.especialidad       !== undefined) row.especialidad         = v.especialidad       ?? null;
+  if (v.matricula          !== undefined) row.matricula            = v.matricula          ?? null;
+  if (v.email              !== undefined) row.email                = v.email              ?? null;
+  if (v.telefono           !== undefined) row.telefono             = v.telefono           ?? null;
+  if (v.estado             !== undefined) row.estado               = v.estado;
+  if (v.alcance            !== undefined) row.alcance              = v.alcance            ?? null;
+  if (v.frecuenciaInformes !== undefined) row.frecuencia_informes  = v.frecuenciaInformes ?? null;
+  if (v.fechaDesignacion   !== undefined) row.fecha_designacion    = v.fechaDesignacion   ?? null;
+  if (v.fechaAceptacion    !== undefined) row.fecha_aceptacion     = v.fechaAceptacion    ?? null;
+  if (v.fechaCese          !== undefined) row.fecha_cese           = v.fechaCese          ?? null;
+  if (v.honorariosDesc     !== undefined) row.honorarios_desc      = v.honorariosDesc     ?? null;
+  if (v.observaciones      !== undefined) row.observaciones        = v.observaciones      ?? null;
+  if (v.notas              !== undefined) row.notas                = v.notas      ?? null;
+  if (v.createdBy          !== undefined) row.created_by           = v.createdBy  ?? null;
+  return row;
+};
+
+export const fetchCautelares = async (): Promise<Cautelar[]> => {
+  const { data, error } = await supabase
+    .from('cautelares')
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(toCautelar);
+};
+
+export const createCautelar = async (
+  c: Omit<Cautelar, 'id' | 'createdAt' | 'updatedAt'>,
+): Promise<Cautelar> => {
+  const { data, error } = await supabase.from('cautelares').insert(cautelarToRow(c)).select().single();
+  if (error) throw error;
+  return toCautelar(data);
+};
+
+export const updateCautelar = async (id: string, changes: Partial<Cautelar>): Promise<void> => {
+  const { error } = await supabase.from('cautelares').update(cautelarToRow(changes)).eq('id', id);
+  if (error) throw error;
+};
+
+export const deleteCautelar = async (id: string): Promise<void> => {
+  const { error } = await supabase.from('cautelares').delete().eq('id', id);
+  if (error) throw error;
+};
+
+export const fetchVeedores = async (): Promise<Veedor[]> => {
+  const { data, error } = await supabase.from('veedores').select('*').order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(toVeedor);
+};
+
+export const createVeedor = async (
+  v: Omit<Veedor, 'id' | 'createdAt' | 'updatedAt'>,
+): Promise<Veedor> => {
+  const { data, error } = await supabase.from('veedores').insert(veedorToRow(v)).select().single();
+  if (error) throw error;
+  return toVeedor(data);
+};
+
+export const updateVeedor = async (id: string, changes: Partial<Veedor>): Promise<void> => {
+  const { error } = await supabase.from('veedores').update(veedorToRow(changes)).eq('id', id);
+  if (error) throw error;
+};
+
+export const deleteVeedor = async (id: string): Promise<void> => {
+  const { error } = await supabase.from('veedores').delete().eq('id', id);
+  if (error) throw error;
+};
+
+// ── Cuotas alimentarias + conceptos en especie (migración 048 — GAP R13)
+
+const toCuotaAlimentaria = (r: any): CuotaAlimentaria => ({
+  id:                  r.id,
+  matterId:            r.matter_id,
+  estado:              r.estado            as EstadoCuotaAlimentaria,
+  obligadoRol:         r.obligado_rol      as TitularRol,
+  obligadoDetalle:     r.obligado_detalle  ?? undefined,
+  alcance:             r.alcance           as AlcanceCuota,
+  hijosCubiertos:      (r.hijos_cubiertos ?? []) as string[],
+  montoEfectivo:       r.monto_efectivo != null ? Number(r.monto_efectivo) : undefined,
+  moneda:              r.moneda            ?? undefined,
+  frecuencia:          r.frecuencia        as FrecuenciaCuotaAlim,
+  ajuste:              r.ajuste            ?? undefined,
+  ajusteDesc:          r.ajuste_desc       ?? undefined,
+  fechaVigenciaDesde:  r.fecha_vigencia_desde ?? undefined,
+  fechaVigenciaHasta:  r.fecha_vigencia_hasta ?? undefined,
+  fundamento:          r.fundamento        ?? undefined,
+  eventoOrigenId:      r.evento_origen_id  ?? undefined,
+  notas:               r.notas      ?? undefined,
+  createdBy:           r.created_by ?? undefined,
+  createdAt:           r.created_at,
+  updatedAt:           r.updated_at,
+});
+
+const cuotaAlimentariaToRow = (c: Partial<CuotaAlimentaria>): Record<string, unknown> => {
+  const row: Record<string, unknown> = {};
+  if (c.matterId           !== undefined) row.matter_id            = c.matterId;
+  if (c.estado             !== undefined) row.estado               = c.estado;
+  if (c.obligadoRol        !== undefined) row.obligado_rol         = c.obligadoRol;
+  if (c.obligadoDetalle    !== undefined) row.obligado_detalle     = c.obligadoDetalle    ?? null;
+  if (c.alcance            !== undefined) row.alcance              = c.alcance;
+  if (c.hijosCubiertos     !== undefined) row.hijos_cubiertos      = c.hijosCubiertos;
+  if (c.montoEfectivo      !== undefined) row.monto_efectivo       = c.montoEfectivo      ?? null;
+  if (c.moneda             !== undefined) row.moneda               = c.moneda             ?? null;
+  if (c.frecuencia         !== undefined) row.frecuencia           = c.frecuencia;
+  if (c.ajuste             !== undefined) row.ajuste               = c.ajuste             ?? null;
+  if (c.ajusteDesc         !== undefined) row.ajuste_desc          = c.ajusteDesc         ?? null;
+  if (c.fechaVigenciaDesde !== undefined) row.fecha_vigencia_desde = c.fechaVigenciaDesde ?? null;
+  if (c.fechaVigenciaHasta !== undefined) row.fecha_vigencia_hasta = c.fechaVigenciaHasta ?? null;
+  if (c.fundamento         !== undefined) row.fundamento           = c.fundamento         ?? null;
+  if (c.eventoOrigenId     !== undefined) row.evento_origen_id     = c.eventoOrigenId     ?? null;
+  if (c.notas              !== undefined) row.notas                = c.notas      ?? null;
+  if (c.createdBy          !== undefined) row.created_by           = c.createdBy  ?? null;
+  return row;
+};
+
+const toCuotaConceptoEspecie = (r: any): CuotaConceptoEspecie => ({
+  id:                  r.id,
+  cuotaAlimentariaId:  r.cuota_alimentaria_id,
+  categoria:           r.categoria          as CategoriaConceptoEspecie,
+  concepto:            r.concepto,
+  prestador:           r.prestador          ?? undefined,
+  montoEstimado:       r.monto_estimado != null ? Number(r.monto_estimado) : undefined,
+  moneda:              r.moneda             ?? undefined,
+  frecuencia:          r.frecuencia         as FrecuenciaCuotaAlim,
+  pagador:             r.pagador            as PagadorConcepto,
+  pagadorDetalle:      r.pagador_detalle    ?? undefined,
+  hijoId:              r.hijo_id            ?? undefined,
+  notas:               r.notas      ?? undefined,
+  createdBy:           r.created_by ?? undefined,
+  createdAt:           r.created_at,
+  updatedAt:           r.updated_at,
+});
+
+const cuotaConceptoToRow = (c: Partial<CuotaConceptoEspecie>): Record<string, unknown> => {
+  const row: Record<string, unknown> = {};
+  if (c.cuotaAlimentariaId !== undefined) row.cuota_alimentaria_id = c.cuotaAlimentariaId;
+  if (c.categoria          !== undefined) row.categoria            = c.categoria;
+  if (c.concepto           !== undefined) row.concepto             = c.concepto;
+  if (c.prestador          !== undefined) row.prestador            = c.prestador          ?? null;
+  if (c.montoEstimado      !== undefined) row.monto_estimado       = c.montoEstimado      ?? null;
+  if (c.moneda             !== undefined) row.moneda               = c.moneda             ?? null;
+  if (c.frecuencia         !== undefined) row.frecuencia           = c.frecuencia;
+  if (c.pagador            !== undefined) row.pagador              = c.pagador;
+  if (c.pagadorDetalle     !== undefined) row.pagador_detalle      = c.pagadorDetalle     ?? null;
+  if (c.hijoId             !== undefined) row.hijo_id              = c.hijoId             ?? null;
+  if (c.notas              !== undefined) row.notas                = c.notas      ?? null;
+  if (c.createdBy          !== undefined) row.created_by           = c.createdBy  ?? null;
+  return row;
+};
+
+export const fetchCuotasAlimentarias = async (): Promise<CuotaAlimentaria[]> => {
+  const { data, error } = await supabase
+    .from('cuotas_alimentarias')
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(toCuotaAlimentaria);
+};
+
+export const createCuotaAlimentaria = async (
+  c: Omit<CuotaAlimentaria, 'id' | 'createdAt' | 'updatedAt'>,
+): Promise<CuotaAlimentaria> => {
+  const { data, error } = await supabase.from('cuotas_alimentarias').insert(cuotaAlimentariaToRow(c)).select().single();
+  if (error) throw error;
+  return toCuotaAlimentaria(data);
+};
+
+export const updateCuotaAlimentaria = async (id: string, changes: Partial<CuotaAlimentaria>): Promise<void> => {
+  const { error } = await supabase.from('cuotas_alimentarias').update(cuotaAlimentariaToRow(changes)).eq('id', id);
+  if (error) throw error;
+};
+
+export const deleteCuotaAlimentaria = async (id: string): Promise<void> => {
+  const { error } = await supabase.from('cuotas_alimentarias').delete().eq('id', id);
+  if (error) throw error;
+};
+
+export const fetchCuotaConceptosEspecie = async (): Promise<CuotaConceptoEspecie[]> => {
+  const { data, error } = await supabase
+    .from('cuota_conceptos_especie')
+    .select('*')
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map(toCuotaConceptoEspecie);
+};
+
+export const createCuotaConceptoEspecie = async (
+  c: Omit<CuotaConceptoEspecie, 'id' | 'createdAt' | 'updatedAt'>,
+): Promise<CuotaConceptoEspecie> => {
+  const { data, error } = await supabase.from('cuota_conceptos_especie').insert(cuotaConceptoToRow(c)).select().single();
+  if (error) throw error;
+  return toCuotaConceptoEspecie(data);
+};
+
+export const updateCuotaConceptoEspecie = async (id: string, changes: Partial<CuotaConceptoEspecie>): Promise<void> => {
+  const { error } = await supabase.from('cuota_conceptos_especie').update(cuotaConceptoToRow(changes)).eq('id', id);
+  if (error) throw error;
+};
+
+export const deleteCuotaConceptoEspecie = async (id: string): Promise<void> => {
+  const { error } = await supabase.from('cuota_conceptos_especie').delete().eq('id', id);
   if (error) throw error;
 };

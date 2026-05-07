@@ -1,12 +1,12 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { Matter, Client, Consultation, LegalDocument, Task, TimelineEvent, UserProfile, Communication, Expediente, MatterMilestone, EventoExpediente, Plazo, Jurisdiccion, TipoProceso, TipoEvento, HiloPrueba, Perito, CompensacionEconomica, CuotaCompensacion, FrecuenciaCuota, LetradoParte, HonorarioRegulado, MatterKind, IncidenteTipo, INCIDENTE_TIPO_LABELS, AspectoApelado, ASPECTO_APELADO_LABELS, Cedula, CedulaIntento } from '../types';
+import { Matter, Client, Consultation, LegalDocument, Task, TimelineEvent, UserProfile, Communication, Expediente, MatterMilestone, EventoExpediente, Plazo, Jurisdiccion, TipoProceso, TipoEvento, HiloPrueba, Perito, CompensacionEconomica, CuotaCompensacion, FrecuenciaCuota, LetradoParte, HonorarioRegulado, MatterKind, IncidenteTipo, INCIDENTE_TIPO_LABELS, AspectoApelado, ASPECTO_APELADO_LABELS, Cedula, CedulaIntento, HijoCaso, Reconvencion, Bien, BienValuacion, SociedadInterpuesta, CausaRelacionada, Cautelar, Veedor, CuotaAlimentaria, CuotaConceptoEspecie } from '../types';
 import { GlobalFilters, defaultFilters } from '../components/FiltersContent';
 import { useAuth } from './auth';
 import * as db from './db';
 import { logAudit } from './db';
 import { generateConsultationTasks, generateExpedienteTasks } from './taskEngine';
-import { findTemplate } from '../data/templates';
-import { instantiateFlow } from './flowEngine';
+import { findTemplate, MATTER_TEMPLATES } from '../data/templates';
+import { instantiateFlow, regenerarTareasFaltantes } from './flowEngine';
 import { calcularVencimiento, resetFeriadosCache, getPlazosSugeridosPara, diasHabilesEntre } from './plazos';
 import { format, parseISO, addMonths } from 'date-fns';
 
@@ -93,7 +93,22 @@ interface AppContextType {
     nextAction?: string;
     nextActionDate?: string;
     aspectosApelados?: string[];
+    apeladoPor?: 'cliente' | 'contraparte';
   }) => Promise<Matter>;
+  // Mutación de tipo de divorcio (GAP R6) — actualiza caseData,
+  // cancela tareas pendientes de la rama vieja, crea tareas faltantes
+  // de la rama nueva y registra evento `mutacion_tipo_divorcio`.
+  handleMutarTipoDivorcio: (
+    matterId: string,
+    nuevoTipo: 'Unilateral' | 'De común acuerdo',
+    motivo: string,
+    fechaMutacion: string,
+  ) => Promise<{ canceladas: number; creadas: number }>;
+  // GAP UX-25: deshacer mutación reciente (<24h) — revierte caseData,
+  // re-pendientea canceladas, cancela creadas que sigan pendientes.
+  handleDeshacerMutacionTipoDivorcio: (
+    eventoMutacionId: string,
+  ) => Promise<{ rePendientes: number; canceladas: number; completadasPreservadas: number }>;
   handleCreateConsultation: (data: Omit<Consultation, 'id'>) => Promise<void>;
   handleUpdateConsultation: (id: string, changes: Partial<Consultation>) => void;
   // Tasks
@@ -168,6 +183,51 @@ interface AppContextType {
   handleDeleteCedula: (id: string) => Promise<void>;
   handleCreateCedulaIntento: (i: Omit<CedulaIntento, 'id' | 'createdAt'>) => Promise<CedulaIntento>;
   handleDeleteCedulaIntento: (id: string) => Promise<void>;
+  // Hijos del caso (migración 041 — R1+R2+R3)
+  hijos: HijoCaso[];
+  handleCreateHijoCaso: (h: Omit<HijoCaso, 'id' | 'createdAt' | 'updatedAt'>) => Promise<HijoCaso>;
+  handleUpdateHijoCaso: (id: string, changes: Partial<HijoCaso>) => Promise<void>;
+  handleDeleteHijoCaso: (id: string) => Promise<void>;
+  // Reconvenciones (migración 043 — R10)
+  reconvenciones: Reconvencion[];
+  handleCreateReconvencion: (r: Omit<Reconvencion, 'id' | 'createdAt' | 'updatedAt'>) => Promise<Reconvencion>;
+  handleUpdateReconvencion: (id: string, changes: Partial<Reconvencion>) => Promise<void>;
+  handleDeleteReconvencion: (id: string) => Promise<void>;
+  // Bienes / patrimonio (migración 045 — R4 + R9 + R14)
+  bienes: Bien[];
+  bienValuaciones: BienValuacion[];
+  sociedadesInterpuestas: SociedadInterpuesta[];
+  handleCreateBien: (b: Omit<Bien, 'id' | 'createdAt' | 'updatedAt'>) => Promise<Bien>;
+  handleUpdateBien: (id: string, changes: Partial<Bien>) => Promise<void>;
+  handleDeleteBien: (id: string) => Promise<void>;
+  handleCreateBienValuacion: (v: Omit<BienValuacion, 'id' | 'createdAt'>) => Promise<BienValuacion>;
+  handleDeleteBienValuacion: (id: string) => Promise<void>;
+  handleCreateSociedadInterpuesta: (s: Omit<SociedadInterpuesta, 'id' | 'createdAt' | 'updatedAt'>) => Promise<SociedadInterpuesta>;
+  handleUpdateSociedadInterpuesta: (id: string, changes: Partial<SociedadInterpuesta>) => Promise<void>;
+  handleDeleteSociedadInterpuesta: (id: string) => Promise<void>;
+  // Causas relacionadas (migración 046 — R12)
+  causasRelacionadas: CausaRelacionada[];
+  handleCreateCausaRelacionada: (c: Omit<CausaRelacionada, 'id' | 'createdAt' | 'updatedAt'>) => Promise<CausaRelacionada>;
+  handleUpdateCausaRelacionada: (id: string, changes: Partial<CausaRelacionada>) => Promise<void>;
+  handleDeleteCausaRelacionada: (id: string) => Promise<void>;
+  // Cautelares + Veedores (migración 047 — R15)
+  cautelares: Cautelar[];
+  veedores: Veedor[];
+  handleCreateCautelar: (c: Omit<Cautelar, 'id' | 'createdAt' | 'updatedAt'>) => Promise<Cautelar>;
+  handleUpdateCautelar: (id: string, changes: Partial<Cautelar>) => Promise<void>;
+  handleDeleteCautelar: (id: string) => Promise<void>;
+  handleCreateVeedor: (v: Omit<Veedor, 'id' | 'createdAt' | 'updatedAt'>) => Promise<Veedor>;
+  handleUpdateVeedor: (id: string, changes: Partial<Veedor>) => Promise<void>;
+  handleDeleteVeedor: (id: string) => Promise<void>;
+  // Cuotas alimentarias + conceptos en especie (migración 048 — R13)
+  cuotasAlimentarias: CuotaAlimentaria[];
+  cuotaConceptosEspecie: CuotaConceptoEspecie[];
+  handleCreateCuotaAlimentaria: (c: Omit<CuotaAlimentaria, 'id' | 'createdAt' | 'updatedAt'>) => Promise<CuotaAlimentaria>;
+  handleUpdateCuotaAlimentaria: (id: string, changes: Partial<CuotaAlimentaria>) => Promise<void>;
+  handleDeleteCuotaAlimentaria: (id: string) => Promise<void>;
+  handleCreateCuotaConceptoEspecie: (c: Omit<CuotaConceptoEspecie, 'id' | 'createdAt' | 'updatedAt'>) => Promise<CuotaConceptoEspecie>;
+  handleUpdateCuotaConceptoEspecie: (id: string, changes: Partial<CuotaConceptoEspecie>) => Promise<void>;
+  handleDeleteCuotaConceptoEspecie: (id: string) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -199,6 +259,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [honorariosRegulados, setHonorariosRegulados] = useState<HonorarioRegulado[]>([]);
   const [cedulas, setCedulas] = useState<Cedula[]>([]);
   const [cedulaIntentos, setCedulaIntentos] = useState<CedulaIntento[]>([]);
+  const [hijos, setHijos] = useState<HijoCaso[]>([]);
+  const [reconvenciones, setReconvenciones] = useState<Reconvencion[]>([]);
+  const [bienes, setBienes] = useState<Bien[]>([]);
+  const [bienValuaciones, setBienValuaciones] = useState<BienValuacion[]>([]);
+  const [sociedadesInterpuestas, setSociedadesInterpuestas] = useState<SociedadInterpuesta[]>([]);
+  const [causasRelacionadas, setCausasRelacionadas] = useState<CausaRelacionada[]>([]);
+  const [cautelares, setCautelares] = useState<Cautelar[]>([]);
+  const [veedores, setVeedores] = useState<Veedor[]>([]);
+  const [cuotasAlimentarias, setCuotasAlimentarias] = useState<CuotaAlimentaria[]>([]);
+  const [cuotaConceptosEspecie, setCuotaConceptosEspecie] = useState<CuotaConceptoEspecie[]>([]);
   const [plazos, setPlazos] = useState<Plazo[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -250,8 +320,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       safe(db.fetchHonorariosRegulados(), 'honorarios_regulados'),
       safe(db.fetchCedulas(),          'cedulas'),
       safe(db.fetchCedulaIntentos(),   'cedula_intentos'),
+      safe(db.fetchHijosCaso(),        'hijos_caso'),
+      safe(db.fetchReconvenciones(),   'reconvenciones'),
+      safe(db.fetchBienes(),                 'bienes'),
+      safe(db.fetchBienValuaciones(),        'bien_valuaciones'),
+      safe(db.fetchSociedadesInterpuestas(), 'sociedades_interpuestas'),
+      safe(db.fetchCausasRelacionadas(),     'causas_relacionadas'),
+      safe(db.fetchCautelares(),             'cautelares'),
+      safe(db.fetchVeedores(),               'veedores'),
+      safe(db.fetchCuotasAlimentarias(),     'cuotas_alimentarias'),
+      safe(db.fetchCuotaConceptosEspecie(),  'cuota_conceptos_especie'),
     ])
-      .then(([m, c, co, d, t, tl, p, ex, ms, ev, pl, hi, pe, comps, cuotas, letr, honor, ced, cedI]) => {
+      .then(([m, c, co, d, t, tl, p, ex, ms, ev, pl, hi, pe, comps, cuotas, letr, honor, ced, cedI, hjs, rec, bn, bv, si, cr, cau, vd, ca, ce]) => {
         setMatters(m);
         setClients(c);
         setConsultations(co);
@@ -271,6 +351,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setHonorariosRegulados(honor);
         setCedulas(ced);
         setCedulaIntentos(cedI);
+        setHijos(hjs);
+        setReconvenciones(rec);
+        setBienes(bn);
+        setBienValuaciones(bv);
+        setSociedadesInterpuestas(si);
+        setCausasRelacionadas(cr);
+        setCautelares(cau);
+        setVeedores(vd);
+        setCuotasAlimentarias(ca);
+        setCuotaConceptosEspecie(ce);
       })
       .finally(() => setIsLoading(false));
   }, [userId]);
@@ -643,6 +733,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       nextAction?: string;
       nextActionDate?: string;
       aspectosApelados?: string[];
+      apeladoPor?: 'cliente' | 'contraparte';
     },
   ): Promise<Matter> => {
     const parent = matters.find(m => m.id === parentId);
@@ -676,6 +767,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       aspectosApelados: data.kind === 'apelacion' && data.aspectosApelados && data.aspectosApelados.length > 0
         ? (data.aspectosApelados as AspectoApelado[])
         : undefined,
+      apeladoPor:     data.kind === 'apelacion' ? data.apeladoPor : undefined,
       flowTemplateId: apelacionTemplateId,
       currentStage:   apelacionEtapaInicial,
     };
@@ -1538,6 +1630,776 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  // ── Hijos del caso (migración 041 — R1+R2+R3) ─────────────
+  const handleCreateHijoCaso = async (
+    h: Omit<HijoCaso, 'id' | 'createdAt' | 'updatedAt'>,
+  ): Promise<HijoCaso> => {
+    const optimistic: HijoCaso = {
+      ...h,
+      id: crypto.randomUUID(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    setHijos(prev => [...prev, optimistic]);
+    try {
+      const saved = await db.createHijoCaso(h);
+      setHijos(prev => prev.map(x => x.id === optimistic.id ? saved : x));
+      audit('crear_hijo', 'hijo_caso', saved.id, saved.nombre, { matterId: saved.matterId });
+      return saved;
+    } catch (err) {
+      console.error('Error creando hijo:', err);
+      setHijos(prev => prev.filter(x => x.id !== optimistic.id));
+      throw err;
+    }
+  };
+
+  const handleUpdateHijoCaso = async (id: string, changes: Partial<HijoCaso>): Promise<void> => {
+    const prev = hijos;
+    const hijoAnterior = hijos.find(h => h.id === id);
+    setHijos(curr => curr.map(h => h.id === id ? { ...h, ...changes, updatedAt: new Date().toISOString() } : h));
+    try {
+      await db.updateHijoCaso(id, changes);
+      // Audit con before/after de los campos efectivamente cambiados —
+      // así una vista cronológica futura puede reconstruir cómo evolucionó
+      // el régimen / los datos de salud sin necesidad de tabla histórica.
+      if (hijoAnterior) {
+        const before: Record<string, unknown> = {};
+        const after:  Record<string, unknown> = {};
+        for (const key of Object.keys(changes) as (keyof HijoCaso)[]) {
+          before[key as string] = hijoAnterior[key];
+          after[key  as string] = changes[key];
+        }
+        audit('editar_hijo', 'hijo_caso', id, hijoAnterior.nombre, { before, after });
+      }
+    } catch (err) {
+      console.error('Error actualizando hijo:', err);
+      setHijos(prev);
+    }
+  };
+
+  const handleDeleteHijoCaso = async (id: string): Promise<void> => {
+    const prev = hijos;
+    const hijo = hijos.find(h => h.id === id);
+    setHijos(curr => curr.filter(h => h.id !== id));
+    try {
+      await db.deleteHijoCaso(id);
+      audit('eliminar_hijo', 'hijo_caso', id, hijo?.nombre);
+    } catch (err) {
+      console.error('Error eliminando hijo:', err);
+      setHijos(prev);
+    }
+  };
+
+  // ── Mutación de tipo de divorcio (GAP R6) ─────────────────
+  // El divorcio puede mutar de "De común acuerdo" → "Unilateral" (o viceversa)
+  // si una parte retira la conformidad. Este handler:
+  //   1. Actualiza caseData.tipo_divorcio en DB.
+  //   2. Calcula qué tareas pendientes de la rama vieja quedan obsoletas
+  //      y las cancela con motivo legible. Tareas Completada NO se tocan.
+  //   3. Crea tareas faltantes de la rama nueva (idempotente).
+  //   4. Registra evento `mutacion_tipo_divorcio` en el timeline con metadata.
+  //   5. Audita la operación.
+  const handleMutarTipoDivorcio = async (
+    matterId: string,
+    nuevoTipo: 'Unilateral' | 'De común acuerdo',
+    motivo: string,
+    fechaMutacion: string,
+  ): Promise<{ canceladas: number; creadas: number }> => {
+    const matter = matters.find(m => m.id === matterId);
+    if (!matter) throw new Error('Matter no encontrado');
+
+    const tipoActual = matter.caseData?.tipo_divorcio;
+    if (tipoActual === nuevoTipo) {
+      throw new Error(`El caso ya está en "${nuevoTipo}"`);
+    }
+
+    const template = matter.flowTemplateId
+      ? MATTER_TEMPLATES.find(t => t.id === matter.flowTemplateId)
+      : findTemplate(matter.type, matter.subtype, matter.jurisdiccion);
+    if (!template) throw new Error('Template del matter no encontrado');
+
+    // 1. Persistir el cambio en caseData
+    const newCaseData = { ...(matter.caseData ?? {}), tipo_divorcio: nuevoTipo };
+    const matterActualizado: Matter = { ...matter, caseData: newCaseData };
+    await db.updateMatter(matterId, { caseData: newCaseData, lastActivity: new Date().toISOString() });
+    setMatters(prev => prev.map(m => m.id === matterId ? matterActualizado : m));
+
+    // 2. Calcular cambios en tasks usando el caseData NUEVO
+    const matterTasks = tasks.filter(t => t.matterId === matterId);
+    const { aCancelar, aCrear } = regenerarTareasFaltantes(matterActualizado, template, matterTasks);
+
+    // Detectar si es la PRIMERA definición (no había tipo real antes) o
+    // una mutación entre dos tipos reales. Cambia la copy del evento y la
+    // razón de cancelación, pero la mecánica (cancel + create) es idéntica.
+    const esPrimeraDefinicion = !tipoActual || tipoActual === 'Por definir';
+    const tituloEvento = esPrimeraDefinicion
+      ? `Definición inicial: ${nuevoTipo}`
+      : `Mutación a "${nuevoTipo}"`;
+
+    // 3. Cancelar tareas obsoletas
+    const motivoCancelacion = esPrimeraDefinicion
+      ? `Definición inicial como "${nuevoTipo}" (${fechaMutacion})${motivo ? ': ' + motivo : ''}`
+      : `Mutación a "${nuevoTipo}" (${fechaMutacion})${motivo ? ': ' + motivo : ''}`;
+    const ahoraIso = new Date().toISOString();
+    for (const t of aCancelar) {
+      try {
+        await db.updateTask(t.id, {
+          status: 'Cancelada',
+          canceladaMotivo: motivoCancelacion,
+          canceladaAt: ahoraIso,
+        });
+      } catch (err) {
+        console.error('Error cancelando tarea por mutación:', t.id, err);
+      }
+    }
+    if (aCancelar.length > 0) {
+      const cancelledIds = new Set(aCancelar.map(t => t.id));
+      setTasks(prev => prev.map(t =>
+        cancelledIds.has(t.id)
+          ? { ...t, status: 'Cancelada', canceladaMotivo: motivoCancelacion, canceladaAt: ahoraIso }
+          : t,
+      ));
+    }
+
+    // 4. Crear tareas faltantes
+    const created: Task[] = [];
+    for (const nueva of aCrear) {
+      try {
+        const saved = await db.createTask(nueva);
+        created.push(saved);
+      } catch (err) {
+        console.error('Error creando tarea por mutación:', nueva.title, err);
+      }
+    }
+    if (created.length > 0) {
+      setTasks(prev => [...created, ...prev]);
+    }
+
+    // 5. Crear evento en timeline procesal — guardamos los IDs concretos
+    // de tareas canceladas y creadas para que el "Deshacer mutación"
+    // (UX-25) pueda revertir la operación con precisión.
+    try {
+      await handleCreateEvento({
+        matterId,
+        fecha:        fechaMutacion,
+        tipo:         'mutacion_tipo_divorcio',
+        titulo:       tituloEvento,
+        descripcion:  motivo || (esPrimeraDefinicion
+          ? `Se definió el tipo de divorcio como "${nuevoTipo}".`
+          : `Cambio de tipo de divorcio: ${tipoActual ?? '—'} → ${nuevoTipo}`),
+        origen:       'manual',
+        documentosUrls: [],
+        metadata: {
+          tipo_anterior:           tipoActual ?? null,
+          tipo_nuevo:              nuevoTipo,
+          motivo,
+          es_primera_definicion:   esPrimeraDefinicion,
+          tareas_canceladas:       aCancelar.length,
+          tareas_creadas:          created.length,
+          tareas_canceladas_ids:   aCancelar.map(t => t.id),
+          tareas_creadas_ids:      created.map(t => t.id),
+        },
+      });
+    } catch (err) {
+      console.error('Error registrando evento de mutación:', err);
+    }
+
+    // 6. Audit
+    audit('mutar_tipo_divorcio', 'matter', matterId, matter.title, {
+      from:   tipoActual,
+      to:     nuevoTipo,
+      motivo,
+      fecha:  fechaMutacion,
+      tareas_canceladas: aCancelar.length,
+      tareas_creadas:    created.length,
+    });
+
+    return { canceladas: aCancelar.length, creadas: created.length };
+  };
+
+  // ── Deshacer mutación de tipo de divorcio (GAP UX-25) ─────
+  // Reverte una mutación reciente:
+  //   1. Re-pendientea las tareas canceladas que siguen Canceladas
+  //      (las que fueron re-canceladas manualmente después se respetan).
+  //   2. Cancela las tareas creadas que siguen Pendientes (las que el
+  //      usuario completó después se preservan como historia).
+  //   3. Revierte caseData.tipo_divorcio al valor anterior.
+  //   4. Registra evento `deshacer_mutacion_tipo_divorcio` con vínculo
+  //      al evento original.
+  // Limitación: solo se puede deshacer si la mutación tiene <24h y no
+  // hay un deshacer posterior sobre el mismo evento.
+  const handleDeshacerMutacionTipoDivorcio = async (
+    eventoMutacionId: string,
+  ): Promise<{ rePendientes: number; canceladas: number; completadasPreservadas: number }> => {
+    const evento = eventos.find(e => e.id === eventoMutacionId);
+    if (!evento || evento.tipo !== 'mutacion_tipo_divorcio') {
+      throw new Error('El evento no es una mutación de tipo de divorcio.');
+    }
+
+    const matter = matters.find(m => m.id === evento.matterId);
+    if (!matter) throw new Error('Matter del evento no encontrado.');
+
+    // Validar ventana de 24h.
+    const ahora = new Date();
+    const creadoEn = new Date(evento.createdAt);
+    const horasDesde = (ahora.getTime() - creadoEn.getTime()) / (1000 * 60 * 60);
+    if (horasDesde > 24) {
+      throw new Error(`La mutación tiene más de 24h (${Math.floor(horasDesde)}h). Si querés revertir, hacé una nueva mutación.`);
+    }
+
+    // Validar que no haya un deshacer posterior sobre el mismo evento.
+    const yaDeshecho = eventos.some(e =>
+      e.tipo === 'deshacer_mutacion_tipo_divorcio'
+      && (e.metadata as any)?.evento_mutacion_id === eventoMutacionId,
+    );
+    if (yaDeshecho) {
+      throw new Error('Esta mutación ya fue deshecha previamente.');
+    }
+
+    const meta = evento.metadata as any;
+    const tipoAnterior: string | null    = meta?.tipo_anterior ?? null;
+    const idsCanceladas: string[]        = meta?.tareas_canceladas_ids ?? [];
+    const idsCreadas: string[]           = meta?.tareas_creadas_ids ?? [];
+
+    if (!tipoAnterior) {
+      throw new Error('El evento no tiene tipo_anterior — no se puede revertir.');
+    }
+
+    let rePendientes = 0;
+    let canceladasDeshacer = 0;
+    let completadasPreservadas = 0;
+    const ahoraIso = ahora.toISOString();
+    const motivoCancelacion = `Deshacer mutación de ${evento.fecha}: vuelve a "${tipoAnterior}"`;
+
+    // 1. Re-pendientear las que siguen canceladas.
+    for (const id of idsCanceladas) {
+      const t = tasks.find(x => x.id === id);
+      if (!t) continue;
+      if (t.status !== 'Cancelada') continue; // alguien la re-cambió manualmente
+      try {
+        await db.updateTask(id, {
+          status: 'Pendiente',
+          canceladaMotivo: undefined,
+          canceladaAt: undefined,
+        });
+        rePendientes++;
+      } catch (err) {
+        console.error('Error re-pendientando tarea:', id, err);
+      }
+    }
+
+    // 2. Cancelar las que siguen pendientes (las completadas se preservan).
+    for (const id of idsCreadas) {
+      const t = tasks.find(x => x.id === id);
+      if (!t) continue;
+      if (t.status === 'Completada') {
+        completadasPreservadas++;
+        continue;
+      }
+      if (t.status === 'Cancelada') continue;
+      try {
+        await db.updateTask(id, {
+          status: 'Cancelada',
+          canceladaMotivo: motivoCancelacion,
+          canceladaAt: ahoraIso,
+        });
+        canceladasDeshacer++;
+      } catch (err) {
+        console.error('Error cancelando tarea creada por mutación:', id, err);
+      }
+    }
+
+    // 3. Reflejar cambios de tasks en memoria
+    const idsRePendientesSet = new Set(idsCanceladas);
+    const idsCanceladasSet   = new Set(idsCreadas);
+    setTasks(prev => prev.map(t => {
+      if (idsRePendientesSet.has(t.id) && t.status === 'Cancelada') {
+        return { ...t, status: 'Pendiente', canceladaMotivo: undefined, canceladaAt: undefined };
+      }
+      if (idsCanceladasSet.has(t.id) && t.status === 'Pendiente') {
+        return { ...t, status: 'Cancelada', canceladaMotivo: motivoCancelacion, canceladaAt: ahoraIso };
+      }
+      return t;
+    }));
+
+    // 4. Revertir caseData.tipo_divorcio
+    const newCaseData = { ...(matter.caseData ?? {}), tipo_divorcio: tipoAnterior };
+    await db.updateMatter(matter.id, { caseData: newCaseData, lastActivity: ahoraIso });
+    setMatters(prev => prev.map(m => m.id === matter.id ? { ...m, caseData: newCaseData } : m));
+
+    // 5. Crear evento de "deshacer"
+    try {
+      await handleCreateEvento({
+        matterId:    matter.id,
+        fecha:       ahoraIso.slice(0, 10),
+        tipo:        'deshacer_mutacion_tipo_divorcio',
+        titulo:      `Deshacer mutación a "${meta?.tipo_nuevo ?? '—'}" — vuelve a "${tipoAnterior}"`,
+        descripcion: `Se revirtió la mutación del ${evento.fecha}. Re-pendienteadas: ${rePendientes}. Re-canceladas: ${canceladasDeshacer}. Tareas completadas preservadas: ${completadasPreservadas}.`,
+        origen:      'manual',
+        documentosUrls: [],
+        metadata: {
+          evento_mutacion_id:        eventoMutacionId,
+          tipo_revertido:            meta?.tipo_nuevo ?? null,
+          tipo_restaurado:           tipoAnterior,
+          re_pendientes:             rePendientes,
+          re_canceladas:             canceladasDeshacer,
+          completadas_preservadas:   completadasPreservadas,
+        },
+      });
+    } catch (err) {
+      console.error('Error registrando evento de deshacer mutación:', err);
+    }
+
+    audit('deshacer_mutacion_tipo_divorcio', 'matter', matter.id, matter.title, {
+      evento_mutacion_id: eventoMutacionId,
+      tipo_restaurado:    tipoAnterior,
+      re_pendientes:      rePendientes,
+      re_canceladas:      canceladasDeshacer,
+      completadas_preservadas: completadasPreservadas,
+    });
+
+    return {
+      rePendientes,
+      canceladas: canceladasDeshacer,
+      completadasPreservadas,
+    };
+  };
+
+  // ── Reconvenciones (migración 043 — GAP R10) ──────────────
+  const handleCreateReconvencion = async (
+    r: Omit<Reconvencion, 'id' | 'createdAt' | 'updatedAt'>,
+  ): Promise<Reconvencion> => {
+    const optimistic: Reconvencion = {
+      ...r,
+      id: crypto.randomUUID(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    setReconvenciones(prev => [optimistic, ...prev]);
+    try {
+      const saved = await db.createReconvencion(r);
+      setReconvenciones(prev => prev.map(x => x.id === optimistic.id ? saved : x));
+      audit('crear_reconvencion', 'reconvencion', saved.id,
+        `Reconvención de ${saved.presentadaPor === 'cliente' ? 'mi parte' : 'la contraparte'}`,
+        { matterId: saved.matterId, pretensiones: saved.pretensiones, fecha: saved.fechaPresentacion },
+      );
+      return saved;
+    } catch (err) {
+      console.error('Error creando reconvención:', err);
+      setReconvenciones(prev => prev.filter(x => x.id !== optimistic.id));
+      throw err;
+    }
+  };
+
+  const handleUpdateReconvencion = async (id: string, changes: Partial<Reconvencion>): Promise<void> => {
+    const prev = reconvenciones;
+    setReconvenciones(curr => curr.map(r => r.id === id ? { ...r, ...changes, updatedAt: new Date().toISOString() } : r));
+    try {
+      await db.updateReconvencion(id, changes);
+      audit('editar_reconvencion', 'reconvencion', id, undefined, { changes: Object.keys(changes) });
+    } catch (err) {
+      console.error('Error actualizando reconvención:', err);
+      setReconvenciones(prev);
+    }
+  };
+
+  const handleDeleteReconvencion = async (id: string): Promise<void> => {
+    const prev = reconvenciones;
+    setReconvenciones(curr => curr.filter(r => r.id !== id));
+    try {
+      await db.deleteReconvencion(id);
+      audit('eliminar_reconvencion', 'reconvencion', id);
+    } catch (err) {
+      console.error('Error eliminando reconvención:', err);
+      setReconvenciones(prev);
+    }
+  };
+
+  // ── Bienes / patrimonio (migración 045 — GAP R4 + R9 + R14) ─
+  const handleCreateBien = async (
+    b: Omit<Bien, 'id' | 'createdAt' | 'updatedAt'>,
+  ): Promise<Bien> => {
+    const optimistic: Bien = {
+      ...b,
+      id: crypto.randomUUID(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    setBienes(prev => [...prev, optimistic]);
+    try {
+      const saved = await db.createBien(b);
+      setBienes(prev => prev.map(x => x.id === optimistic.id ? saved : x));
+      audit('crear_bien', 'bien', saved.id, saved.descripcion, {
+        matterId: saved.matterId, naturaleza: saved.naturaleza, tipo: saved.tipo,
+      });
+      return saved;
+    } catch (err) {
+      console.error('Error creando bien:', err);
+      setBienes(prev => prev.filter(x => x.id !== optimistic.id));
+      throw err;
+    }
+  };
+
+  const handleUpdateBien = async (id: string, changes: Partial<Bien>): Promise<void> => {
+    const prev = bienes;
+    setBienes(curr => curr.map(b => b.id === id ? { ...b, ...changes, updatedAt: new Date().toISOString() } : b));
+    try {
+      await db.updateBien(id, changes);
+      const bien = bienes.find(b => b.id === id);
+      audit('editar_bien', 'bien', id, bien?.descripcion, { changes: Object.keys(changes) });
+    } catch (err) {
+      console.error('Error actualizando bien:', err);
+      setBienes(prev);
+    }
+  };
+
+  const handleDeleteBien = async (id: string): Promise<void> => {
+    const prev = bienes;
+    const bien = bienes.find(b => b.id === id);
+    setBienes(curr => curr.filter(b => b.id !== id));
+    setBienValuaciones(curr => curr.filter(v => v.bienId !== id));
+    try {
+      await db.deleteBien(id);
+      audit('eliminar_bien', 'bien', id, bien?.descripcion);
+    } catch (err) {
+      console.error('Error eliminando bien:', err);
+      setBienes(prev);
+    }
+  };
+
+  const handleCreateBienValuacion = async (
+    v: Omit<BienValuacion, 'id' | 'createdAt'>,
+  ): Promise<BienValuacion> => {
+    const optimistic: BienValuacion = { ...v, id: crypto.randomUUID(), createdAt: new Date().toISOString() };
+    setBienValuaciones(prev => [optimistic, ...prev]);
+    try {
+      const saved = await db.createBienValuacion(v);
+      setBienValuaciones(prev => prev.map(x => x.id === optimistic.id ? saved : x));
+      audit('crear_valuacion', 'bien_valuacion', saved.id, undefined, {
+        bienId: saved.bienId, fecha: saved.fecha, valor: saved.valor, moneda: saved.moneda,
+      });
+      return saved;
+    } catch (err) {
+      console.error('Error creando valuación:', err);
+      setBienValuaciones(prev => prev.filter(x => x.id !== optimistic.id));
+      throw err;
+    }
+  };
+
+  const handleDeleteBienValuacion = async (id: string): Promise<void> => {
+    const prev = bienValuaciones;
+    setBienValuaciones(curr => curr.filter(v => v.id !== id));
+    try {
+      await db.deleteBienValuacion(id);
+      audit('eliminar_valuacion', 'bien_valuacion', id);
+    } catch (err) {
+      console.error('Error eliminando valuación:', err);
+      setBienValuaciones(prev);
+    }
+  };
+
+  const handleCreateSociedadInterpuesta = async (
+    s: Omit<SociedadInterpuesta, 'id' | 'createdAt' | 'updatedAt'>,
+  ): Promise<SociedadInterpuesta> => {
+    const optimistic: SociedadInterpuesta = {
+      ...s,
+      id: crypto.randomUUID(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    setSociedadesInterpuestas(prev => [optimistic, ...prev]);
+    try {
+      const saved = await db.createSociedadInterpuesta(s);
+      setSociedadesInterpuestas(prev => prev.map(x => x.id === optimistic.id ? saved : x));
+      audit('crear_sociedad_interpuesta', 'sociedad_interpuesta', saved.id, saved.denominacion, { matterId: saved.matterId });
+      return saved;
+    } catch (err) {
+      console.error('Error creando sociedad interpuesta:', err);
+      setSociedadesInterpuestas(prev => prev.filter(x => x.id !== optimistic.id));
+      throw err;
+    }
+  };
+
+  const handleUpdateSociedadInterpuesta = async (id: string, changes: Partial<SociedadInterpuesta>): Promise<void> => {
+    const prev = sociedadesInterpuestas;
+    setSociedadesInterpuestas(curr => curr.map(s => s.id === id ? { ...s, ...changes, updatedAt: new Date().toISOString() } : s));
+    try {
+      await db.updateSociedadInterpuesta(id, changes);
+      const soc = sociedadesInterpuestas.find(s => s.id === id);
+      audit('editar_sociedad_interpuesta', 'sociedad_interpuesta', id, soc?.denominacion, { changes: Object.keys(changes) });
+    } catch (err) {
+      console.error('Error actualizando sociedad interpuesta:', err);
+      setSociedadesInterpuestas(prev);
+    }
+  };
+
+  const handleDeleteSociedadInterpuesta = async (id: string): Promise<void> => {
+    const prev = sociedadesInterpuestas;
+    const soc = sociedadesInterpuestas.find(s => s.id === id);
+    setSociedadesInterpuestas(curr => curr.filter(s => s.id !== id));
+    // Bienes que apuntaban a esta sociedad pierden la FK (ON DELETE SET NULL en DB).
+    setBienes(curr => curr.map(b => b.sociedadInterpuestaId === id ? { ...b, sociedadInterpuestaId: undefined } : b));
+    try {
+      await db.deleteSociedadInterpuesta(id);
+      audit('eliminar_sociedad_interpuesta', 'sociedad_interpuesta', id, soc?.denominacion);
+    } catch (err) {
+      console.error('Error eliminando sociedad interpuesta:', err);
+      setSociedadesInterpuestas(prev);
+    }
+  };
+
+  // ── Causas relacionadas (migración 046 — GAP R12) ──────────
+  const handleCreateCausaRelacionada = async (
+    c: Omit<CausaRelacionada, 'id' | 'createdAt' | 'updatedAt'>,
+  ): Promise<CausaRelacionada> => {
+    const optimistic: CausaRelacionada = {
+      ...c,
+      id: crypto.randomUUID(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    setCausasRelacionadas(prev => [optimistic, ...prev]);
+    try {
+      const saved = await db.createCausaRelacionada(c);
+      setCausasRelacionadas(prev => prev.map(x => x.id === optimistic.id ? saved : x));
+      audit('crear_causa_relacionada', 'causa_relacionada', saved.id, saved.caratula ?? saved.descripcion, {
+        matterId: saved.matterId, vinculacion: saved.vinculacion, tipoCausa: saved.tipoCausa,
+      });
+      return saved;
+    } catch (err) {
+      console.error('Error creando causa relacionada:', err);
+      setCausasRelacionadas(prev => prev.filter(x => x.id !== optimistic.id));
+      throw err;
+    }
+  };
+
+  const handleUpdateCausaRelacionada = async (id: string, changes: Partial<CausaRelacionada>): Promise<void> => {
+    const prev = causasRelacionadas;
+    setCausasRelacionadas(curr => curr.map(c => c.id === id ? { ...c, ...changes, updatedAt: new Date().toISOString() } : c));
+    try {
+      await db.updateCausaRelacionada(id, changes);
+      const c = causasRelacionadas.find(x => x.id === id);
+      audit('editar_causa_relacionada', 'causa_relacionada', id, c?.caratula ?? c?.descripcion, { changes: Object.keys(changes) });
+    } catch (err) {
+      console.error('Error actualizando causa relacionada:', err);
+      setCausasRelacionadas(prev);
+    }
+  };
+
+  const handleDeleteCausaRelacionada = async (id: string): Promise<void> => {
+    const prev = causasRelacionadas;
+    const c = causasRelacionadas.find(x => x.id === id);
+    setCausasRelacionadas(curr => curr.filter(x => x.id !== id));
+    try {
+      await db.deleteCausaRelacionada(id);
+      audit('eliminar_causa_relacionada', 'causa_relacionada', id, c?.caratula ?? c?.descripcion);
+    } catch (err) {
+      console.error('Error eliminando causa relacionada:', err);
+      setCausasRelacionadas(prev);
+    }
+  };
+
+  // ── Cautelares + Veedores (migración 047 — GAP R15) ────────
+  const handleCreateCautelar = async (
+    c: Omit<Cautelar, 'id' | 'createdAt' | 'updatedAt'>,
+  ): Promise<Cautelar> => {
+    const optimistic: Cautelar = {
+      ...c,
+      id: crypto.randomUUID(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    setCautelares(prev => [optimistic, ...prev]);
+    try {
+      const saved = await db.createCautelar(c);
+      setCautelares(prev => prev.map(x => x.id === optimistic.id ? saved : x));
+      audit('crear_cautelar', 'cautelar', saved.id, saved.alcance ?? saved.tipo, {
+        matterId: saved.matterId, tipo: saved.tipo, estado: saved.estado,
+      });
+      return saved;
+    } catch (err) {
+      console.error('Error creando cautelar:', err);
+      setCautelares(prev => prev.filter(x => x.id !== optimistic.id));
+      throw err;
+    }
+  };
+
+  const handleUpdateCautelar = async (id: string, changes: Partial<Cautelar>): Promise<void> => {
+    const prev = cautelares;
+    setCautelares(curr => curr.map(c => c.id === id ? { ...c, ...changes, updatedAt: new Date().toISOString() } : c));
+    try {
+      await db.updateCautelar(id, changes);
+      const c = cautelares.find(x => x.id === id);
+      audit('editar_cautelar', 'cautelar', id, c?.alcance ?? c?.tipo, { changes: Object.keys(changes) });
+    } catch (err) {
+      console.error('Error actualizando cautelar:', err);
+      setCautelares(prev);
+    }
+  };
+
+  const handleDeleteCautelar = async (id: string): Promise<void> => {
+    const prev = cautelares;
+    const c = cautelares.find(x => x.id === id);
+    setCautelares(curr => curr.filter(x => x.id !== id));
+    // Veedores que apuntaban a esta cautelar pierden la FK (ON DELETE SET NULL).
+    setVeedores(curr => curr.map(v => v.cautelarId === id ? { ...v, cautelarId: undefined } : v));
+    try {
+      await db.deleteCautelar(id);
+      audit('eliminar_cautelar', 'cautelar', id, c?.alcance ?? c?.tipo);
+    } catch (err) {
+      console.error('Error eliminando cautelar:', err);
+      setCautelares(prev);
+    }
+  };
+
+  const handleCreateVeedor = async (
+    v: Omit<Veedor, 'id' | 'createdAt' | 'updatedAt'>,
+  ): Promise<Veedor> => {
+    const optimistic: Veedor = {
+      ...v,
+      id: crypto.randomUUID(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    setVeedores(prev => [optimistic, ...prev]);
+    try {
+      const saved = await db.createVeedor(v);
+      setVeedores(prev => prev.map(x => x.id === optimistic.id ? saved : x));
+      audit('crear_veedor', 'veedor', saved.id, saved.nombre, {
+        matterId: saved.matterId, estado: saved.estado, cautelarId: saved.cautelarId,
+      });
+      return saved;
+    } catch (err) {
+      console.error('Error creando veedor:', err);
+      setVeedores(prev => prev.filter(x => x.id !== optimistic.id));
+      throw err;
+    }
+  };
+
+  const handleUpdateVeedor = async (id: string, changes: Partial<Veedor>): Promise<void> => {
+    const prev = veedores;
+    setVeedores(curr => curr.map(v => v.id === id ? { ...v, ...changes, updatedAt: new Date().toISOString() } : v));
+    try {
+      await db.updateVeedor(id, changes);
+      const v = veedores.find(x => x.id === id);
+      audit('editar_veedor', 'veedor', id, v?.nombre, { changes: Object.keys(changes) });
+    } catch (err) {
+      console.error('Error actualizando veedor:', err);
+      setVeedores(prev);
+    }
+  };
+
+  const handleDeleteVeedor = async (id: string): Promise<void> => {
+    const prev = veedores;
+    const v = veedores.find(x => x.id === id);
+    setVeedores(curr => curr.filter(x => x.id !== id));
+    try {
+      await db.deleteVeedor(id);
+      audit('eliminar_veedor', 'veedor', id, v?.nombre);
+    } catch (err) {
+      console.error('Error eliminando veedor:', err);
+      setVeedores(prev);
+    }
+  };
+
+  // ── Cuotas alimentarias + conceptos en especie (migración 048 — GAP R13) ─
+  const handleCreateCuotaAlimentaria = async (
+    c: Omit<CuotaAlimentaria, 'id' | 'createdAt' | 'updatedAt'>,
+  ): Promise<CuotaAlimentaria> => {
+    const optimistic: CuotaAlimentaria = {
+      ...c, id: crypto.randomUUID(),
+      createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+    };
+    setCuotasAlimentarias(prev => [optimistic, ...prev]);
+    try {
+      const saved = await db.createCuotaAlimentaria(c);
+      setCuotasAlimentarias(prev => prev.map(x => x.id === optimistic.id ? saved : x));
+      audit('crear_cuota_alimentaria', 'cuota_alimentaria', saved.id, saved.fundamento ?? saved.estado, {
+        matterId: saved.matterId, estado: saved.estado, alcance: saved.alcance,
+      });
+      return saved;
+    } catch (err) {
+      console.error('Error creando cuota alimentaria:', err);
+      setCuotasAlimentarias(prev => prev.filter(x => x.id !== optimistic.id));
+      throw err;
+    }
+  };
+
+  const handleUpdateCuotaAlimentaria = async (id: string, changes: Partial<CuotaAlimentaria>): Promise<void> => {
+    const prev = cuotasAlimentarias;
+    setCuotasAlimentarias(curr => curr.map(c => c.id === id ? { ...c, ...changes, updatedAt: new Date().toISOString() } : c));
+    try {
+      await db.updateCuotaAlimentaria(id, changes);
+      const c = cuotasAlimentarias.find(x => x.id === id);
+      audit('editar_cuota_alimentaria', 'cuota_alimentaria', id, c?.fundamento ?? c?.estado, { changes: Object.keys(changes) });
+    } catch (err) {
+      console.error('Error actualizando cuota alimentaria:', err);
+      setCuotasAlimentarias(prev);
+    }
+  };
+
+  const handleDeleteCuotaAlimentaria = async (id: string): Promise<void> => {
+    const prev = cuotasAlimentarias;
+    const c = cuotasAlimentarias.find(x => x.id === id);
+    setCuotasAlimentarias(curr => curr.filter(x => x.id !== id));
+    setCuotaConceptosEspecie(curr => curr.filter(ce => ce.cuotaAlimentariaId !== id));
+    try {
+      await db.deleteCuotaAlimentaria(id);
+      audit('eliminar_cuota_alimentaria', 'cuota_alimentaria', id, c?.fundamento ?? c?.estado);
+    } catch (err) {
+      console.error('Error eliminando cuota alimentaria:', err);
+      setCuotasAlimentarias(prev);
+    }
+  };
+
+  const handleCreateCuotaConceptoEspecie = async (
+    c: Omit<CuotaConceptoEspecie, 'id' | 'createdAt' | 'updatedAt'>,
+  ): Promise<CuotaConceptoEspecie> => {
+    const optimistic: CuotaConceptoEspecie = {
+      ...c, id: crypto.randomUUID(),
+      createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+    };
+    setCuotaConceptosEspecie(prev => [...prev, optimistic]);
+    try {
+      const saved = await db.createCuotaConceptoEspecie(c);
+      setCuotaConceptosEspecie(prev => prev.map(x => x.id === optimistic.id ? saved : x));
+      audit('crear_concepto_especie', 'concepto_especie', saved.id, saved.concepto, {
+        cuotaId: saved.cuotaAlimentariaId, categoria: saved.categoria,
+      });
+      return saved;
+    } catch (err) {
+      console.error('Error creando concepto:', err);
+      setCuotaConceptosEspecie(prev => prev.filter(x => x.id !== optimistic.id));
+      throw err;
+    }
+  };
+
+  const handleUpdateCuotaConceptoEspecie = async (id: string, changes: Partial<CuotaConceptoEspecie>): Promise<void> => {
+    const prev = cuotaConceptosEspecie;
+    setCuotaConceptosEspecie(curr => curr.map(c => c.id === id ? { ...c, ...changes, updatedAt: new Date().toISOString() } : c));
+    try {
+      await db.updateCuotaConceptoEspecie(id, changes);
+      const c = cuotaConceptosEspecie.find(x => x.id === id);
+      audit('editar_concepto_especie', 'concepto_especie', id, c?.concepto, { changes: Object.keys(changes) });
+    } catch (err) {
+      console.error('Error actualizando concepto:', err);
+      setCuotaConceptosEspecie(prev);
+    }
+  };
+
+  const handleDeleteCuotaConceptoEspecie = async (id: string): Promise<void> => {
+    const prev = cuotaConceptosEspecie;
+    const c = cuotaConceptosEspecie.find(x => x.id === id);
+    setCuotaConceptosEspecie(curr => curr.filter(x => x.id !== id));
+    try {
+      await db.deleteCuotaConceptoEspecie(id);
+      audit('eliminar_concepto_especie', 'concepto_especie', id, c?.concepto);
+    } catch (err) {
+      console.error('Error eliminando concepto:', err);
+      setCuotaConceptosEspecie(prev);
+    }
+  };
+
   const handleUpdateAssignments = async (matterId: string, profileIds: string[], leadId: string) => {
     // Optimistic update
     setMatters(prev => prev.map(m =>
@@ -1580,6 +2442,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       handleUpdateDocument, handleAddDocument,
       handleCloseMatter, handleArchiveMatter, handleUpdateMatterDirect, handleCreateMatter,
       handleCreateSubProceso,
+      handleMutarTipoDivorcio,
+      handleDeshacerMutacionTipoDivorcio,
       handleCreateConsultation, handleUpdateConsultation,
       handleCreateTask, handleUpdateTask, handleCompleteTask,
       handleConsultationStatusChange,
@@ -1602,6 +2466,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       cedulas, cedulaIntentos,
       handleCreateCedula, handleUpdateCedula, handleDeleteCedula,
       handleCreateCedulaIntento, handleDeleteCedulaIntento,
+      hijos, handleCreateHijoCaso, handleUpdateHijoCaso, handleDeleteHijoCaso,
+      reconvenciones, handleCreateReconvencion, handleUpdateReconvencion, handleDeleteReconvencion,
+      bienes, bienValuaciones, sociedadesInterpuestas,
+      handleCreateBien, handleUpdateBien, handleDeleteBien,
+      handleCreateBienValuacion, handleDeleteBienValuacion,
+      handleCreateSociedadInterpuesta, handleUpdateSociedadInterpuesta, handleDeleteSociedadInterpuesta,
+      causasRelacionadas,
+      handleCreateCausaRelacionada, handleUpdateCausaRelacionada, handleDeleteCausaRelacionada,
+      cautelares, veedores,
+      handleCreateCautelar, handleUpdateCautelar, handleDeleteCautelar,
+      handleCreateVeedor,   handleUpdateVeedor,   handleDeleteVeedor,
+      cuotasAlimentarias, cuotaConceptosEspecie,
+      handleCreateCuotaAlimentaria, handleUpdateCuotaAlimentaria, handleDeleteCuotaAlimentaria,
+      handleCreateCuotaConceptoEspecie, handleUpdateCuotaConceptoEspecie, handleDeleteCuotaConceptoEspecie,
     }}>
       {children}
     </AppContext.Provider>
