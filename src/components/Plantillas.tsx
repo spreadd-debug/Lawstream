@@ -26,22 +26,32 @@ import {
 } from 'lucide-react';
 
 // ── Document type classification ──────────────────────────────
-type TipoDocumento = 'Demanda' | 'Telegrama' | 'Contrato' | 'Recurso' | 'Solicitud' | 'Otro';
+type TipoDocumento = 'Demanda' | 'Telegrama' | 'Cautelar' | 'Contrato' | 'Recurso' | 'Solicitud' | 'Otro';
 
 function getTipoDocumento(template: LegalTemplate): TipoDocumento {
+  // Cautelares — chequeo primero porque algunos títulos contienen "solicita"
+  // y caerían en "Solicitud" si lo leemos antes.
+  if (template.subcategory === 'Cautelares') return 'Cautelar';
   const t = template.title.toLowerCase();
+  if (t.includes('inhibición') || t.includes('embargo') || t.includes('intervención')
+      || t.includes('anotación de litis') || t.includes('no innovar')
+      || t.includes('prohibición de contratar') || t.includes('secuestro')
+      || t.includes('caución') || t.includes('reinscripción')
+      || t.includes('autorización judicial') || t.includes('medida cautelar')) {
+    return 'Cautelar';
+  }
   if (t.includes('demanda') || t.includes('acción de amparo') || t.includes('amparo') || t.includes('ejecuci')) return 'Demanda';
   if (t.includes('telegrama') || t.includes('intimación')) return 'Telegrama';
   if (t.includes('contrato')) return 'Contrato';
   if (t.includes('recurso') || t.includes('apelación')) return 'Recurso';
   if (t.includes('solicitud') || t.includes('oficio') || t.includes('inicio de proceso')) return 'Solicitud';
-  if (t.includes('medida cautelar')) return 'Solicitud';
   return 'Otro';
 }
 
-const TIPO_DOC_ORDER: TipoDocumento[] = ['Demanda', 'Telegrama', 'Contrato', 'Recurso', 'Solicitud', 'Otro'];
+const TIPO_DOC_ORDER: TipoDocumento[] = ['Demanda', 'Cautelar', 'Telegrama', 'Contrato', 'Recurso', 'Solicitud', 'Otro'];
 const TIPO_DOC_LABELS: Record<TipoDocumento, string> = {
   Demanda: 'Demandas y Acciones',
+  Cautelar: 'Medidas Cautelares',
   Telegrama: 'Telegramas e Intimaciones',
   Contrato: 'Contratos',
   Recurso: 'Recursos',
@@ -91,6 +101,26 @@ const AUTOFILL_MAP: Record<string, string[]> = {
   // Letrado / estudio
   LETRADO: ['__responsable'],
   JUZGADO: ['__juzgado'],
+  AUTOS: ['__caratula'],
+  // Cautelares (GAP UX-34) — el solicitante es siempre el cliente y el
+  // afectado/inhibido/embargado es la contraparte. Reusamos los mismos
+  // sources que ACTOR/DEMANDADO para mantener consistencia.
+  SOLICITANTE: ['conyuge1_nombre', 'progenitor_nombre', 'persona_nombre', 'victima_nombre', 'trabajador_nombre'],
+  DNI_SOLICITANTE: ['conyuge1_dni', 'progenitor_dni', 'persona_dni', 'victima_dni', 'trabajador_dni'],
+  DOMICILIO_SOLICITANTE: ['conyuge1_domicilio', 'persona_domicilio', 'victima_domicilio', 'trabajador_domicilio'],
+  // Genéricos del afectado: inhibido, embargado, alimentante, otro progenitor.
+  INHIBIDO: ['conyuge2_nombre', 'otro_progenitor_nombre', 'alimentante_nombre', 'agresor_nombre', 'demandado_nombre'],
+  DNI_INHIBIDO: ['conyuge2_dni', 'otro_progenitor_dni', 'alimentante_dni', 'agresor_dni', 'demandado_dni'],
+  DOMICILIO_INHIBIDO: ['conyuge2_domicilio', 'otro_progenitor_domicilio', 'alimentante_domicilio', 'agresor_domicilio', 'demandado_domicilio'],
+  EMBARGADO: ['conyuge2_nombre', 'otro_progenitor_nombre', 'alimentante_nombre', 'demandado_nombre'],
+  DNI_EMBARGADO: ['conyuge2_dni', 'otro_progenitor_dni', 'alimentante_dni', 'demandado_dni'],
+  CONTRA: ['conyuge2_nombre', 'otro_progenitor_nombre', 'alimentante_nombre', 'demandado_nombre'],
+  TENEDOR: ['conyuge2_nombre', 'demandado_nombre'],
+  DOMICILIO_TENEDOR: ['conyuge2_domicilio', 'demandado_domicilio'],
+  AFECTADO: ['conyuge1_nombre', 'persona_nombre'],
+  ALIMENTANTE: ['alimentante_nombre', 'otro_progenitor_nombre', 'conyuge2_nombre'],
+  DNI_ALIMENTANTE: ['alimentante_dni', 'otro_progenitor_dni', 'conyuge2_dni'],
+  EMPLEADOR_ALIMENTANTE: ['alimentante_empleador'],
 };
 
 function autoFillFromMatter(
@@ -118,6 +148,7 @@ function autoFillFromMatter(
       for (const src of mapSources) {
         if (src === '__responsable' && matter.responsible) { values[key] = matter.responsible; break; }
         if (src === '__juzgado' && expedienteNumero) { values[key] = expedienteNumero; break; }
+        if (src === '__caratula' && matter.title) { values[key] = matter.title; break; }
         if (cd[src]) { values[key] = cd[src]; break; }
       }
       if (values[key]) continue;

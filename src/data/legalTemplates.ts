@@ -1026,4 +1026,991 @@ A V.S. solicito:
 Proveer de conformidad.
 SERÁ JUSTICIA.`,
   },
+
+  // ═══════════════════════════════════════════════════
+  // CAUTELARES (GAP UX-34)
+  // ═══════════════════════════════════════════════════
+  // Catálogo de medidas cautelares típicas — cada template está pensado
+  // para que el abogado lo abra desde un matter concreto y la mayoría de
+  // los placeholders se autocompleten con los datos del caso (partes,
+  // expediente, jurisdicción). Los textos siguen la estructura clásica
+  // del escrito argentino: I OBJETO · II VEROSIMILITUD · III PELIGRO ·
+  // IV CONTRACAUTELA · V DERECHO · VI PETITORIO. Cuando aplica, se
+  // incluyen los oficios accesorios al RPI / Registro Automotor / Banco.
+
+  {
+    id: 'cau-inhibicion-general-divorcio',
+    title: 'Inhibición General de Bienes (Divorcio)',
+    category: 'Familia',
+    subcategory: 'Cautelares',
+    description: 'Inhibición general contra el cónyuge para impedirle disponer o gravar bienes registrables mientras tramita el divorcio. Se traba en el Registro de la Propiedad Inmueble y en el Registro Automotor.',
+    tags: ['cautelar', 'inhibición', 'divorcio', 'patrimonio ganancial', 'art. 228 CPCCN', 'art. 721 CCyCN'],
+    legalBasis: 'Arts. 195, 198, 199, 207, 228 CPCCN; arts. 720, 721 CCyCN; ley 17.801 (RPI).',
+    placeholders: [
+      { key: 'LETRADO', label: 'Letrado/a firmante', type: 'text' },
+      { key: 'TOMO', label: 'Tomo CPACF / CALP', type: 'text' },
+      { key: 'FOLIO', label: 'Folio CPACF / CALP', type: 'text' },
+      { key: 'SOLICITANTE', label: 'Cónyuge solicitante (cliente)', type: 'text' },
+      { key: 'DNI_SOLICITANTE', label: 'DNI del solicitante', type: 'text' },
+      { key: 'DOMICILIO_SOLICITANTE', label: 'Domicilio real del solicitante', type: 'text' },
+      { key: 'INHIBIDO', label: 'Cónyuge a inhibir (contraparte)', type: 'text' },
+      { key: 'DNI_INHIBIDO', label: 'DNI del inhibido', type: 'text' },
+      { key: 'DOMICILIO_INHIBIDO', label: 'Último domicilio conocido del inhibido', type: 'text' },
+      { key: 'FECHA_MATRIMONIO', label: 'Fecha de matrimonio', type: 'date' },
+      { key: 'LUGAR_MATRIMONIO', label: 'Registro Civil de celebración', type: 'text' },
+      { key: 'AUTOS', label: 'Carátula del expediente', type: 'text' },
+      { key: 'JUZGADO', label: 'Juzgado interviniente', type: 'text' },
+      { key: 'HECHOS_PELIGRO', label: 'Hechos que justifican el peligro en la demora', type: 'textarea', defaultValue: 'En el último mes el cónyuge demandado contrajo deuda nueva sin justificación conocida, lo que hace temer el inminente vaciamiento patrimonial de la masa ganancial.' },
+      { key: 'CONTRACAUTELA', label: 'Contracautela ofrecida', type: 'text', defaultValue: 'Caución juratoria atento al carácter familiar del proceso (art. 199 CPCCN)' },
+    ],
+    content: `SOLICITA INHIBICIÓN GENERAL DE BIENES — INAUDITA PARTE
+
+Señor Juez:
+
+{{LETRADO}}, T.° {{TOMO}} F.° {{FOLIO}}, en mi carácter de letrado/a apoderado/a de {{SOLICITANTE}}, D.N.I. {{DNI_SOLICITANTE}}, con domicilio real en {{DOMICILIO_SOLICITANTE}} y constituyendo domicilio procesal electrónico en autos, en el marco de los autos "{{AUTOS}}" en trámite por ante el {{JUZGADO}}, a V.S. respetuosamente me presento y digo:
+
+I. OBJETO
+
+Que vengo por el presente a solicitar, INAUDITA PARTE y con habilitación de días y horas inhábiles si fuere menester, se decrete INHIBICIÓN GENERAL DE BIENES contra {{INHIBIDO}}, D.N.I. {{DNI_INHIBIDO}}, con último domicilio conocido en {{DOMICILIO_INHIBIDO}}, debiendo librarse los oficios pertinentes a los registros públicos de bienes registrables (art. 228 CPCCN).
+
+II. VEROSIMILITUD DEL DERECHO
+
+Mi mandante contrajo matrimonio con el inhibido el {{FECHA_MATRIMONIO}} ante el {{LUGAR_MATRIMONIO}}. El matrimonio se rige por el régimen de comunidad de ganancias del art. 463 y ss. del Código Civil y Comercial, no habiendo las partes suscripto convención matrimonial alterando dicho régimen.
+
+En el marco del presente proceso de divorcio se discute la liquidación de la comunidad ganancial, integrada — entre otros bienes — por aquellos cuya titularidad surge del expediente.
+
+La verosimilitud del derecho surge de manera incontrastable de la copia certificada del acta de matrimonio que se acompañó como prueba documental al promover la demanda, que acredita la calidad de cónyuge de mi mandante y, por ende, su derecho a la mitad de los bienes gananciales (arts. 469, 498 CCyCN).
+
+III. PELIGRO EN LA DEMORA
+
+{{HECHOS_PELIGRO}}
+
+La conducta del cónyuge demandado configura el periculum in mora exigido por el art. 195 CPCCN. De no decretarse la cautelar inaudita parte, el demandado tendría tiempo de disponer o gravar los bienes registrables que integran la masa ganancial, frustrando el resultado del juicio y tornando ilusoria la sentencia de liquidación.
+
+IV. CONTRACAUTELA
+
+Se ofrece como contracautela: {{CONTRACAUTELA}}.
+
+V. DERECHO
+
+Fundo el derecho en los arts. 195, 198, 199, 207 y 228 del CPCCN; arts. 463, 469, 498, 720 y 721 del CCyCN; ley 17.801; y demás normas concordantes.
+
+VI. PETITORIO
+
+A V.S. solicito:
+1. Se tenga por presentado este escrito y por constituido el domicilio procesal electrónico.
+2. Se decrete INAUDITA PARTE la INHIBICIÓN GENERAL DE BIENES contra {{INHIBIDO}}, D.N.I. {{DNI_INHIBIDO}}.
+3. Se fije la contracautela ofrecida.
+4. Se libre OFICIO al Registro de la Propiedad Inmueble (CABA y/o jurisdicción que corresponda) a fin de tomar razón de la inhibición decretada.
+5. Se libre OFICIO al Registro Nacional de la Propiedad del Automotor a fin de tomar razón de la inhibición.
+6. Se autorice al letrado firmante al diligenciamiento de los oficios.
+
+Proveer de conformidad.
+SERÁ JUSTICIA.`,
+  },
+
+  {
+    id: 'cau-embargo-preventivo-inmueble',
+    title: 'Embargo Preventivo de Inmueble',
+    category: 'Civil',
+    subcategory: 'Cautelares',
+    description: 'Embargo preventivo sobre un inmueble determinado para asegurar el cobro de una acreencia. Se traba mediante oficio al Registro de la Propiedad Inmueble.',
+    tags: ['cautelar', 'embargo', 'inmueble', 'art. 209 CPCCN', 'RPI'],
+    legalBasis: 'Arts. 195, 198, 199, 207, 209, 210, 212, 218 CPCCN; ley 17.801.',
+    placeholders: [
+      { key: 'LETRADO', label: 'Letrado/a firmante', type: 'text' },
+      { key: 'TOMO', label: 'Tomo CPACF / CALP', type: 'text' },
+      { key: 'FOLIO', label: 'Folio CPACF / CALP', type: 'text' },
+      { key: 'SOLICITANTE', label: 'Solicitante (acreedor)', type: 'text' },
+      { key: 'DNI_SOLICITANTE', label: 'DNI/CUIT del solicitante', type: 'text' },
+      { key: 'DOMICILIO_SOLICITANTE', label: 'Domicilio del solicitante', type: 'text' },
+      { key: 'EMBARGADO', label: 'Persona a embargar (deudor)', type: 'text' },
+      { key: 'DNI_EMBARGADO', label: 'DNI/CUIT del embargado', type: 'text' },
+      { key: 'INMUEBLE_UBICACION', label: 'Ubicación del inmueble (calle, número, piso, depto, localidad)', type: 'textarea' },
+      { key: 'MATRICULA', label: 'Matrícula registral', type: 'text' },
+      { key: 'NOMENCLATURA', label: 'Nomenclatura catastral', type: 'text' },
+      { key: 'MONTO', label: 'Monto a embargar (con intereses y costas)', type: 'money' },
+      { key: 'AUTOS', label: 'Carátula del expediente', type: 'text' },
+      { key: 'JUZGADO', label: 'Juzgado interviniente', type: 'text' },
+      { key: 'VEROSIMILITUD', label: 'Fundamentos de la verosimilitud del derecho', type: 'textarea' },
+      { key: 'PELIGRO_DEMORA', label: 'Fundamentos del peligro en la demora', type: 'textarea' },
+      { key: 'CONTRACAUTELA', label: 'Contracautela ofrecida', type: 'text', defaultValue: 'Caución real / juratoria — V.S. fijará el monto que estime corresponder' },
+    ],
+    content: `SOLICITA EMBARGO PREVENTIVO DE INMUEBLE — INAUDITA PARTE
+
+Señor Juez:
+
+{{LETRADO}}, T.° {{TOMO}} F.° {{FOLIO}}, en representación de {{SOLICITANTE}}, D.N.I./C.U.I.T. {{DNI_SOLICITANTE}}, con domicilio real en {{DOMICILIO_SOLICITANTE}} y constituyendo domicilio procesal electrónico, en el marco de los autos "{{AUTOS}}" en trámite por ante el {{JUZGADO}}, a V.S. respetuosamente me presento y digo:
+
+I. OBJETO
+
+Vengo a solicitar, INAUDITA PARTE, se decrete EMBARGO PREVENTIVO sobre el inmueble que a continuación se identifica, hasta cubrir la suma de PESOS {{MONTO}} (\${{MONTO}}) en concepto de capital, con más lo que V.S. presupueste para responder a intereses y costas.
+
+INMUEBLE A EMBARGAR:
+- Ubicación: {{INMUEBLE_UBICACION}}
+- Matrícula: {{MATRICULA}}
+- Nomenclatura catastral: {{NOMENCLATURA}}
+- Titular registral: {{EMBARGADO}}, D.N.I./C.U.I.T. {{DNI_EMBARGADO}}.
+
+II. VEROSIMILITUD DEL DERECHO
+
+{{VEROSIMILITUD}}
+
+III. PELIGRO EN LA DEMORA
+
+{{PELIGRO_DEMORA}}
+
+IV. CONTRACAUTELA
+
+Se ofrece como contracautela: {{CONTRACAUTELA}}.
+
+V. DERECHO
+
+Arts. 195, 198, 199, 207, 209, 210, 212 y 218 del CPCCN; ley 17.801; y normas concordantes.
+
+VI. PETITORIO
+
+A V.S. solicito:
+1. Se decrete INAUDITA PARTE el embargo preventivo sobre el inmueble identificado.
+2. Se fije la contracautela.
+3. Se libre OFICIO al Registro de la Propiedad Inmueble (jurisdicción del bien) a fin de tomar razón del embargo decretado, hasta cubrir la suma indicada con más sus accesorios.
+4. Se autorice al letrado firmante al diligenciamiento del oficio.
+
+Proveer de conformidad.
+SERÁ JUSTICIA.`,
+  },
+
+  {
+    id: 'cau-embargo-cuenta-bancaria',
+    title: 'Embargo de Cuenta Bancaria',
+    category: 'Civil',
+    subcategory: 'Cautelares',
+    description: 'Embargo preventivo o ejecutivo sobre fondos depositados en cuenta bancaria del deudor. Se traba mediante oficio a la entidad financiera con CBU específico o genérico al BCRA.',
+    tags: ['cautelar', 'embargo', 'cuenta bancaria', 'CBU', 'art. 209 CPCCN'],
+    legalBasis: 'Arts. 195, 198, 207, 209, 210 CPCCN; ley 21.526; comunicaciones BCRA.',
+    placeholders: [
+      { key: 'LETRADO', label: 'Letrado/a firmante', type: 'text' },
+      { key: 'TOMO', label: 'Tomo CPACF / CALP', type: 'text' },
+      { key: 'FOLIO', label: 'Folio CPACF / CALP', type: 'text' },
+      { key: 'SOLICITANTE', label: 'Solicitante', type: 'text' },
+      { key: 'EMBARGADO', label: 'Persona a embargar', type: 'text' },
+      { key: 'DNI_EMBARGADO', label: 'DNI/CUIT del embargado', type: 'text' },
+      { key: 'BANCO', label: 'Banco (si se conoce)', type: 'text', defaultValue: 'Genérico — BCRA' },
+      { key: 'CBU_O_CUENTA', label: 'CBU o número de cuenta (si se conoce)', type: 'text', defaultValue: 'Sobre todas las cuentas a nombre del demandado en el sistema financiero' },
+      { key: 'MONTO', label: 'Monto a embargar', type: 'money' },
+      { key: 'AUTOS', label: 'Carátula del expediente', type: 'text' },
+      { key: 'JUZGADO', label: 'Juzgado interviniente', type: 'text' },
+      { key: 'VEROSIMILITUD', label: 'Fundamentos de la verosimilitud', type: 'textarea' },
+      { key: 'PELIGRO_DEMORA', label: 'Fundamentos del peligro en la demora', type: 'textarea' },
+      { key: 'CONTRACAUTELA', label: 'Contracautela', type: 'text', defaultValue: 'Caución juratoria' },
+    ],
+    content: `SOLICITA EMBARGO DE CUENTA BANCARIA
+
+Señor Juez:
+
+{{LETRADO}}, T.° {{TOMO}} F.° {{FOLIO}}, por la representación que invoco en {{SOLICITANTE}}, en autos "{{AUTOS}}" ante el {{JUZGADO}}, a V.S. me presento y digo:
+
+I. OBJETO
+
+Solicito se decrete EMBARGO PREVENTIVO sobre los fondos existentes y/o futuros en la/s cuenta/s bancaria/s identificada/s a continuación, de titularidad de {{EMBARGADO}}, D.N.I./C.U.I.T. {{DNI_EMBARGADO}}, hasta cubrir la suma de PESOS {{MONTO}} (\${{MONTO}}) con más intereses y costas:
+
+{{CBU_O_CUENTA}}
+
+Banco: {{BANCO}}
+
+II. VEROSIMILITUD DEL DERECHO
+
+{{VEROSIMILITUD}}
+
+III. PELIGRO EN LA DEMORA
+
+{{PELIGRO_DEMORA}}
+
+IV. CONTRACAUTELA
+
+Se ofrece: {{CONTRACAUTELA}}.
+
+V. DERECHO
+
+Arts. 195, 198, 207, 209, 210 CPCCN; ley 21.526.
+
+VI. PETITORIO
+
+A V.S. solicito:
+1. Se decrete el embargo solicitado.
+2. Se libre OFICIO al Banco indicado (o, en su defecto, al BCRA conforme art. 4° ley 21.526 a fin de individualizar todas las cuentas del demandado en el sistema financiero) a fin de retener fondos hasta cubrir el monto reclamado con más sus accesorios.
+3. Se autorice al letrado firmante al diligenciamiento.
+
+Proveer de conformidad.
+SERÁ JUSTICIA.`,
+  },
+
+  {
+    id: 'cau-embargo-sueldo-alimentos',
+    title: 'Embargo de Sueldo (Alimentos)',
+    category: 'Familia',
+    subcategory: 'Cautelares',
+    description: 'Embargo del salario del alimentante para asegurar el pago de la cuota alimentaria. El tope general es del 20% del salario neto, que puede ampliarse en casos de mora reiterada.',
+    tags: ['cautelar', 'embargo', 'sueldo', 'alimentos', 'art. 660 CCyCN', 'art. 147 LCT'],
+    legalBasis: 'Arts. 658, 660 CCyCN; art. 147 LCT; arts. 195, 209 CPCCN; dec. 484/87.',
+    placeholders: [
+      { key: 'LETRADO', label: 'Letrado/a firmante', type: 'text' },
+      { key: 'TOMO', label: 'Tomo CPACF / CALP', type: 'text' },
+      { key: 'FOLIO', label: 'Folio CPACF / CALP', type: 'text' },
+      { key: 'PROGENITOR', label: 'Progenitor/a representante (cliente)', type: 'text' },
+      { key: 'DNI_PROGENITOR', label: 'DNI del progenitor representante', type: 'text' },
+      { key: 'HIJOS', label: 'Hijos beneficiarios (nombres y DNI)', type: 'textarea' },
+      { key: 'ALIMENTANTE', label: 'Alimentante obligado', type: 'text' },
+      { key: 'DNI_ALIMENTANTE', label: 'DNI/CUIL del alimentante', type: 'text' },
+      { key: 'EMPLEADOR_ALIMENTANTE', label: 'Empleador del alimentante', type: 'text' },
+      { key: 'DOMICILIO_EMPLEADOR', label: 'Domicilio del empleador', type: 'text' },
+      { key: 'MONTO_CUOTA', label: 'Monto mensual de la cuota fijada', type: 'money' },
+      { key: 'PORCENTAJE_RETENCION', label: 'Porcentaje de retención solicitado', type: 'text', defaultValue: '20%' },
+      { key: 'AUTOS', label: 'Carátula del expediente', type: 'text' },
+      { key: 'JUZGADO', label: 'Juzgado interviniente', type: 'text' },
+      { key: 'FECHA_RESOLUCION_CUOTA', label: 'Fecha de resolución que fijó la cuota', type: 'date' },
+    ],
+    content: `SOLICITA EMBARGO DE SUELDO POR INCUMPLIMIENTO DE CUOTA ALIMENTARIA
+
+Señor Juez:
+
+{{LETRADO}}, T.° {{TOMO}} F.° {{FOLIO}}, en representación de {{PROGENITOR}}, D.N.I. {{DNI_PROGENITOR}}, en su carácter de progenitor/a y representante legal de los menores beneficiarios de la cuota alimentaria fijada en autos "{{AUTOS}}" ante el {{JUZGADO}}, a V.S. me presento y digo:
+
+I. OBJETO
+
+Solicito se decrete EMBARGO sobre la remuneración mensual que percibe {{ALIMENTANTE}}, D.N.I./C.U.I.L. {{DNI_ALIMENTANTE}}, en relación de dependencia con {{EMPLEADOR_ALIMENTANTE}}, en una proporción equivalente al {{PORCENTAJE_RETENCION}} de su salario neto, monto que deberá retenerse y depositarse mensualmente a la orden de V.S. y como pertenecientes a estos autos, hasta cubrir la cuota alimentaria fijada de PESOS {{MONTO_CUOTA}} (\${{MONTO_CUOTA}}) mensuales y los conceptos en mora.
+
+II. HECHOS Y VEROSIMILITUD
+
+Por resolución del {{FECHA_RESOLUCION_CUOTA}} V.S. fijó cuota alimentaria provisoria a favor de los menores {{HIJOS}}, a cargo del alimentante {{ALIMENTANTE}}.
+
+El alimentante ha incurrido en incumplimientos reiterados que vuelven necesaria la traba de la presente medida, a fin de asegurar el cobro mensual de la cuota.
+
+III. PELIGRO EN LA DEMORA
+
+La cuota alimentaria atiende a la subsistencia de los menores. Cualquier demora en el cobro afecta directamente su derecho a la salud, educación y vivienda. La verosimilitud del derecho está dada por la propia resolución que fijó la cuota.
+
+IV. ALCANCE DE LA RETENCIÓN
+
+Se solicita una retención del {{PORCENTAJE_RETENCION}} sobre la remuneración neta del alimentante, conforme art. 147 LCT y dec. 484/87, importe que el empleador deberá depositar a la orden del Tribunal entre el primer y quinto día hábil de cada mes, juntamente con copia del recibo de haberes correspondiente al período retenido.
+
+V. DERECHO
+
+Arts. 658 y 660 CCyCN; art. 147 LCT; arts. 195, 209 y conc. CPCCN; dec. 484/87.
+
+VI. PETITORIO
+
+A V.S. solicito:
+1. Se decrete el embargo sobre el sueldo del alimentante en la proporción solicitada.
+2. Se libre OFICIO al empleador {{EMPLEADOR_ALIMENTANTE}}, con domicilio en {{DOMICILIO_EMPLEADOR}}, a fin de que retenga y deposite mensualmente el importe correspondiente.
+3. Se haga saber al empleador que la falta de cumplimiento de la orden lo hace solidariamente responsable por las sumas no retenidas.
+
+Proveer de conformidad.
+SERÁ JUSTICIA.`,
+  },
+
+  {
+    id: 'cau-anotacion-litis',
+    title: 'Anotación de Litis sobre Inmueble',
+    category: 'Civil',
+    subcategory: 'Cautelares',
+    description: 'Anota en el Registro de la Propiedad Inmueble que sobre un determinado inmueble se ha trabado litis. No impide la disposición pero hace oponible la sentencia al adquirente. Útil cuando se discute la titularidad o un derecho real.',
+    tags: ['cautelar', 'anotación de litis', 'inmueble', 'art. 229 CPCCN', 'RPI'],
+    legalBasis: 'Arts. 195, 198, 207, 229 CPCCN; arts. 1893, 1902 CCyCN; ley 17.801.',
+    placeholders: [
+      { key: 'LETRADO', label: 'Letrado/a firmante', type: 'text' },
+      { key: 'TOMO', label: 'Tomo CPACF / CALP', type: 'text' },
+      { key: 'FOLIO', label: 'Folio CPACF / CALP', type: 'text' },
+      { key: 'SOLICITANTE', label: 'Solicitante', type: 'text' },
+      { key: 'INMUEBLE_UBICACION', label: 'Ubicación del inmueble', type: 'textarea' },
+      { key: 'MATRICULA', label: 'Matrícula registral', type: 'text' },
+      { key: 'NOMENCLATURA', label: 'Nomenclatura catastral', type: 'text' },
+      { key: 'TITULAR_REGISTRAL', label: 'Titular registral', type: 'text' },
+      { key: 'AUTOS', label: 'Carátula del expediente', type: 'text' },
+      { key: 'JUZGADO', label: 'Juzgado interviniente', type: 'text' },
+      { key: 'OBJETO_LITIS', label: 'Objeto del juicio que se anotará en el Registro', type: 'textarea' },
+      { key: 'CONTRACAUTELA', label: 'Contracautela', type: 'text', defaultValue: 'Caución juratoria' },
+    ],
+    content: `SOLICITA ANOTACIÓN DE LITIS
+
+Señor Juez:
+
+{{LETRADO}}, T.° {{TOMO}} F.° {{FOLIO}}, por la representación que invoco en {{SOLICITANTE}}, en autos "{{AUTOS}}" ante el {{JUZGADO}}, a V.S. me presento y digo:
+
+I. OBJETO
+
+Solicito se decrete la ANOTACIÓN DE LITIS sobre el siguiente inmueble:
+- Ubicación: {{INMUEBLE_UBICACION}}
+- Matrícula: {{MATRICULA}}
+- Nomenclatura catastral: {{NOMENCLATURA}}
+- Titular registral: {{TITULAR_REGISTRAL}}.
+
+II. VEROSIMILITUD DEL DERECHO Y OBJETO DE LA LITIS
+
+En el presente juicio se discute: {{OBJETO_LITIS}}
+
+La anotación de litis no afecta la disponibilidad del bien sino que torna oponible erga omnes la sentencia que recaiga, en los términos de los arts. 1893 y 1902 CCyCN.
+
+III. PELIGRO EN LA DEMORA
+
+De no decretarse la anotación, un eventual adquirente del inmueble podría invocar la condición de tercero de buena fe ajeno al pleito, frustrando la sentencia que en su momento se dicte.
+
+IV. CONTRACAUTELA
+
+Se ofrece: {{CONTRACAUTELA}}.
+
+V. DERECHO
+
+Arts. 195, 198, 207, 229 CPCCN; arts. 1893, 1902 CCyCN; ley 17.801.
+
+VI. PETITORIO
+
+A V.S. solicito:
+1. Se decrete la anotación de litis.
+2. Se libre OFICIO al Registro de la Propiedad Inmueble correspondiente.
+3. Se autorice al letrado firmante al diligenciamiento del oficio.
+
+Proveer de conformidad.
+SERÁ JUSTICIA.`,
+  },
+
+  {
+    id: 'cau-no-innovar',
+    title: 'Prohibición de Innovar',
+    category: 'Civil',
+    subcategory: 'Cautelares',
+    description: 'Cautelar conservativa que ordena mantener el statu quo de una situación de hecho o de derecho. Útil cuando se pretende impedir actos materiales que alteren la situación litigiosa.',
+    tags: ['cautelar', 'no innovar', 'statu quo', 'art. 230 CPCCN'],
+    legalBasis: 'Arts. 195, 198, 199, 207, 230 CPCCN.',
+    placeholders: [
+      { key: 'LETRADO', label: 'Letrado/a firmante', type: 'text' },
+      { key: 'TOMO', label: 'Tomo CPACF / CALP', type: 'text' },
+      { key: 'FOLIO', label: 'Folio CPACF / CALP', type: 'text' },
+      { key: 'SOLICITANTE', label: 'Solicitante', type: 'text' },
+      { key: 'CONTRA', label: 'Persona contra quien se dirige', type: 'text' },
+      { key: 'AUTOS', label: 'Carátula del expediente', type: 'text' },
+      { key: 'JUZGADO', label: 'Juzgado interviniente', type: 'text' },
+      { key: 'STATU_QUO', label: 'Situación a mantener (statu quo)', type: 'textarea' },
+      { key: 'ACTO_A_EVITAR', label: 'Acto que se pretende evitar', type: 'textarea' },
+      { key: 'VEROSIMILITUD', label: 'Fundamentos de la verosimilitud', type: 'textarea' },
+      { key: 'PELIGRO_DEMORA', label: 'Fundamentos del peligro en la demora', type: 'textarea' },
+      { key: 'CONTRACAUTELA', label: 'Contracautela', type: 'text', defaultValue: 'Caución juratoria' },
+    ],
+    content: `SOLICITA PROHIBICIÓN DE INNOVAR
+
+Señor Juez:
+
+{{LETRADO}}, T.° {{TOMO}} F.° {{FOLIO}}, por la representación que invoco en {{SOLICITANTE}}, en autos "{{AUTOS}}" ante el {{JUZGADO}}, a V.S. me presento y digo:
+
+I. OBJETO
+
+Solicito se decrete PROHIBICIÓN DE INNOVAR contra {{CONTRA}}, ordenándole abstenerse de realizar todo acto que altere la siguiente situación de hecho/derecho cuya conservación se requiere:
+
+{{STATU_QUO}}
+
+En particular, se solicita que el demandado se abstenga de:
+
+{{ACTO_A_EVITAR}}
+
+II. VEROSIMILITUD DEL DERECHO
+
+{{VEROSIMILITUD}}
+
+III. PELIGRO EN LA DEMORA
+
+{{PELIGRO_DEMORA}}
+
+IV. CONTRACAUTELA
+
+Se ofrece: {{CONTRACAUTELA}}.
+
+V. DERECHO
+
+Arts. 195, 198, 199, 207 y 230 CPCCN.
+
+VI. PETITORIO
+
+A V.S. solicito:
+1. Se decrete la prohibición de innovar solicitada.
+2. Se notifique al demandado bajo apercibimiento de las sanciones del art. 239 CP y del art. 37 CPCCN (conminaciones pecuniarias).
+3. Se fije la contracautela.
+
+Proveer de conformidad.
+SERÁ JUSTICIA.`,
+  },
+
+  {
+    id: 'cau-prohibicion-contratar',
+    title: 'Prohibición de Contratar',
+    category: 'Civil',
+    subcategory: 'Cautelares',
+    description: 'Impide al demandado celebrar determinados contratos sobre bienes específicos. Procede cuando la ley lo establece o cuando es necesario para asegurar la ejecución forzada de los bienes.',
+    tags: ['cautelar', 'prohibición de contratar', 'art. 231 CPCCN'],
+    legalBasis: 'Arts. 195, 198, 199, 207, 231 CPCCN; ley 17.801.',
+    placeholders: [
+      { key: 'LETRADO', label: 'Letrado/a firmante', type: 'text' },
+      { key: 'TOMO', label: 'Tomo CPACF / CALP', type: 'text' },
+      { key: 'FOLIO', label: 'Folio CPACF / CALP', type: 'text' },
+      { key: 'SOLICITANTE', label: 'Solicitante', type: 'text' },
+      { key: 'CONTRA', label: 'Persona contra quien se dirige', type: 'text' },
+      { key: 'BIEN_DESCRIPCION', label: 'Bien sobre el que recae la prohibición', type: 'textarea' },
+      { key: 'CONTRATOS_PROHIBIDOS', label: 'Contratos que se prohíben (locación, venta, etc.)', type: 'textarea' },
+      { key: 'AUTOS', label: 'Carátula del expediente', type: 'text' },
+      { key: 'JUZGADO', label: 'Juzgado interviniente', type: 'text' },
+      { key: 'VEROSIMILITUD', label: 'Fundamentos de la verosimilitud', type: 'textarea' },
+      { key: 'PELIGRO_DEMORA', label: 'Fundamentos del peligro en la demora', type: 'textarea' },
+      { key: 'CONTRACAUTELA', label: 'Contracautela', type: 'text', defaultValue: 'Caución juratoria' },
+    ],
+    content: `SOLICITA PROHIBICIÓN DE CONTRATAR
+
+Señor Juez:
+
+{{LETRADO}}, T.° {{TOMO}} F.° {{FOLIO}}, por la representación de {{SOLICITANTE}}, en autos "{{AUTOS}}" ante el {{JUZGADO}}, a V.S. me presento y digo:
+
+I. OBJETO
+
+Solicito se decrete PROHIBICIÓN DE CONTRATAR contra {{CONTRA}}, en relación al/los siguiente/s bien/es:
+
+{{BIEN_DESCRIPCION}}
+
+La prohibición alcanza a los siguientes contratos: {{CONTRATOS_PROHIBIDOS}}
+
+II. VEROSIMILITUD DEL DERECHO
+
+{{VEROSIMILITUD}}
+
+III. PELIGRO EN LA DEMORA
+
+{{PELIGRO_DEMORA}}
+
+IV. CONTRACAUTELA
+
+Se ofrece: {{CONTRACAUTELA}}.
+
+V. DERECHO
+
+Arts. 195, 198, 199, 207, 231 CPCCN.
+
+VI. PETITORIO
+
+A V.S. solicito:
+1. Se decrete la prohibición de contratar solicitada.
+2. Se libren los oficios pertinentes al Registro de la Propiedad Inmueble y/o demás registros que correspondan.
+3. Se notifique al demandado bajo apercibimiento legal.
+
+Proveer de conformidad.
+SERÁ JUSTICIA.`,
+  },
+
+  {
+    id: 'cau-intervencion-judicial-recaudadora',
+    title: 'Intervención Judicial Recaudadora',
+    category: 'Comercial',
+    subcategory: 'Cautelares',
+    description: 'Designación de un interventor recaudador que retiene un porcentaje de los ingresos brutos del demandado para garantizar el crédito del actor. Aplica sobre comercios, sociedades, profesionales con ingresos identificables.',
+    tags: ['cautelar', 'intervención', 'recaudadora', 'art. 223 CPCCN'],
+    legalBasis: 'Arts. 195, 198, 199, 222, 223, 224, 225 CPCCN.',
+    placeholders: [
+      { key: 'LETRADO', label: 'Letrado/a firmante', type: 'text' },
+      { key: 'TOMO', label: 'Tomo CPACF / CALP', type: 'text' },
+      { key: 'FOLIO', label: 'Folio CPACF / CALP', type: 'text' },
+      { key: 'SOLICITANTE', label: 'Solicitante (acreedor)', type: 'text' },
+      { key: 'SOCIEDAD', label: 'Sociedad / comercio a intervenir', type: 'text' },
+      { key: 'CUIT_SOCIEDAD', label: 'CUIT de la sociedad', type: 'text' },
+      { key: 'DOMICILIO_SOCIEDAD', label: 'Domicilio de la sociedad', type: 'text' },
+      { key: 'MONTO_CREDITO', label: 'Monto del crédito a recaudar', type: 'money' },
+      { key: 'PORCENTAJE_RECAUDACION', label: 'Porcentaje de recaudación solicitado', type: 'text', defaultValue: '10% de los ingresos brutos diarios' },
+      { key: 'AUTOS', label: 'Carátula del expediente', type: 'text' },
+      { key: 'JUZGADO', label: 'Juzgado interviniente', type: 'text' },
+      { key: 'INSUFICIENCIA_OTRAS_MEDIDAS', label: 'Por qué otras medidas son insuficientes', type: 'textarea' },
+      { key: 'CONTRACAUTELA', label: 'Contracautela', type: 'text', defaultValue: 'Caución real fijada por V.S.' },
+    ],
+    content: `SOLICITA INTERVENCIÓN JUDICIAL RECAUDADORA
+
+Señor Juez:
+
+{{LETRADO}}, T.° {{TOMO}} F.° {{FOLIO}}, por la representación de {{SOLICITANTE}}, en autos "{{AUTOS}}" ante el {{JUZGADO}}, a V.S. me presento y digo:
+
+I. OBJETO
+
+Vengo a solicitar la designación de un INTERVENTOR JUDICIAL RECAUDADOR sobre {{SOCIEDAD}}, C.U.I.T. {{CUIT_SOCIEDAD}}, con domicilio en {{DOMICILIO_SOCIEDAD}}, a fin de que retenga el {{PORCENTAJE_RECAUDACION}} con destino al pago de la acreencia de PESOS {{MONTO_CREDITO}} (\${{MONTO_CREDITO}}) reclamada en autos.
+
+II. VEROSIMILITUD E INSUFICIENCIA DE OTRAS MEDIDAS
+
+La verosimilitud surge de los instrumentos acompañados al iniciar la demanda y del estado actual del proceso.
+
+{{INSUFICIENCIA_OTRAS_MEDIDAS}}
+
+Conforme art. 223 CPCCN, la intervención recaudadora procede cuando otras medidas cautelares resultan insuficientes para asegurar el resultado del juicio.
+
+III. PELIGRO EN LA DEMORA
+
+La continuidad del giro comercial sin afectación de fondos a favor del crédito reclamado, sumada a las dificultades de cobro que la realidad económica impone, configuran el periculum in mora.
+
+IV. ALCANCE DE LA INTERVENCIÓN
+
+El interventor designado deberá:
+a) Concurrir periódicamente al establecimiento o domicilio comercial.
+b) Retener el {{PORCENTAJE_RECAUDACION}} de los ingresos brutos diarios.
+c) Depositar las sumas retenidas a la orden de V.S. y como pertenecientes a estos autos.
+d) Presentar informes periódicos al Tribunal.
+e) En ningún caso intervenir en la administración ni alterar el normal giro de los negocios.
+
+V. CONTRACAUTELA
+
+Se ofrece: {{CONTRACAUTELA}}.
+
+VI. DERECHO
+
+Arts. 195, 198, 199, 222, 223, 224, 225 CPCCN.
+
+VII. PETITORIO
+
+A V.S. solicito:
+1. Se decrete la intervención recaudadora solicitada.
+2. Se designe interventor con las facultades enunciadas, fijándose sus honorarios provisorios.
+3. Se libre mandamiento al designado y se notifique a la sociedad intervenida.
+
+Proveer de conformidad.
+SERÁ JUSTICIA.`,
+  },
+
+  {
+    id: 'cau-intervencion-veedora',
+    title: 'Intervención Judicial Veedora',
+    category: 'Comercial',
+    subcategory: 'Cautelares',
+    description: 'Designación de un veedor judicial que vigila la administración y emite informes periódicos al Tribunal, sin desplazar a los administradores. Útil cuando hay sospecha de irregularidades o vaciamiento societario.',
+    tags: ['cautelar', 'intervención', 'veedor', 'art. 224 CPCCN', 'sociedades'],
+    legalBasis: 'Arts. 195, 198, 199, 222, 224 CPCCN; arts. 113-117 ley 19.550.',
+    placeholders: [
+      { key: 'LETRADO', label: 'Letrado/a firmante', type: 'text' },
+      { key: 'TOMO', label: 'Tomo CPACF / CALP', type: 'text' },
+      { key: 'FOLIO', label: 'Folio CPACF / CALP', type: 'text' },
+      { key: 'SOLICITANTE', label: 'Solicitante', type: 'text' },
+      { key: 'SOCIEDAD', label: 'Sociedad a vigilar', type: 'text' },
+      { key: 'CUIT_SOCIEDAD', label: 'CUIT de la sociedad', type: 'text' },
+      { key: 'DOMICILIO_SOCIEDAD', label: 'Domicilio social', type: 'text' },
+      { key: 'OBJETO_VIGILANCIA', label: 'Aspectos sobre los que recaerá la vigilancia', type: 'textarea' },
+      { key: 'FRECUENCIA_INFORMES', label: 'Frecuencia de los informes', type: 'text', defaultValue: 'Quincenal' },
+      { key: 'AUTOS', label: 'Carátula del expediente', type: 'text' },
+      { key: 'JUZGADO', label: 'Juzgado interviniente', type: 'text' },
+      { key: 'IRREGULARIDADES', label: 'Irregularidades o sospechas que justifican la medida', type: 'textarea' },
+      { key: 'CONTRACAUTELA', label: 'Contracautela', type: 'text', defaultValue: 'Caución juratoria' },
+    ],
+    content: `SOLICITA INTERVENCIÓN JUDICIAL — VEEDOR
+
+Señor Juez:
+
+{{LETRADO}}, T.° {{TOMO}} F.° {{FOLIO}}, por {{SOLICITANTE}}, en autos "{{AUTOS}}" ante el {{JUZGADO}}, a V.S. me presento y digo:
+
+I. OBJETO
+
+Solicito se designe VEEDOR JUDICIAL en la sociedad {{SOCIEDAD}}, C.U.I.T. {{CUIT_SOCIEDAD}}, con domicilio social en {{DOMICILIO_SOCIEDAD}}, a fin de que vigile su administración y emita informes con frecuencia {{FRECUENCIA_INFORMES}} al Tribunal, sin desplazar a los administradores legales.
+
+La vigilancia debe alcanzar a los siguientes aspectos:
+
+{{OBJETO_VIGILANCIA}}
+
+II. VEROSIMILITUD DEL DERECHO
+
+{{IRREGULARIDADES}}
+
+III. PELIGRO EN LA DEMORA
+
+La inacción en el control del órgano de administración puede consolidar las irregularidades denunciadas y afectar el patrimonio social, frustrando la sentencia.
+
+IV. ALCANCE DE LA VIGILANCIA
+
+El veedor deberá:
+a) Tener acceso a libros sociales, contables y comerciales.
+b) Presenciar reuniones de directorio y asambleas si V.S. lo dispone.
+c) Emitir informes periódicos detallando observaciones.
+d) NO sustituir las decisiones de los administradores.
+
+V. CONTRACAUTELA
+
+Se ofrece: {{CONTRACAUTELA}}.
+
+VI. DERECHO
+
+Arts. 195, 198, 199, 222, 224 CPCCN; arts. 113-117 ley 19.550.
+
+VII. PETITORIO
+
+A V.S. solicito:
+1. Se designe veedor con las facultades indicadas.
+2. Se fijen honorarios provisorios.
+3. Se notifique a la sociedad y al órgano de administración.
+
+Proveer de conformidad.
+SERÁ JUSTICIA.`,
+  },
+
+  {
+    id: 'cau-no-innovar-familia',
+    title: 'Cautelar de No Innovar — Familia',
+    category: 'Familia',
+    subcategory: 'Cautelares',
+    description: 'Cautelar específica para casos de familia: impide al otro progenitor alterar el statu quo de los hijos (mudanza, escolaridad, viaje, cambio de obra social) sin autorización judicial mientras tramita el juicio.',
+    tags: ['cautelar', 'no innovar', 'familia', 'art. 706 CCyCN', 'interés superior del niño'],
+    legalBasis: 'Arts. 195, 230 CPCCN; arts. 706, 707, 645, 642 CCyCN; CDN art. 3.',
+    placeholders: [
+      { key: 'LETRADO', label: 'Letrado/a firmante', type: 'text' },
+      { key: 'TOMO', label: 'Tomo CPACF / CALP', type: 'text' },
+      { key: 'FOLIO', label: 'Folio CPACF / CALP', type: 'text' },
+      { key: 'PROGENITOR', label: 'Progenitor solicitante', type: 'text' },
+      { key: 'OTRO_PROGENITOR', label: 'Otro progenitor', type: 'text' },
+      { key: 'HIJOS', label: 'Hijos involucrados (nombres y edades)', type: 'textarea' },
+      { key: 'STATU_QUO', label: 'Situación que se pide mantener', type: 'textarea' },
+      { key: 'CONDUCTA_A_EVITAR', label: 'Conducta del otro progenitor que se pretende evitar', type: 'textarea' },
+      { key: 'AUTOS', label: 'Carátula del expediente', type: 'text' },
+      { key: 'JUZGADO', label: 'Juzgado interviniente', type: 'text' },
+      { key: 'INTERES_SUPERIOR', label: 'Por qué la medida atiende al interés superior del niño', type: 'textarea' },
+      { key: 'CONTRACAUTELA', label: 'Contracautela', type: 'text', defaultValue: 'Caución juratoria atento al carácter familiar (art. 199 CPCCN)' },
+    ],
+    content: `SOLICITA CAUTELAR DE NO INNOVAR — INTERÉS SUPERIOR DEL NIÑO
+
+Señor Juez:
+
+{{LETRADO}}, T.° {{TOMO}} F.° {{FOLIO}}, en representación de {{PROGENITOR}}, en autos "{{AUTOS}}" ante el {{JUZGADO}}, a V.S. me presento y digo:
+
+I. OBJETO
+
+Solicito se decrete CAUTELAR DE NO INNOVAR contra {{OTRO_PROGENITOR}}, ordenándole abstenerse de alterar la siguiente situación de los hijos comunes {{HIJOS}}:
+
+{{STATU_QUO}}
+
+En particular, se solicita que el otro progenitor se abstenga de:
+
+{{CONDUCTA_A_EVITAR}}
+
+II. VEROSIMILITUD DEL DERECHO
+
+Mi mandante ostenta la responsabilidad parental conjunta de los menores conforme arts. 638 y ss. CCyCN. Las decisiones de relevancia respecto de la persona del hijo requieren consentimiento de ambos progenitores (arts. 645, 642 CCyCN).
+
+III. PELIGRO EN LA DEMORA E INTERÉS SUPERIOR DEL NIÑO
+
+{{INTERES_SUPERIOR}}
+
+La conducta unilateral del otro progenitor afecta directamente la cotidianidad de los menores y su derecho a no ver alterada su situación de hecho de manera intempestiva. El art. 706 CCyCN consagra el principio de tutela judicial efectiva en cuestiones de familia, y el art. 3 de la Convención sobre los Derechos del Niño impone considerar primordialmente el interés superior del niño en toda medida.
+
+IV. CONTRACAUTELA
+
+Se ofrece: {{CONTRACAUTELA}}.
+
+V. DERECHO
+
+Arts. 195, 230 CPCCN; arts. 706, 707, 645, 642 CCyCN; art. 3 CDN; ley 26.061.
+
+VI. PETITORIO
+
+A V.S. solicito:
+1. Se decrete la cautelar de no innovar solicitada.
+2. Se notifique al otro progenitor bajo apercibimiento de las sanciones del art. 239 CP y art. 37 CPCCN.
+3. Se corra vista al Defensor de Menores e Incapaces (art. 103 CCyCN).
+
+Proveer de conformidad.
+SERÁ JUSTICIA.`,
+  },
+
+  {
+    id: 'cau-autorizacion-viajar',
+    title: 'Autorización Judicial para Viajar con Menores',
+    category: 'Familia',
+    subcategory: 'Cautelares',
+    description: 'Autorización judicial supletoria para viajar al exterior o al interior con menores cuando el otro progenitor se niega injustificadamente o no se ubica. Procede como medida urgente en sede de familia.',
+    tags: ['autorización', 'viaje', 'menores', 'art. 645 CCyCN', 'familia'],
+    legalBasis: 'Arts. 645, 642, 706 CCyCN; arts. 195, 230 CPCCN; disposición DNM 2902/13.',
+    placeholders: [
+      { key: 'LETRADO', label: 'Letrado/a firmante', type: 'text' },
+      { key: 'TOMO', label: 'Tomo CPACF / CALP', type: 'text' },
+      { key: 'FOLIO', label: 'Folio CPACF / CALP', type: 'text' },
+      { key: 'PROGENITOR', label: 'Progenitor solicitante', type: 'text' },
+      { key: 'OTRO_PROGENITOR', label: 'Otro progenitor', type: 'text' },
+      { key: 'HIJOS', label: 'Hijos a viajar (nombres, DNI, fecha nac.)', type: 'textarea' },
+      { key: 'DESTINO', label: 'Destino del viaje', type: 'text' },
+      { key: 'FECHA_SALIDA', label: 'Fecha de salida', type: 'date' },
+      { key: 'FECHA_REGRESO', label: 'Fecha de regreso', type: 'date' },
+      { key: 'MEDIO_TRANSPORTE', label: 'Medio de transporte', type: 'text' },
+      { key: 'MOTIVO_VIAJE', label: 'Motivo del viaje', type: 'textarea' },
+      { key: 'NEGATIVA_OTRO_PROGENITOR', label: 'Negativa o ausencia del otro progenitor', type: 'textarea' },
+      { key: 'AUTOS', label: 'Carátula del expediente', type: 'text' },
+      { key: 'JUZGADO', label: 'Juzgado interviniente', type: 'text' },
+    ],
+    content: `SOLICITA AUTORIZACIÓN JUDICIAL PARA VIAJAR CON MENORES — VÍA URGENTE
+
+Señor Juez:
+
+{{LETRADO}}, T.° {{TOMO}} F.° {{FOLIO}}, en representación de {{PROGENITOR}}, en autos "{{AUTOS}}" ante el {{JUZGADO}}, a V.S. me presento y digo:
+
+I. OBJETO
+
+Solicito a V.S. AUTORIZACIÓN JUDICIAL SUPLETORIA, en los términos del art. 645 último párrafo CCyCN, para que mi mandante pueda viajar con los hijos comunes:
+
+{{HIJOS}}
+
+con el siguiente itinerario:
+- Destino: {{DESTINO}}
+- Fecha de salida: {{FECHA_SALIDA}}
+- Fecha de regreso: {{FECHA_REGRESO}}
+- Medio de transporte: {{MEDIO_TRANSPORTE}}
+- Motivo del viaje: {{MOTIVO_VIAJE}}
+
+II. ANTECEDENTES Y NEGATIVA DEL OTRO PROGENITOR
+
+{{NEGATIVA_OTRO_PROGENITOR}}
+
+Conforme art. 645 CCyCN, el viaje de los menores al exterior requiere consentimiento de ambos progenitores. Ante la negativa o ausencia de uno de ellos, V.S. puede suplir esa voluntad cuando el viaje atiende al interés superior del niño y no aparece reñido con el régimen de comunicación vigente.
+
+III. URGENCIA E INTERÉS SUPERIOR DEL NIÑO
+
+La proximidad de la fecha de salida y la imposibilidad de obtener la autorización por la vía extrajudicial justifican la habilitación de la vía urgente del art. 706 CCyCN.
+
+El viaje atiende al interés superior del niño en cuanto: forma parte de su esparcimiento, no afecta su escolaridad y se desarrolla durante un período en que los menores conviven con el progenitor solicitante.
+
+IV. DERECHO
+
+Arts. 645, 642, 706 CCyCN; arts. 195, 230 CPCCN; CDN art. 3; disposición DNM 2902/13.
+
+V. PETITORIO
+
+A V.S. solicito:
+1. Se habilite la vía urgente y se otorgue la autorización solicitada.
+2. Se libre certificación al efecto, con datos completos del viaje, para ser presentada ante la Dirección Nacional de Migraciones y/o autoridades fronterizas.
+3. Se corra vista al Defensor de Menores (art. 103 CCyCN).
+
+Proveer de conformidad.
+SERÁ JUSTICIA.`,
+  },
+
+  {
+    id: 'cau-levantamiento',
+    title: 'Levantamiento de Cautelar',
+    category: 'Civil',
+    subcategory: 'Cautelares',
+    description: 'Escrito por el cual el afectado por una cautelar pide al juez que la levante por haber desaparecido los presupuestos que la justificaron, por exceso, o por haberse acreditado lo contrario.',
+    tags: ['cautelar', 'levantamiento', 'art. 203 CPCCN', 'sustitución'],
+    legalBasis: 'Arts. 203, 204, 205, 207 CPCCN.',
+    placeholders: [
+      { key: 'LETRADO', label: 'Letrado/a firmante', type: 'text' },
+      { key: 'TOMO', label: 'Tomo CPACF / CALP', type: 'text' },
+      { key: 'FOLIO', label: 'Folio CPACF / CALP', type: 'text' },
+      { key: 'AFECTADO', label: 'Persona afectada por la cautelar (cliente)', type: 'text' },
+      { key: 'CAUTELAR_DESCRIPCION', label: 'Cautelar a levantar (tipo, fecha de traba, registro)', type: 'textarea' },
+      { key: 'AUTOS', label: 'Carátula del expediente', type: 'text' },
+      { key: 'JUZGADO', label: 'Juzgado interviniente', type: 'text' },
+      { key: 'MOTIVOS', label: 'Motivos del levantamiento (cesó el peligro / no hay verosimilitud / exceso / etc.)', type: 'textarea' },
+    ],
+    content: `SOLICITA LEVANTAMIENTO DE CAUTELAR
+
+Señor Juez:
+
+{{LETRADO}}, T.° {{TOMO}} F.° {{FOLIO}}, en representación de {{AFECTADO}}, parte afectada por la medida cautelar oportunamente trabada en autos "{{AUTOS}}" ante el {{JUZGADO}}, a V.S. me presento y digo:
+
+I. OBJETO
+
+Vengo a solicitar el LEVANTAMIENTO de la siguiente medida cautelar:
+
+{{CAUTELAR_DESCRIPCION}}
+
+II. FUNDAMENTOS
+
+{{MOTIVOS}}
+
+Conforme art. 203 CPCCN, las medidas cautelares pueden ser levantadas en cualquier momento del proceso si se acredita que han desaparecido las circunstancias que las determinaron, o que su mantenimiento se torna excesivo.
+
+III. DERECHO
+
+Arts. 203, 204, 205, 207 CPCCN.
+
+IV. PETITORIO
+
+A V.S. solicito:
+1. Se levante la cautelar individualizada.
+2. Se libren los oficios de levantamiento al/los registro/s correspondiente/s.
+3. Costas a la contraria conforme art. 208 CPCCN.
+
+Proveer de conformidad.
+SERÁ JUSTICIA.`,
+  },
+
+  {
+    id: 'cau-caucion-sustitutiva',
+    title: 'Sustitución por Caución Sustitutiva',
+    category: 'Civil',
+    subcategory: 'Cautelares',
+    description: 'Pedido del afectado para que la cautelar se levante mediante el ofrecimiento de una garantía sustitutiva equivalente (depósito, fianza, seguro de caución).',
+    tags: ['cautelar', 'sustitución', 'caución', 'art. 203 CPCCN'],
+    legalBasis: 'Arts. 203, 204, 205, 207 CPCCN.',
+    placeholders: [
+      { key: 'LETRADO', label: 'Letrado/a firmante', type: 'text' },
+      { key: 'TOMO', label: 'Tomo CPACF / CALP', type: 'text' },
+      { key: 'FOLIO', label: 'Folio CPACF / CALP', type: 'text' },
+      { key: 'AFECTADO', label: 'Persona afectada (cliente)', type: 'text' },
+      { key: 'CAUTELAR_VIGENTE', label: 'Cautelar vigente', type: 'textarea' },
+      { key: 'CAUCION_OFRECIDA', label: 'Caución sustitutiva ofrecida (descripción)', type: 'textarea' },
+      { key: 'MONTO_CAUCION', label: 'Monto de la caución', type: 'money' },
+      { key: 'AUTOS', label: 'Carátula del expediente', type: 'text' },
+      { key: 'JUZGADO', label: 'Juzgado interviniente', type: 'text' },
+    ],
+    content: `OFRECE CAUCIÓN SUSTITUTIVA — SOLICITA LEVANTAMIENTO
+
+Señor Juez:
+
+{{LETRADO}}, T.° {{TOMO}} F.° {{FOLIO}}, por {{AFECTADO}}, parte afectada en autos "{{AUTOS}}" ante el {{JUZGADO}}, a V.S. me presento y digo:
+
+I. OBJETO
+
+Vengo a OFRECER CAUCIÓN SUSTITUTIVA en los términos del art. 203 CPCCN, a fin de que se LEVANTE la cautelar oportunamente decretada y trabada:
+
+{{CAUTELAR_VIGENTE}}
+
+II. CAUCIÓN OFRECIDA
+
+Se ofrece la siguiente garantía sustitutiva, equivalente al alcance de la cautelar levantada:
+
+{{CAUCION_OFRECIDA}}
+
+Monto / valor: PESOS {{MONTO_CAUCION}} (\${{MONTO_CAUCION}}).
+
+III. DERECHO
+
+Art. 203 CPCCN. La caución sustitutiva ofrecida cumple igual finalidad de garantía que la medida actualmente trabada, sin perjuicio de los derechos del solicitante.
+
+IV. PETITORIO
+
+A V.S. solicito:
+1. Se acepte la caución sustitutiva ofrecida.
+2. Se levante la cautelar trabada.
+3. Se libren los oficios de levantamiento correspondientes.
+
+Proveer de conformidad.
+SERÁ JUSTICIA.`,
+  },
+
+  {
+    id: 'cau-reinscripcion-inhibicion',
+    title: 'Reinscripción de Inhibición General',
+    category: 'Civil',
+    subcategory: 'Cautelares',
+    description: 'Pedido para reinscribir la inhibición general de bienes antes de que opere la caducidad quinquenal del art. 207 CPCCN. Si la cautelar caduca, hay que volver a pedir y pagar otra vez.',
+    tags: ['cautelar', 'reinscripción', 'inhibición', 'caducidad', 'art. 207 CPCCN'],
+    legalBasis: 'Arts. 207, 228 CPCCN; ley 17.801; art. 37 dec. ley 6582/58.',
+    placeholders: [
+      { key: 'LETRADO', label: 'Letrado/a firmante', type: 'text' },
+      { key: 'TOMO', label: 'Tomo CPACF / CALP', type: 'text' },
+      { key: 'FOLIO', label: 'Folio CPACF / CALP', type: 'text' },
+      { key: 'SOLICITANTE', label: 'Solicitante', type: 'text' },
+      { key: 'INHIBIDO', label: 'Persona inhibida', type: 'text' },
+      { key: 'DNI_INHIBIDO', label: 'DNI/CUIT del inhibido', type: 'text' },
+      { key: 'FECHA_INSCRIPCION_ORIGINAL', label: 'Fecha de la inscripción original', type: 'date' },
+      { key: 'REGISTRO', label: 'Registro donde se inscribió originalmente', type: 'text' },
+      { key: 'NUMERO_INSCRIPCION', label: 'Número de inscripción original (si se conoce)', type: 'text' },
+      { key: 'AUTOS', label: 'Carátula del expediente', type: 'text' },
+      { key: 'JUZGADO', label: 'Juzgado interviniente', type: 'text' },
+    ],
+    content: `SOLICITA REINSCRIPCIÓN DE INHIBICIÓN GENERAL DE BIENES
+
+Señor Juez:
+
+{{LETRADO}}, T.° {{TOMO}} F.° {{FOLIO}}, por {{SOLICITANTE}}, en autos "{{AUTOS}}" ante el {{JUZGADO}}, a V.S. me presento y digo:
+
+I. OBJETO
+
+Próximo a operar el plazo de caducidad quinquenal previsto en el art. 207 CPCCN, vengo a solicitar la REINSCRIPCIÓN de la inhibición general de bienes oportunamente decretada en estos autos contra {{INHIBIDO}}, D.N.I./C.U.I.T. {{DNI_INHIBIDO}}.
+
+II. ANTECEDENTES
+
+La inhibición fue inscripta originalmente con fecha {{FECHA_INSCRIPCION_ORIGINAL}} en el {{REGISTRO}} bajo el N° {{NUMERO_INSCRIPCION}}, en virtud del oficio oportunamente librado por V.S.
+
+III. NECESIDAD DE LA REINSCRIPCIÓN
+
+El proceso continúa en trámite y subsisten los presupuestos que motivaron la traba original (verosimilitud y peligro en la demora), por lo que corresponde reinscribir la cautelar antes de su caducidad para no requerir un nuevo decreto y traba.
+
+IV. DERECHO
+
+Arts. 207, 228 CPCCN; ley 17.801; art. 37 dec. ley 6582/58.
+
+V. PETITORIO
+
+A V.S. solicito:
+1. Se ordene la reinscripción de la inhibición general de bienes.
+2. Se libre OFICIO al/los registro/s correspondiente/s con anterioridad al vencimiento del plazo quinquenal.
+3. Se autorice al letrado firmante al diligenciamiento.
+
+Proveer de conformidad.
+SERÁ JUSTICIA.`,
+  },
+
+  {
+    id: 'cau-secuestro',
+    title: 'Secuestro de Cosa Litigiosa',
+    category: 'Civil',
+    subcategory: 'Cautelares',
+    description: 'Desapoderamiento físico de una cosa mueble que es objeto del litigio o que se encuentra en peligro. Se traba mediante mandamiento que ejecuta el oficial de justicia.',
+    tags: ['cautelar', 'secuestro', 'art. 221 CPCCN', 'cosa mueble'],
+    legalBasis: 'Arts. 195, 198, 199, 207, 221 CPCCN.',
+    placeholders: [
+      { key: 'LETRADO', label: 'Letrado/a firmante', type: 'text' },
+      { key: 'TOMO', label: 'Tomo CPACF / CALP', type: 'text' },
+      { key: 'FOLIO', label: 'Folio CPACF / CALP', type: 'text' },
+      { key: 'SOLICITANTE', label: 'Solicitante', type: 'text' },
+      { key: 'TENEDOR', label: 'Persona en cuyo poder se encuentra la cosa', type: 'text' },
+      { key: 'DOMICILIO_TENEDOR', label: 'Domicilio del tenedor', type: 'text' },
+      { key: 'COSA_DESCRIPCION', label: 'Cosa a secuestrar (descripción precisa)', type: 'textarea' },
+      { key: 'AUTOS', label: 'Carátula del expediente', type: 'text' },
+      { key: 'JUZGADO', label: 'Juzgado interviniente', type: 'text' },
+      { key: 'VEROSIMILITUD', label: 'Fundamentos de la verosimilitud', type: 'textarea' },
+      { key: 'PELIGRO_DEMORA', label: 'Fundamentos del peligro en la demora', type: 'textarea' },
+      { key: 'DEPOSITARIO', label: 'Depositario propuesto', type: 'text', defaultValue: 'Se solicita designación a sorteo' },
+      { key: 'CONTRACAUTELA', label: 'Contracautela', type: 'text', defaultValue: 'Caución real fijada por V.S.' },
+    ],
+    content: `SOLICITA SECUESTRO DE COSA LITIGIOSA
+
+Señor Juez:
+
+{{LETRADO}}, T.° {{TOMO}} F.° {{FOLIO}}, por {{SOLICITANTE}}, en autos "{{AUTOS}}" ante el {{JUZGADO}}, a V.S. me presento y digo:
+
+I. OBJETO
+
+Solicito se decrete el SECUESTRO de la siguiente cosa mueble:
+
+{{COSA_DESCRIPCION}}
+
+actualmente en poder de {{TENEDOR}}, con domicilio en {{DOMICILIO_TENEDOR}}.
+
+II. VEROSIMILITUD DEL DERECHO
+
+{{VEROSIMILITUD}}
+
+III. PELIGRO EN LA DEMORA
+
+{{PELIGRO_DEMORA}}
+
+El art. 221 CPCCN autoriza el secuestro cuando el embargo no asegura por sí solo el derecho del solicitante.
+
+IV. DESIGNACIÓN DE DEPOSITARIO
+
+Depositario: {{DEPOSITARIO}}.
+
+V. CONTRACAUTELA
+
+Se ofrece: {{CONTRACAUTELA}}.
+
+VI. DERECHO
+
+Arts. 195, 198, 199, 207, 221 CPCCN.
+
+VII. PETITORIO
+
+A V.S. solicito:
+1. Se decrete el secuestro inaudita parte.
+2. Se libre MANDAMIENTO con habilitación de día y hora si fuere menester, autorizando el uso de la fuerza pública y allanamiento de domicilio si fuese necesario.
+3. Se designe depositario.
+4. Se fije la contracautela.
+
+Proveer de conformidad.
+SERÁ JUSTICIA.`,
+  },
 ];
