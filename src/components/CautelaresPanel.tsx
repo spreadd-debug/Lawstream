@@ -274,6 +274,16 @@ export const CautelaresPanel: React.FC<CautelaresPanelProps> = ({
         isOpen={cautFormOpen}
         editing={cautEditing}
         prefill={cautPrefill}
+        contraparteDefaults={{
+          nombre: matterDelPanel?.caseData?.conyuge2_nombre
+               ?? matterDelPanel?.caseData?.demandado_nombre
+               ?? matterDelPanel?.caseData?.alimentante_nombre
+               ?? matterDelPanel?.caseData?.otro_progenitor_nombre,
+          dni:    matterDelPanel?.caseData?.conyuge2_dni
+               ?? matterDelPanel?.caseData?.demandado_dni
+               ?? matterDelPanel?.caseData?.alimentante_dni
+               ?? matterDelPanel?.caseData?.otro_progenitor_dni,
+        }}
         bienes={bienesDelMatter}
         sociedades={sociedadesDelMatter}
         onClose={() => { setCautFormOpen(false); setCautPrefill(null); }}
@@ -513,13 +523,17 @@ interface CautelarFormProps {
   /** GAP UX-31: defaults pre-llenos cuando se abre desde el banner de
    *  evaluar cautelar preventiva. Solo aplica si editing es null. */
   prefill?: Partial<Cautelar> | null;
+  /** GAP UX-34: datos de la contraparte del matter para auto-rellenar
+   *  el "Detalle (sobre quién)" cuando contraRol === 'contraparte'. El
+   *  panel los pasa leyendo matter.caseData. */
+  contraparteDefaults?: { nombre?: string; dni?: string };
   bienes: { id: string; descripcion: string }[];
   sociedades: { id: string; denominacion: string }[];
   onClose: () => void;
   onSave: (data: Partial<Cautelar>) => Promise<void>;
 }
 
-const CautelarForm: React.FC<CautelarFormProps> = ({ isOpen, editing, prefill, bienes, sociedades, onClose, onSave }) => {
+const CautelarForm: React.FC<CautelarFormProps> = ({ isOpen, editing, prefill, contraparteDefaults, bienes, sociedades, onClose, onSave }) => {
   const [tipo, setTipo]                                   = useState<TipoCautelar>('inhibicion_general');
   const [contraRol, setContraRol]                         = useState<TitularRol>('contraparte');
   const [contraDetalle, setContraDetalle]                 = useState('');
@@ -546,8 +560,15 @@ const CautelarForm: React.FC<CautelarFormProps> = ({ isOpen, editing, prefill, b
     // banner UX-31). Si tampoco hay prefill, defaults básicos.
     const seed = editing ?? prefill ?? {};
     setTipo(seed.tipo ?? 'inhibicion_general');
-    setContraRol(seed.contraRol ?? 'contraparte');
-    setContraDetalle(seed.contraDetalle ?? '');
+    const contraRolEfectivo = seed.contraRol ?? 'contraparte';
+    setContraRol(contraRolEfectivo);
+    // GAP UX-34: si la cautelar va contra la contraparte y no hay
+    // contraDetalle explícito, autocompletar desde caseData.conyuge2_*
+    // (o demandado_* / alimentante_*) que el panel pasa.
+    const detalleAuto = (contraRolEfectivo === 'contraparte' && contraparteDefaults?.nombre)
+      ? [contraparteDefaults.nombre, contraparteDefaults.dni && `DNI ${contraparteDefaults.dni}`].filter(Boolean).join(', ')
+      : '';
+    setContraDetalle(seed.contraDetalle ?? detalleAuto);
     setBienId(seed.bienId ?? '');
     setSociedadId(seed.sociedadInterpuestaId ?? '');
     setAlcance(seed.alcance ?? '');
