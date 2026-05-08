@@ -2013,4 +2013,484 @@ A V.S. solicito:
 Proveer de conformidad.
 SERÁ JUSTICIA.`,
   },
+
+  // ═══════════════════════════════════════════════════
+  // CAUTELARES — VARIANTES PBA (GAP UX-34)
+  // ═══════════════════════════════════════════════════
+  // Versiones para Provincia de Buenos Aires de las cautelares más
+  // usadas. Diferencias respecto a las versiones CABA/Nación:
+  //   • Cita CPCC PBA en lugar de CPCCN (números casi siempre iguales).
+  //   • Mención al Colegio de Abogados de la Provincia (CALP) y no al
+  //     CPACF — el placeholder TOMO/FOLIO se rellena con datos del CALP.
+  //   • Domicilio procesal en sistema MEV de SCBA (no Lex100).
+  //   • Oficios al RPI Provincia (La Plata) y Registro Automotor PBA.
+  //   • Mención al Departamento Judicial competente en lugar de
+  //     "Juzgado Nacional".
+
+  {
+    id: 'cau-inhibicion-general-divorcio-pba',
+    title: 'Inhibición General de Bienes — Divorcio (PBA)',
+    category: 'Familia',
+    subcategory: 'Cautelares',
+    description: 'Inhibición general contra el cónyuge en proceso de divorcio en Provincia de Buenos Aires. Oficios al Registro de la Propiedad Inmueble de PBA y al Registro Automotor.',
+    tags: ['cautelar', 'inhibición', 'divorcio', 'PBA', 'art. 228 CPCC PBA', 'art. 721 CCyCN'],
+    legalBasis: 'Arts. 195, 198, 199, 207, 228 CPCC PBA; arts. 720, 721 CCyCN; ley 17.801; Ley provincial 5708 (RPI PBA).',
+    placeholders: [
+      { key: 'LETRADO', label: 'Letrado/a firmante', type: 'text' },
+      { key: 'TOMO', label: 'Tomo CALP', type: 'text' },
+      { key: 'FOLIO', label: 'Folio CALP', type: 'text' },
+      { key: 'SOLICITANTE', label: 'Cónyuge solicitante (cliente)', type: 'text' },
+      { key: 'DNI_SOLICITANTE', label: 'DNI del solicitante', type: 'text' },
+      { key: 'DOMICILIO_SOLICITANTE', label: 'Domicilio real del solicitante', type: 'text' },
+      { key: 'INHIBIDO', label: 'Cónyuge a inhibir (contraparte)', type: 'text' },
+      { key: 'DNI_INHIBIDO', label: 'DNI del inhibido', type: 'text' },
+      { key: 'DOMICILIO_INHIBIDO', label: 'Último domicilio conocido del inhibido', type: 'text' },
+      { key: 'FECHA_MATRIMONIO', label: 'Fecha de matrimonio', type: 'date' },
+      { key: 'LUGAR_MATRIMONIO', label: 'Registro Civil de celebración', type: 'text' },
+      { key: 'AUTOS', label: 'Carátula del expediente', type: 'text' },
+      { key: 'JUZGADO', label: 'Juzgado de Familia interviniente (Departamento Judicial)', type: 'text' },
+      { key: 'HECHOS_PELIGRO', label: 'Hechos que justifican el peligro en la demora', type: 'textarea', defaultValue: 'En el último mes el cónyuge demandado contrajo deuda nueva sin justificación conocida, lo que hace temer el inminente vaciamiento patrimonial de la masa ganancial.' },
+      { key: 'CONTRACAUTELA', label: 'Contracautela ofrecida', type: 'text', defaultValue: 'Caución juratoria atento al carácter familiar del proceso (art. 199 CPCC PBA)' },
+    ],
+    content: `SOLICITA INHIBICIÓN GENERAL DE BIENES — INAUDITA PARTE
+
+Señor Juez:
+
+{{LETRADO}}, T.° {{TOMO}} F.° {{FOLIO}} CALP, en mi carácter de letrado/a apoderado/a de {{SOLICITANTE}}, D.N.I. {{DNI_SOLICITANTE}}, con domicilio real en {{DOMICILIO_SOLICITANTE}} y constituyendo domicilio procesal electrónico en el sistema MEV de la SCBA, en el marco de los autos "{{AUTOS}}" en trámite por ante el {{JUZGADO}}, a V.S. respetuosamente me presento y digo:
+
+I. OBJETO
+
+Que vengo por el presente a solicitar, INAUDITA PARTE y con habilitación de días y horas inhábiles si fuere menester, se decrete INHIBICIÓN GENERAL DE BIENES contra {{INHIBIDO}}, D.N.I. {{DNI_INHIBIDO}}, con último domicilio conocido en {{DOMICILIO_INHIBIDO}}, debiendo librarse los oficios pertinentes a los registros públicos de bienes registrables (art. 228 CPCC PBA).
+
+II. VEROSIMILITUD DEL DERECHO
+
+Mi mandante contrajo matrimonio con el inhibido el {{FECHA_MATRIMONIO}} ante el {{LUGAR_MATRIMONIO}}. El matrimonio se rige por el régimen de comunidad de ganancias del art. 463 y ss. del Código Civil y Comercial, no habiendo las partes suscripto convención matrimonial alterando dicho régimen.
+
+En el marco del presente proceso de divorcio se discute la liquidación de la comunidad ganancial.
+
+La verosimilitud del derecho surge del acta de matrimonio acompañada con la demanda, que acredita la calidad de cónyuge de mi mandante y su derecho a la mitad de los bienes gananciales (arts. 469, 498 CCyCN).
+
+III. PELIGRO EN LA DEMORA
+
+{{HECHOS_PELIGRO}}
+
+La conducta del cónyuge demandado configura el periculum in mora del art. 195 CPCC PBA. De no decretarse la cautelar inaudita parte, el demandado tendría tiempo de disponer o gravar los bienes registrables que integran la masa ganancial, frustrando la sentencia de liquidación.
+
+IV. CONTRACAUTELA
+
+Se ofrece como contracautela: {{CONTRACAUTELA}}.
+
+V. DERECHO
+
+Arts. 195, 198, 199, 207 y 228 del CPCC PBA; arts. 463, 469, 498, 720 y 721 del CCyCN; ley 17.801; ley provincial 5708; y demás normas concordantes.
+
+VI. PETITORIO
+
+A V.S. solicito:
+1. Se tenga por presentado este escrito y por constituido el domicilio procesal electrónico.
+2. Se decrete INAUDITA PARTE la INHIBICIÓN GENERAL DE BIENES contra {{INHIBIDO}}, D.N.I. {{DNI_INHIBIDO}}.
+3. Se fije la contracautela ofrecida.
+4. Se libre OFICIO al Registro de la Propiedad Inmueble de la Provincia de Buenos Aires (La Plata) a fin de tomar razón de la inhibición.
+5. Se libre OFICIO al Registro Nacional de la Propiedad del Automotor a fin de tomar razón de la inhibición.
+6. Se autorice al letrado firmante al diligenciamiento de los oficios.
+
+Proveer de conformidad.
+SERÁ JUSTICIA.`,
+  },
+
+  {
+    id: 'cau-embargo-preventivo-inmueble-pba',
+    title: 'Embargo Preventivo de Inmueble (PBA)',
+    category: 'Civil',
+    subcategory: 'Cautelares',
+    description: 'Embargo preventivo sobre inmueble en jurisdicción de PBA. Oficio al Registro de la Propiedad Inmueble de la Provincia (La Plata).',
+    tags: ['cautelar', 'embargo', 'inmueble', 'PBA', 'art. 209 CPCC PBA'],
+    legalBasis: 'Arts. 195, 198, 199, 207, 209, 210, 212, 218 CPCC PBA; ley 17.801; ley provincial 5708.',
+    placeholders: [
+      { key: 'LETRADO', label: 'Letrado/a firmante', type: 'text' },
+      { key: 'TOMO', label: 'Tomo CALP', type: 'text' },
+      { key: 'FOLIO', label: 'Folio CALP', type: 'text' },
+      { key: 'SOLICITANTE', label: 'Solicitante (acreedor)', type: 'text' },
+      { key: 'DNI_SOLICITANTE', label: 'DNI/CUIT del solicitante', type: 'text' },
+      { key: 'DOMICILIO_SOLICITANTE', label: 'Domicilio del solicitante', type: 'text' },
+      { key: 'EMBARGADO', label: 'Persona a embargar (deudor)', type: 'text' },
+      { key: 'DNI_EMBARGADO', label: 'DNI/CUIT del embargado', type: 'text' },
+      { key: 'INMUEBLE_UBICACION', label: 'Ubicación del inmueble (calle, número, piso, depto, partido)', type: 'textarea' },
+      { key: 'MATRICULA', label: 'Matrícula registral', type: 'text' },
+      { key: 'NOMENCLATURA', label: 'Nomenclatura catastral', type: 'text' },
+      { key: 'MONTO', label: 'Monto a embargar', type: 'money' },
+      { key: 'AUTOS', label: 'Carátula del expediente', type: 'text' },
+      { key: 'JUZGADO', label: 'Juzgado interviniente (Departamento Judicial)', type: 'text' },
+      { key: 'VEROSIMILITUD', label: 'Fundamentos de la verosimilitud', type: 'textarea' },
+      { key: 'PELIGRO_DEMORA', label: 'Fundamentos del peligro en la demora', type: 'textarea' },
+      { key: 'CONTRACAUTELA', label: 'Contracautela', type: 'text', defaultValue: 'Caución real / juratoria — V.S. fijará el monto que estime corresponder' },
+    ],
+    content: `SOLICITA EMBARGO PREVENTIVO DE INMUEBLE — INAUDITA PARTE
+
+Señor Juez:
+
+{{LETRADO}}, T.° {{TOMO}} F.° {{FOLIO}} CALP, en representación de {{SOLICITANTE}}, D.N.I./C.U.I.T. {{DNI_SOLICITANTE}}, con domicilio real en {{DOMICILIO_SOLICITANTE}} y constituyendo domicilio procesal electrónico en el sistema MEV de la SCBA, en autos "{{AUTOS}}" ante el {{JUZGADO}}, a V.S. respetuosamente me presento y digo:
+
+I. OBJETO
+
+Vengo a solicitar, INAUDITA PARTE, se decrete EMBARGO PREVENTIVO sobre el inmueble que a continuación se identifica, hasta cubrir la suma de PESOS {{MONTO}} (\${{MONTO}}) con más intereses y costas:
+
+INMUEBLE A EMBARGAR:
+- Ubicación: {{INMUEBLE_UBICACION}}
+- Matrícula: {{MATRICULA}}
+- Nomenclatura catastral: {{NOMENCLATURA}}
+- Titular registral: {{EMBARGADO}}, D.N.I./C.U.I.T. {{DNI_EMBARGADO}}.
+
+II. VEROSIMILITUD DEL DERECHO
+
+{{VEROSIMILITUD}}
+
+III. PELIGRO EN LA DEMORA
+
+{{PELIGRO_DEMORA}}
+
+IV. CONTRACAUTELA
+
+Se ofrece: {{CONTRACAUTELA}}.
+
+V. DERECHO
+
+Arts. 195, 198, 199, 207, 209, 210, 212 y 218 CPCC PBA; ley 17.801; ley provincial 5708.
+
+VI. PETITORIO
+
+A V.S. solicito:
+1. Se decrete INAUDITA PARTE el embargo preventivo solicitado.
+2. Se fije la contracautela.
+3. Se libre OFICIO al Registro de la Propiedad Inmueble de la Provincia de Buenos Aires (La Plata).
+4. Se autorice al letrado firmante al diligenciamiento.
+
+Proveer de conformidad.
+SERÁ JUSTICIA.`,
+  },
+
+  {
+    id: 'cau-embargo-cuenta-bancaria-pba',
+    title: 'Embargo de Cuenta Bancaria (PBA)',
+    category: 'Civil',
+    subcategory: 'Cautelares',
+    description: 'Embargo sobre cuenta bancaria en proceso ante tribunales de PBA.',
+    tags: ['cautelar', 'embargo', 'cuenta bancaria', 'PBA', 'art. 209 CPCC PBA'],
+    legalBasis: 'Arts. 195, 198, 207, 209, 210 CPCC PBA; ley 21.526.',
+    placeholders: [
+      { key: 'LETRADO', label: 'Letrado/a firmante', type: 'text' },
+      { key: 'TOMO', label: 'Tomo CALP', type: 'text' },
+      { key: 'FOLIO', label: 'Folio CALP', type: 'text' },
+      { key: 'SOLICITANTE', label: 'Solicitante', type: 'text' },
+      { key: 'EMBARGADO', label: 'Persona a embargar', type: 'text' },
+      { key: 'DNI_EMBARGADO', label: 'DNI/CUIT del embargado', type: 'text' },
+      { key: 'BANCO', label: 'Banco (si se conoce)', type: 'text', defaultValue: 'Genérico — BCRA' },
+      { key: 'CBU_O_CUENTA', label: 'CBU o cuenta', type: 'text', defaultValue: 'Sobre todas las cuentas a nombre del demandado en el sistema financiero' },
+      { key: 'MONTO', label: 'Monto a embargar', type: 'money' },
+      { key: 'AUTOS', label: 'Carátula', type: 'text' },
+      { key: 'JUZGADO', label: 'Juzgado (Depto. Judicial)', type: 'text' },
+      { key: 'VEROSIMILITUD', label: 'Verosimilitud', type: 'textarea' },
+      { key: 'PELIGRO_DEMORA', label: 'Peligro en la demora', type: 'textarea' },
+      { key: 'CONTRACAUTELA', label: 'Contracautela', type: 'text', defaultValue: 'Caución juratoria' },
+    ],
+    content: `SOLICITA EMBARGO DE CUENTA BANCARIA
+
+Señor Juez:
+
+{{LETRADO}}, T.° {{TOMO}} F.° {{FOLIO}} CALP, por {{SOLICITANTE}}, en autos "{{AUTOS}}" ante el {{JUZGADO}}, a V.S. me presento y digo:
+
+I. OBJETO
+
+Solicito EMBARGO PREVENTIVO sobre los fondos en la/s cuenta/s de titularidad de {{EMBARGADO}}, D.N.I./C.U.I.T. {{DNI_EMBARGADO}}, hasta cubrir PESOS {{MONTO}} (\${{MONTO}}) con más intereses y costas:
+
+{{CBU_O_CUENTA}}
+Banco: {{BANCO}}
+
+II. VEROSIMILITUD DEL DERECHO
+
+{{VEROSIMILITUD}}
+
+III. PELIGRO EN LA DEMORA
+
+{{PELIGRO_DEMORA}}
+
+IV. CONTRACAUTELA
+
+Se ofrece: {{CONTRACAUTELA}}.
+
+V. DERECHO
+
+Arts. 195, 198, 207, 209, 210 CPCC PBA; ley 21.526.
+
+VI. PETITORIO
+
+A V.S. solicito:
+1. Se decrete el embargo solicitado.
+2. Se libre OFICIO al Banco indicado o, en su defecto, al BCRA conforme art. 4° ley 21.526 a fin de individualizar y trabar las cuentas del demandado.
+3. Se autorice al letrado al diligenciamiento.
+
+Proveer de conformidad.
+SERÁ JUSTICIA.`,
+  },
+
+  {
+    id: 'cau-embargo-sueldo-alimentos-pba',
+    title: 'Embargo de Sueldo — Alimentos (PBA)',
+    category: 'Familia',
+    subcategory: 'Cautelares',
+    description: 'Embargo de salario por incumplimiento de cuota alimentaria en juzgados de Familia de PBA.',
+    tags: ['cautelar', 'embargo', 'sueldo', 'alimentos', 'PBA', 'art. 660 CCyCN', 'ley 12569'],
+    legalBasis: 'Arts. 658, 660 CCyCN; art. 147 LCT; arts. 195, 209 CPCC PBA; dec. 484/87; ley provincial 12569.',
+    placeholders: [
+      { key: 'LETRADO', label: 'Letrado/a firmante', type: 'text' },
+      { key: 'TOMO', label: 'Tomo CALP', type: 'text' },
+      { key: 'FOLIO', label: 'Folio CALP', type: 'text' },
+      { key: 'PROGENITOR', label: 'Progenitor representante', type: 'text' },
+      { key: 'DNI_PROGENITOR', label: 'DNI del progenitor', type: 'text' },
+      { key: 'HIJOS', label: 'Hijos beneficiarios', type: 'textarea' },
+      { key: 'ALIMENTANTE', label: 'Alimentante obligado', type: 'text' },
+      { key: 'DNI_ALIMENTANTE', label: 'DNI/CUIL del alimentante', type: 'text' },
+      { key: 'EMPLEADOR_ALIMENTANTE', label: 'Empleador', type: 'text' },
+      { key: 'DOMICILIO_EMPLEADOR', label: 'Domicilio del empleador', type: 'text' },
+      { key: 'MONTO_CUOTA', label: 'Monto mensual de la cuota', type: 'money' },
+      { key: 'PORCENTAJE_RETENCION', label: 'Porcentaje a retener', type: 'text', defaultValue: '20%' },
+      { key: 'AUTOS', label: 'Carátula', type: 'text' },
+      { key: 'JUZGADO', label: 'Juzgado de Familia (Depto. Judicial)', type: 'text' },
+      { key: 'FECHA_RESOLUCION_CUOTA', label: 'Fecha resolución cuota', type: 'date' },
+    ],
+    content: `SOLICITA EMBARGO DE SUELDO POR INCUMPLIMIENTO DE CUOTA ALIMENTARIA
+
+Señor Juez:
+
+{{LETRADO}}, T.° {{TOMO}} F.° {{FOLIO}} CALP, por {{PROGENITOR}}, D.N.I. {{DNI_PROGENITOR}}, en su carácter de progenitor/a y representante legal de los menores beneficiarios, en autos "{{AUTOS}}" ante el {{JUZGADO}}, a V.S. me presento y digo:
+
+I. OBJETO
+
+Solicito EMBARGO sobre la remuneración mensual de {{ALIMENTANTE}}, D.N.I./C.U.I.L. {{DNI_ALIMENTANTE}}, en relación de dependencia con {{EMPLEADOR_ALIMENTANTE}}, en una proporción equivalente al {{PORCENTAJE_RETENCION}} del salario neto, hasta cubrir la cuota alimentaria de PESOS {{MONTO_CUOTA}} (\${{MONTO_CUOTA}}) y los importes en mora.
+
+II. HECHOS Y VEROSIMILITUD
+
+Por resolución del {{FECHA_RESOLUCION_CUOTA}} V.S. fijó cuota alimentaria a favor de los menores {{HIJOS}}, a cargo del alimentante {{ALIMENTANTE}}.
+
+El alimentante ha incurrido en incumplimientos reiterados que vuelven necesaria la traba de la presente medida.
+
+III. PELIGRO EN LA DEMORA
+
+La cuota alimentaria atiende a la subsistencia de los menores. La verosimilitud del derecho está dada por la propia resolución que fijó la cuota.
+
+IV. ALCANCE DE LA RETENCIÓN
+
+Se solicita una retención del {{PORCENTAJE_RETENCION}} sobre la remuneración neta del alimentante (art. 147 LCT y dec. 484/87), depósito a la orden del Tribunal entre el primer y quinto día hábil de cada mes con copia del recibo de haberes.
+
+V. DERECHO
+
+Arts. 658 y 660 CCyCN; art. 147 LCT; arts. 195, 209 CPCC PBA; dec. 484/87; ley provincial 12569.
+
+VI. PETITORIO
+
+A V.S. solicito:
+1. Se decrete el embargo en la proporción solicitada.
+2. Se libre OFICIO al empleador {{EMPLEADOR_ALIMENTANTE}}, con domicilio en {{DOMICILIO_EMPLEADOR}}.
+3. Se haga saber al empleador que la falta de cumplimiento lo hace solidariamente responsable.
+
+Proveer de conformidad.
+SERÁ JUSTICIA.`,
+  },
+
+  {
+    id: 'cau-anotacion-litis-pba',
+    title: 'Anotación de Litis sobre Inmueble (PBA)',
+    category: 'Civil',
+    subcategory: 'Cautelares',
+    description: 'Anotación de litis sobre inmueble en jurisdicción de PBA. Oficio al Registro de la Propiedad Inmueble de la Provincia.',
+    tags: ['cautelar', 'anotación de litis', 'PBA', 'art. 229 CPCC PBA'],
+    legalBasis: 'Arts. 195, 198, 207, 229 CPCC PBA; arts. 1893, 1902 CCyCN; ley 17.801; ley provincial 5708.',
+    placeholders: [
+      { key: 'LETRADO', label: 'Letrado/a firmante', type: 'text' },
+      { key: 'TOMO', label: 'Tomo CALP', type: 'text' },
+      { key: 'FOLIO', label: 'Folio CALP', type: 'text' },
+      { key: 'SOLICITANTE', label: 'Solicitante', type: 'text' },
+      { key: 'INMUEBLE_UBICACION', label: 'Ubicación del inmueble', type: 'textarea' },
+      { key: 'MATRICULA', label: 'Matrícula registral', type: 'text' },
+      { key: 'NOMENCLATURA', label: 'Nomenclatura catastral', type: 'text' },
+      { key: 'TITULAR_REGISTRAL', label: 'Titular registral', type: 'text' },
+      { key: 'AUTOS', label: 'Carátula', type: 'text' },
+      { key: 'JUZGADO', label: 'Juzgado (Depto. Judicial)', type: 'text' },
+      { key: 'OBJETO_LITIS', label: 'Objeto del juicio', type: 'textarea' },
+      { key: 'CONTRACAUTELA', label: 'Contracautela', type: 'text', defaultValue: 'Caución juratoria' },
+    ],
+    content: `SOLICITA ANOTACIÓN DE LITIS
+
+Señor Juez:
+
+{{LETRADO}}, T.° {{TOMO}} F.° {{FOLIO}} CALP, por {{SOLICITANTE}}, en autos "{{AUTOS}}" ante el {{JUZGADO}}, a V.S. me presento y digo:
+
+I. OBJETO
+
+Solicito se decrete la ANOTACIÓN DE LITIS sobre el siguiente inmueble:
+- Ubicación: {{INMUEBLE_UBICACION}}
+- Matrícula: {{MATRICULA}}
+- Nomenclatura catastral: {{NOMENCLATURA}}
+- Titular registral: {{TITULAR_REGISTRAL}}.
+
+II. VEROSIMILITUD DEL DERECHO Y OBJETO DE LA LITIS
+
+En el presente juicio se discute: {{OBJETO_LITIS}}
+
+La anotación de litis no afecta la disponibilidad sino que torna oponible erga omnes la sentencia que recaiga (arts. 1893, 1902 CCyCN).
+
+III. PELIGRO EN LA DEMORA
+
+De no decretarse la anotación, un eventual adquirente podría invocar la condición de tercero de buena fe ajeno al pleito.
+
+IV. CONTRACAUTELA
+
+Se ofrece: {{CONTRACAUTELA}}.
+
+V. DERECHO
+
+Arts. 195, 198, 207, 229 CPCC PBA; arts. 1893, 1902 CCyCN; ley 17.801; ley provincial 5708.
+
+VI. PETITORIO
+
+A V.S. solicito:
+1. Se decrete la anotación de litis.
+2. Se libre OFICIO al Registro de la Propiedad Inmueble de la Provincia de Buenos Aires (La Plata).
+3. Se autorice al letrado al diligenciamiento.
+
+Proveer de conformidad.
+SERÁ JUSTICIA.`,
+  },
+
+  {
+    id: 'cau-no-innovar-pba',
+    title: 'Prohibición de Innovar (PBA)',
+    category: 'Civil',
+    subcategory: 'Cautelares',
+    description: 'Cautelar de no innovar en proceso ante tribunales de PBA.',
+    tags: ['cautelar', 'no innovar', 'PBA', 'art. 230 CPCC PBA'],
+    legalBasis: 'Arts. 195, 198, 199, 207, 230 CPCC PBA.',
+    placeholders: [
+      { key: 'LETRADO', label: 'Letrado/a firmante', type: 'text' },
+      { key: 'TOMO', label: 'Tomo CALP', type: 'text' },
+      { key: 'FOLIO', label: 'Folio CALP', type: 'text' },
+      { key: 'SOLICITANTE', label: 'Solicitante', type: 'text' },
+      { key: 'CONTRA', label: 'Persona contra quien se dirige', type: 'text' },
+      { key: 'AUTOS', label: 'Carátula', type: 'text' },
+      { key: 'JUZGADO', label: 'Juzgado (Depto. Judicial)', type: 'text' },
+      { key: 'STATU_QUO', label: 'Statu quo a mantener', type: 'textarea' },
+      { key: 'ACTO_A_EVITAR', label: 'Acto que se pretende evitar', type: 'textarea' },
+      { key: 'VEROSIMILITUD', label: 'Verosimilitud', type: 'textarea' },
+      { key: 'PELIGRO_DEMORA', label: 'Peligro en la demora', type: 'textarea' },
+      { key: 'CONTRACAUTELA', label: 'Contracautela', type: 'text', defaultValue: 'Caución juratoria' },
+    ],
+    content: `SOLICITA PROHIBICIÓN DE INNOVAR
+
+Señor Juez:
+
+{{LETRADO}}, T.° {{TOMO}} F.° {{FOLIO}} CALP, por {{SOLICITANTE}}, en autos "{{AUTOS}}" ante el {{JUZGADO}}, a V.S. me presento y digo:
+
+I. OBJETO
+
+Solicito se decrete PROHIBICIÓN DE INNOVAR contra {{CONTRA}}, ordenándole abstenerse de alterar la siguiente situación:
+
+{{STATU_QUO}}
+
+En particular, se solicita que el demandado se abstenga de:
+
+{{ACTO_A_EVITAR}}
+
+II. VEROSIMILITUD DEL DERECHO
+
+{{VEROSIMILITUD}}
+
+III. PELIGRO EN LA DEMORA
+
+{{PELIGRO_DEMORA}}
+
+IV. CONTRACAUTELA
+
+Se ofrece: {{CONTRACAUTELA}}.
+
+V. DERECHO
+
+Arts. 195, 198, 199, 207 y 230 CPCC PBA.
+
+VI. PETITORIO
+
+A V.S. solicito:
+1. Se decrete la prohibición de innovar.
+2. Se notifique al demandado bajo apercibimiento del art. 239 CP y conminaciones del art. 37 CPCC PBA.
+3. Se fije la contracautela.
+
+Proveer de conformidad.
+SERÁ JUSTICIA.`,
+  },
+
+  {
+    id: 'cau-no-innovar-familia-pba',
+    title: 'Cautelar de No Innovar — Familia (PBA)',
+    category: 'Familia',
+    subcategory: 'Cautelares',
+    description: 'Cautelar de no innovar en sede de Familia de PBA — para impedir conductas unilaterales del otro progenitor que afecten a los hijos.',
+    tags: ['cautelar', 'no innovar', 'familia', 'PBA', 'interés superior del niño'],
+    legalBasis: 'Arts. 195, 230 CPCC PBA; arts. 706, 707, 645, 642 CCyCN; CDN art. 3; ley provincial 13298 (promoción y protección de derechos de niños).',
+    placeholders: [
+      { key: 'LETRADO', label: 'Letrado/a firmante', type: 'text' },
+      { key: 'TOMO', label: 'Tomo CALP', type: 'text' },
+      { key: 'FOLIO', label: 'Folio CALP', type: 'text' },
+      { key: 'PROGENITOR', label: 'Progenitor solicitante', type: 'text' },
+      { key: 'OTRO_PROGENITOR', label: 'Otro progenitor', type: 'text' },
+      { key: 'HIJOS', label: 'Hijos involucrados', type: 'textarea' },
+      { key: 'STATU_QUO', label: 'Situación a mantener', type: 'textarea' },
+      { key: 'CONDUCTA_A_EVITAR', label: 'Conducta a evitar', type: 'textarea' },
+      { key: 'AUTOS', label: 'Carátula', type: 'text' },
+      { key: 'JUZGADO', label: 'Juzgado de Familia (Depto. Judicial)', type: 'text' },
+      { key: 'INTERES_SUPERIOR', label: 'Interés superior del niño', type: 'textarea' },
+      { key: 'CONTRACAUTELA', label: 'Contracautela', type: 'text', defaultValue: 'Caución juratoria atento al carácter familiar (art. 199 CPCC PBA)' },
+    ],
+    content: `SOLICITA CAUTELAR DE NO INNOVAR — INTERÉS SUPERIOR DEL NIÑO
+
+Señor Juez:
+
+{{LETRADO}}, T.° {{TOMO}} F.° {{FOLIO}} CALP, en representación de {{PROGENITOR}}, en autos "{{AUTOS}}" ante el {{JUZGADO}}, a V.S. me presento y digo:
+
+I. OBJETO
+
+Solicito se decrete CAUTELAR DE NO INNOVAR contra {{OTRO_PROGENITOR}}, ordenándole abstenerse de alterar la siguiente situación de los hijos comunes {{HIJOS}}:
+
+{{STATU_QUO}}
+
+En particular, se solicita que el otro progenitor se abstenga de:
+
+{{CONDUCTA_A_EVITAR}}
+
+II. VEROSIMILITUD DEL DERECHO
+
+Mi mandante ostenta la responsabilidad parental conjunta de los menores conforme arts. 638 y ss. CCyCN. Las decisiones de relevancia respecto de la persona del hijo requieren consentimiento de ambos progenitores (arts. 645, 642 CCyCN).
+
+III. PELIGRO EN LA DEMORA E INTERÉS SUPERIOR DEL NIÑO
+
+{{INTERES_SUPERIOR}}
+
+El art. 706 CCyCN consagra la tutela judicial efectiva en cuestiones de familia. El art. 3 CDN y la ley provincial 13298 imponen considerar primordialmente el interés superior del niño.
+
+IV. CONTRACAUTELA
+
+Se ofrece: {{CONTRACAUTELA}}.
+
+V. DERECHO
+
+Arts. 195, 230 CPCC PBA; arts. 706, 707, 645, 642 CCyCN; art. 3 CDN; leyes 26.061 y provincial 13298.
+
+VI. PETITORIO
+
+A V.S. solicito:
+1. Se decrete la cautelar de no innovar solicitada.
+2. Se notifique al otro progenitor bajo apercibimiento del art. 239 CP y art. 37 CPCC PBA.
+3. Se corra vista al Asesor de Incapaces (art. 103 CCyCN).
+
+Proveer de conformidad.
+SERÁ JUSTICIA.`,
+  },
 ];

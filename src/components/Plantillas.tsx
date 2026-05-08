@@ -23,7 +23,10 @@ import {
   Filter,
   X,
   Wand2,
+  Download,
 } from 'lucide-react';
+import { pdf } from '@react-pdf/renderer';
+import { EscritoPDF } from './EscritoPDF';
 
 // ── Document type classification ──────────────────────────────
 type TipoDocumento = 'Demanda' | 'Telegrama' | 'Cautelar' | 'Contrato' | 'Recurso' | 'Solicitud' | 'Otro';
@@ -199,6 +202,7 @@ export const Plantillas = ({ matters = [], clients = [] }: PlantillasProps) => {
   const [mode, setMode] = useState<'preview' | 'generate'>('preview');
   const [placeholderValues, setPlaceholderValues] = useState<Record<string, string>>({});
   const [copied, setCopied] = useState(false);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [autoFillMatterId, setAutoFillMatterId] = useState<string>('');
 
   // Handle URL params: ?template=<id>&matter=<matterId>
@@ -328,6 +332,46 @@ export const Plantillas = ({ matters = [], clients = [] }: PlantillasProps) => {
       document.body.removeChild(textarea);
       setCopied(true);
       setTimeout(() => setCopied(false), 2500);
+    }
+  };
+
+  // GAP UX-34 (PDF): genera el escrito como PDF A4 y lo descarga.
+  // El nombre de archivo combina el id del template + carátula del
+  // matter cuando hay autofill, o solo el title del template si es
+  // descarga sin matter asociado.
+  const handleDownloadPdf = async () => {
+    if (!selectedTemplate) return;
+    setDownloadingPdf(true);
+    try {
+      const matter = autoFillMatterId
+        ? matters.find(m => m.id === autoFillMatterId)
+        : undefined;
+      const letrado = placeholderValues['LETRADO'] || matter?.responsible;
+      const titulo  = selectedTemplate.title.toUpperCase();
+      const blob = await pdf(
+        <EscritoPDF
+          titulo={titulo}
+          contenido={renderedContent}
+          letrado={letrado ? `${letrado} — Letrado/a firmante` : undefined}
+        />
+      ).toBlob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const slug = selectedTemplate.id;
+      const matterSlug = matter
+        ? '_' + (matter.title || matter.client || matter.id).replace(/[^a-zA-Z0-9]+/g, '_').slice(0, 40)
+        : '';
+      a.download = `${slug}${matterSlug}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('[Plantillas] Error generando PDF:', err);
+      window.alert('No se pudo generar el PDF. Revisá la consola.');
+    } finally {
+      setDownloadingPdf(false);
     }
   };
 
@@ -652,7 +696,7 @@ export const Plantillas = ({ matters = [], clients = [] }: PlantillasProps) => {
                   </div>
 
                   {/* Actions */}
-                  <div className="flex items-center gap-3 pb-4">
+                  <div className="flex items-center gap-3 pb-4 flex-wrap">
                     <Button
                       onClick={handleCopy}
                       className={cn(
@@ -664,6 +708,15 @@ export const Plantillas = ({ matters = [], clients = [] }: PlantillasProps) => {
                     >
                       {copied ? <Check size={14} /> : <Copy size={14} />}
                       {copied ? 'Copiado al Portapapeles' : 'Copiar Documento'}
+                    </Button>
+                    {/* GAP UX-34 (PDF): descargar el escrito como PDF A4 */}
+                    <Button
+                      onClick={handleDownloadPdf}
+                      disabled={downloadingPdf}
+                      className="gap-2 text-[10px] font-black uppercase tracking-widest rounded-xl h-11 px-6 bg-foreground hover:bg-foreground/90 text-background shadow-lg"
+                    >
+                      <Download size={14} />
+                      {downloadingPdf ? 'Generando…' : 'Descargar PDF'}
                     </Button>
                     <Button
                       onClick={() => setMode('preview')}

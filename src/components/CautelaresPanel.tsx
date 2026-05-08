@@ -8,6 +8,7 @@
 // del perito (dictamen único).
 
 import React, { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAppContext } from '../lib/AppContext';
 import {
   Cautelar,
@@ -18,6 +19,7 @@ import {
   EstadoVeedor,
   FrecuenciaInformesVeedor,
   TitularRol,
+  Matter,
   TIPO_CAUTELAR_LABELS,
   ESTADO_CAUTELAR_LABELS,
   ESTADO_VEEDOR_LABELS,
@@ -30,7 +32,7 @@ import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import {
   Plus, Pencil, Trash2, ShieldAlert, Eye, AlertCircle,
-  CheckCircle2, XCircle, MinusCircle, Clock, FileSignature,
+  CheckCircle2, XCircle, MinusCircle, Clock, FileSignature, FileText,
 } from 'lucide-react';
 
 interface CautelaresPanelProps {
@@ -75,14 +77,74 @@ const VEEDOR_TONE: Record<EstadoVeedor, string> = {
 
 const ESTADO_VIGENTE: EstadoCautelar[] = ['solicitada', 'concedida', 'trabada', 'parcialmente_levantada'];
 
+// GAP UX-34 (botón "Generar escrito"): mapea el tipo de cautelar (y el
+// contexto del matter — fuero / jurisdicción) al/los templates de
+// /plantillas que aplican. Cuando hay más de uno, la card muestra un
+// menú con las opciones.
+interface TemplateOption {
+  id: string;
+  label: string;
+}
+function templatesParaCautelar(cautelar: Cautelar, matter?: Matter): TemplateOption[] {
+  const esFamilia = matter?.type === 'Familia';
+  const esDivorcio = (matter?.subtype || '').toLowerCase().includes('divorcio');
+  const esPba = matter?.jurisdiccion === 'pba';
+  // Helper para preferir versión PBA del template cuando existe.
+  const pickJ = (caba: string, pba: string): string => esPba ? pba : caba;
+
+  switch (cautelar.tipo) {
+    case 'inhibicion_general':
+      return esDivorcio
+        ? [{ id: pickJ('cau-inhibicion-general-divorcio', 'cau-inhibicion-general-divorcio-pba'), label: 'Inhibición General (Divorcio)' }]
+        : [{ id: 'cau-inhibicion-general-divorcio', label: 'Inhibición General (Divorcio) — adaptar' }];
+    case 'embargo':
+      // Tres flavores. El abogado elige según el bien.
+      return [
+        { id: pickJ('cau-embargo-preventivo-inmueble', 'cau-embargo-preventivo-inmueble-pba'), label: 'Embargo de inmueble' },
+        { id: pickJ('cau-embargo-cuenta-bancaria', 'cau-embargo-cuenta-bancaria-pba'),         label: 'Embargo de cuenta bancaria' },
+        ...(esFamilia ? [{ id: pickJ('cau-embargo-sueldo-alimentos', 'cau-embargo-sueldo-alimentos-pba'), label: 'Embargo de sueldo (alimentos)' }] : []),
+      ];
+    case 'intervencion_judicial':
+      return [
+        { id: 'cau-intervencion-judicial-recaudadora', label: 'Intervención recaudadora' },
+        { id: 'cau-intervencion-veedora',              label: 'Intervención veedora' },
+      ];
+    case 'secuestro':
+      return [{ id: 'cau-secuestro', label: 'Secuestro de cosa litigiosa' }];
+    case 'anotacion_litis':
+      return [{ id: pickJ('cau-anotacion-litis', 'cau-anotacion-litis-pba'), label: 'Anotación de litis' }];
+    case 'prohibicion_innovar':
+      return esFamilia
+        ? [{ id: pickJ('cau-no-innovar-familia', 'cau-no-innovar-familia-pba'), label: 'No innovar (Familia)' }]
+        : [{ id: pickJ('cau-no-innovar', 'cau-no-innovar-pba'), label: 'No innovar' }];
+    case 'prohibicion_contratar':
+      return [{ id: 'cau-prohibicion-contratar', label: 'Prohibición de contratar' }];
+    case 'otra':
+    default:
+      return [{ id: 'civ-medida-cautelar', label: 'Cautelar genérica (art. 232)' }];
+  }
+}
+
 export const CautelaresPanel: React.FC<CautelaresPanelProps> = ({
   matterId, prefillNuevaCautelar, onPrefillConsumido,
 }) => {
+  const navigate = useNavigate();
   const {
-    cautelares, veedores, bienes, sociedadesInterpuestas,
+    cautelares, veedores, bienes, sociedadesInterpuestas, matters,
     handleCreateCautelar, handleUpdateCautelar, handleDeleteCautelar,
     handleCreateVeedor,   handleUpdateVeedor,   handleDeleteVeedor,
   } = useAppContext();
+  // GAP UX-34: el matter del panel — necesario para el mapping de
+  // templates por fuero / jurisdicción al generar escrito.
+  const matterDelPanel = useMemo(
+    () => matters.find(m => m.id === matterId),
+    [matters, matterId],
+  );
+
+  // Navega a /plantillas con el template + matter pre-cargados.
+  const generarEscritoCautelar = (templateId: string) => {
+    navigate(`/plantillas?template=${encodeURIComponent(templateId)}&matter=${encodeURIComponent(matterId)}`);
+  };
 
   const cautelaresDelMatter = useMemo(
     () => cautelares.filter(c => c.matterId === matterId),
@@ -162,8 +224,10 @@ export const CautelaresPanel: React.FC<CautelaresPanelProps> = ({
               bien={c.bienId ? bienesDelMatter.find(b => b.id === c.bienId) : undefined}
               sociedad={c.sociedadInterpuestaId ? sociedadesDelMatter.find(s => s.id === c.sociedadInterpuestaId) : undefined}
               veedoresVinculados={veedoresDelMatter.filter(v => v.cautelarId === c.id)}
+              templates={templatesParaCautelar(c, matterDelPanel)}
               onEdit={() => { setCautEditing(c); setCautFormOpen(true); }}
               onDelete={() => onDeleteCaut(c)}
+              onGenerarEscrito={generarEscritoCautelar}
             />
           ))}
         </div>
@@ -248,9 +312,14 @@ const CautelarCard: React.FC<{
   bien?: { id: string; descripcion: string };
   sociedad?: { id: string; denominacion: string };
   veedoresVinculados: Veedor[];
+  /** GAP UX-34: opciones de plantillas a generar para esta cautelar.
+   *  La card muestra un menú si hay >1, o un botón directo si hay 1. */
+  templates: TemplateOption[];
   onEdit: () => void;
   onDelete: () => void;
-}> = ({ cautelar: c, bien, sociedad, veedoresVinculados, onEdit, onDelete }) => {
+  onGenerarEscrito: (templateId: string) => void;
+}> = ({ cautelar: c, bien, sociedad, veedoresVinculados, templates, onEdit, onDelete, onGenerarEscrito }) => {
+  const [escritoMenuOpen, setEscritoMenuOpen] = useState(false);
   const vigente = ESTADO_VIGENTE.includes(c.estado);
   return (
     <div className={cn(
@@ -323,7 +392,52 @@ const CautelarCard: React.FC<{
           {c.notas && <p className="text-[11px] text-muted-foreground italic">{c.notas}</p>}
         </div>
 
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="flex items-center gap-1 shrink-0 relative">
+          {/* GAP UX-34: generar escrito (PDF / texto) desde plantilla.
+              Si hay 1 template, click directo. Si hay varios, menú. */}
+          {templates.length === 1 && (
+            <button
+              onClick={() => onGenerarEscrito(templates[0].id)}
+              className="inline-flex items-center gap-1 h-7 px-2 rounded-md border border-foreground/20 bg-foreground/5 text-foreground hover:bg-foreground/10 text-[10px] font-bold uppercase tracking-wider transition-colors"
+              title="Generar escrito desde plantilla pre-llenada con los datos del matter"
+            >
+              <FileText size={11} /> Escrito
+            </button>
+          )}
+          {templates.length > 1 && (
+            <>
+              <button
+                onClick={() => setEscritoMenuOpen(o => !o)}
+                className="inline-flex items-center gap-1 h-7 px-2 rounded-md border border-foreground/20 bg-foreground/5 text-foreground hover:bg-foreground/10 text-[10px] font-bold uppercase tracking-wider transition-colors"
+                title="Elegir plantilla y generar el escrito"
+              >
+                <FileText size={11} /> Escrito ▾
+              </button>
+              {escritoMenuOpen && (
+                <>
+                  {/* Backdrop para cerrar al click afuera */}
+                  <div
+                    className="fixed inset-0 z-10"
+                    onClick={() => setEscritoMenuOpen(false)}
+                  />
+                  <div className="absolute right-0 top-9 z-20 min-w-[260px] rounded-xl border border-border/60 bg-card shadow-2xl py-1.5">
+                    <div className="px-3 py-1.5 text-[9px] font-black uppercase tracking-widest text-muted-foreground">
+                      Generar escrito desde…
+                    </div>
+                    {templates.map(t => (
+                      <button
+                        key={t.id}
+                        onClick={() => { setEscritoMenuOpen(false); onGenerarEscrito(t.id); }}
+                        className="w-full text-left px-3 py-2 text-[12px] hover:bg-muted/50 transition-colors"
+                      >
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </>
+          )}
           <button onClick={onEdit} className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors" title="Editar">
             <Pencil size={14} />
           </button>
