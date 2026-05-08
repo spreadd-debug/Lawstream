@@ -1726,7 +1726,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // 2. Calcular cambios en tasks usando el caseData NUEVO
     const matterTasks = tasks.filter(t => t.matterId === matterId);
-    const { aCancelar, aCrear } = regenerarTareasFaltantes(matterActualizado, template, matterTasks);
+    const { aCancelar, aCrear, aAutoCompletar } = regenerarTareasFaltantes(matterActualizado, template, matterTasks);
 
     // Detectar si es la PRIMERA definición (no había tipo real antes) o
     // una mutación entre dos tipos reales. Cambia la copy del evento y la
@@ -1775,6 +1775,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setTasks(prev => [...created, ...prev]);
     }
 
+    // 4.b. Auto-completar tareas existentes Pendientes cuyo autoCompleteIf
+    // ahora se cumple (típicamente "Determinar si es unilateral o de común
+    // acuerdo" cuando tipo_divorcio muta de 'Por definir' a un valor real).
+    for (const t of aAutoCompletar) {
+      try {
+        await db.updateTask(t.id, {
+          status:      'Completada',
+          completedAt: ahoraIso,
+          completedBy: 'Sistema',
+        });
+      } catch (err) {
+        console.error('Error auto-completando tarea por mutación:', t.id, err);
+      }
+    }
+    if (aAutoCompletar.length > 0) {
+      const autoIds = new Set(aAutoCompletar.map(t => t.id));
+      setTasks(prev => prev.map(t =>
+        autoIds.has(t.id)
+          ? { ...t, status: 'Completada', completedAt: ahoraIso, completedBy: 'Sistema' }
+          : t,
+      ));
+    }
+
     // 5. Crear evento en timeline procesal — guardamos los IDs concretos
     // de tareas canceladas y creadas para que el "Deshacer mutación"
     // (UX-25) pueda revertir la operación con precisión.
@@ -1790,14 +1813,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         origen:       'manual',
         documentosUrls: [],
         metadata: {
-          tipo_anterior:           tipoActual ?? null,
-          tipo_nuevo:              nuevoTipo,
+          tipo_anterior:               tipoActual ?? null,
+          tipo_nuevo:                  nuevoTipo,
           motivo,
-          es_primera_definicion:   esPrimeraDefinicion,
-          tareas_canceladas:       aCancelar.length,
-          tareas_creadas:          created.length,
-          tareas_canceladas_ids:   aCancelar.map(t => t.id),
-          tareas_creadas_ids:      created.map(t => t.id),
+          es_primera_definicion:       esPrimeraDefinicion,
+          tareas_canceladas:           aCancelar.length,
+          tareas_creadas:              created.length,
+          tareas_auto_completadas:     aAutoCompletar.length,
+          tareas_canceladas_ids:       aCancelar.map(t => t.id),
+          tareas_creadas_ids:          created.map(t => t.id),
+          tareas_auto_completadas_ids: aAutoCompletar.map(t => t.id),
         },
       });
     } catch (err) {
@@ -1810,8 +1835,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       to:     nuevoTipo,
       motivo,
       fecha:  fechaMutacion,
-      tareas_canceladas: aCancelar.length,
-      tareas_creadas:    created.length,
+      tareas_canceladas:       aCancelar.length,
+      tareas_creadas:          created.length,
+      tareas_auto_completadas: aAutoCompletar.length,
     });
 
     return { canceladas: aCancelar.length, creadas: created.length };

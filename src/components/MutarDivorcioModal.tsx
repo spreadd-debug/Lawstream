@@ -76,11 +76,16 @@ export const MutarDivorcioModal: React.FC<MutarDivorcioModalProps> = ({ isOpen, 
 
   // Preview: simulamos el resultado con caseData hipotético.
   const preview = useMemo(() => {
-    if (!isOpen) return { aCancelar: [] as Task[], aCrear: [] as Array<{ title: string; etapa?: string }> };
+    const vacio = {
+      aCancelar:      [] as Task[],
+      aCrear:         [] as Array<{ title: string; etapa?: string }>,
+      aAutoCompletar: [] as Task[],
+    };
+    if (!isOpen) return vacio;
     const template = matter.flowTemplateId
       ? MATTER_TEMPLATES.find(t => t.id === matter.flowTemplateId)
       : findTemplate(matter.type, matter.subtype, matter.jurisdiccion);
-    if (!template) return { aCancelar: [], aCrear: [] };
+    if (!template) return vacio;
     const matterHipotetico: Matter = {
       ...matter,
       caseData: { ...(matter.caseData ?? {}), tipo_divorcio: nuevoTipo },
@@ -206,9 +211,34 @@ export const MutarDivorcioModal: React.FC<MutarDivorcioModalProps> = ({ isOpen, 
             {esPrimeraDefinicion ? 'Vista previa de la definición' : 'Vista previa de la mutación'}
           </h4>
 
-          {preview.aCancelar.length === 0 && preview.aCrear.length === 0 && (
+          {preview.aCancelar.length === 0 && preview.aCrear.length === 0 && preview.aAutoCompletar.length === 0 && (
             <div className="rounded-xl border border-dashed border-border/60 p-3 text-[12px] text-muted-foreground">
               No hay cambios estructurales — el flujo no tiene tareas que dependan del tipo de divorcio en este template.
+            </div>
+          )}
+
+          {/* GAP UX-32: tareas que ya existen como Pendientes y ahora se
+              auto-completan porque el campo de caseData se definió
+              (ej. "Determinar si es unilateral o de común acuerdo" cuando
+              tipo_divorcio pasa de 'Por definir' a un valor real). */}
+          {preview.aAutoCompletar.length > 0 && (
+            <div className="rounded-xl border border-sky-500/30 bg-sky-500/5 p-3 space-y-2">
+              <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-widest text-sky-700">
+                <CheckCircle2 size={14} />
+                Se completarán {preview.aAutoCompletar.length} tarea{preview.aAutoCompletar.length === 1 ? '' : 's'} pendiente{preview.aAutoCompletar.length === 1 ? '' : 's'}
+              </div>
+              <ul className="space-y-0.5 text-[12px] text-foreground/90 pl-2">
+                {preview.aAutoCompletar.map(t => (
+                  <li key={t.id}>
+                    <span className="text-muted-foreground">[{t.etapa || 'sin etapa'}]</span>{' '}
+                    {t.title}
+                  </li>
+                ))}
+              </ul>
+              <p className="text-[10px] text-muted-foreground italic">
+                Estas tareas se auto-completan porque el dato que las resolvía
+                ya quedó cargado.
+              </p>
             </div>
           )}
 

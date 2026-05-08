@@ -381,24 +381,31 @@ export function instantiateFlow(
 // vieja quedan inconsistentes. Este helper compara el estado actual de
 // tasks en DB contra lo que el template AHORA pide y devuelve:
 //
-//   • aCancelar — tasks Pendiente cuya condition ya no matchea.
-//                 Tasks Completada NO se cancelan: tienen valor histórico.
-//   • aCrear    — tasks del template (etapa, title) cuya condition matchea
-//                 ahora y que no existen en DB todavía.
+//   • aCancelar       — tasks Pendiente cuya condition ya no matchea.
+//                       Tasks Completada NO se cancelan: tienen valor histórico.
+//   • aCrear          — tasks del template (etapa, title) cuya condition matchea
+//                       ahora y que no existen en DB todavía.
+//   • aAutoCompletar  — tasks Pendiente que YA EXISTEN en DB y cuyo
+//                       autoCompleteIf ahora se cumple (ej. el campo
+//                       tipo_divorcio mutó de 'Por definir' a un valor real:
+//                       la tarea "Determinar si es unilateral o de común
+//                       acuerdo" debe pasar a Completada sola).
 //
-// El llamador es responsable de persistir cancelación + creación + audit.
+// El llamador es responsable de persistir cancelación + creación + auto-
+// completado + audit.
 
 export function regenerarTareasFaltantes(
   matter: Matter,
   template: MatterTemplate,
   existingTasks: Task[],
-): { aCancelar: Task[]; aCrear: Omit<Task, 'id'>[] } {
+): { aCancelar: Task[]; aCrear: Omit<Task, 'id'>[]; aAutoCompletar: Task[] } {
   const cd = matter.caseData ?? {};
   const aCancelar: Task[] = [];
   const aCrear: Omit<Task, 'id'>[] = [];
+  const aAutoCompletar: Task[] = [];
 
   if (!template.stages || template.stages.length === 0) {
-    return { aCancelar, aCrear };
+    return { aCancelar, aCrear, aAutoCompletar };
   }
 
   // Indexar tasks existentes del matter por (etapa, title) — comparamos
@@ -421,6 +428,8 @@ export function regenerarTareasFaltantes(
       if (conditionMatches) expectedKeys.add(key);
 
       const existing = existingByKey.get(key);
+      const autoCompleted = shouldAutoComplete(taskDef.autoCompleteIf, cd);
+
       if (existing) {
         // Existe en DB. Si la condición ya NO matchea y la tarea está
         // pendiente, marcarla para cancelar. Tasks Completada o Cancelada
@@ -428,10 +437,14 @@ export function regenerarTareasFaltantes(
         if (!conditionMatches && existing.status === 'Pendiente') {
           aCancelar.push(existing);
         }
+        // Si la condición sigue matcheando, la tarea está Pendiente y
+        // ahora autoCompleteIf se cumple — auto-completarla.
+        else if (conditionMatches && existing.status === 'Pendiente' && autoCompleted) {
+          aAutoCompletar.push(existing);
+        }
       } else {
         // No existe en DB. Si matchea, crear.
         if (conditionMatches) {
-          const autoCompleted = shouldAutoComplete(taskDef.autoCompleteIf, cd);
           aCrear.push({
             matterId: matter.id,
             title: taskDef.task,
@@ -450,5 +463,5 @@ export function regenerarTareasFaltantes(
     }
   }
 
-  return { aCancelar, aCrear };
+  return { aCancelar, aCrear, aAutoCompletar };
 }
