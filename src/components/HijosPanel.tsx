@@ -6,8 +6,14 @@ import {
   AcompananteTerapeutico,
   CuotaAlimentaria,
   CuotaConceptoEspecie,
+  CategoriaConceptoEspecie,
+  FrecuenciaCuotaAlim,
+  PagadorConcepto,
+  Moneda,
   ESTADO_CUD_LABELS,
   ACOMPANANTE_LABELS,
+  CATEGORIA_CONCEPTO_LABELS,
+  FRECUENCIA_CUOTA_LABELS,
 } from '../types';
 import { Modal, Button, Input, Textarea, Label, Badge } from './UI';
 import { cn } from '../lib/utils';
@@ -20,27 +26,30 @@ import {
 } from 'lucide-react';
 import { edadEnAnios } from '../lib/hijosTransicion';
 
-// GAP UX-29: resumen de gastos cargados (canasta + cuotas reales) para un
-// hijo específico. Solo cuenta conceptos donde hijoId === h.id (los
-// asignados directo a este hijo). Los conceptos compartidos de la familia
-// se ven en el panel de cuotas.
-interface ResumenGastosHijo {
-  mensualARS: number;
-  mensualUSD: number;
-  conceptosOtraFrecuencia: number;
-  totalConceptos: number;
-  hayBorrador: boolean;
-  hayCuotaReal: boolean;
+// GAP UX-29 (revisión): los gastos del hijo viven en la card del hijo,
+// no en un panel separado. Internamente seguimos persistiendo como
+// `cuota_concepto_especie` colgando de una `cuota_alimentaria` en estado
+// 'borrador' (la "canasta" del matter), pero el usuario nunca ve la
+// canasta — sólo carga "gastos del hijo X". Cuando llega el momento del
+// pedido formal, en CuotasAlimentariasPanel se convierte la canasta a
+// cuota provisoria preservando todos los conceptos.
+
+interface GastosHijoDesglose {
+  conceptosPropios:   CuotaConceptoEspecie[];   // hijoId === h.id
+  mensualARS:         number;
+  mensualUSD:         number;
+  otraFrecuencia:     number;
+  hayBorrador:        boolean;
+  hayCuotaReal:       boolean;
 }
 
-function resumenGastosDeHijo(
+function gastosDelHijo(
   hijoId: string,
   cuotasDelMatter: CuotaAlimentaria[],
   conceptos: CuotaConceptoEspecie[],
-): ResumenGastosHijo | null {
+): GastosHijoDesglose {
   const cuotaIds = new Set(cuotasDelMatter.map(c => c.id));
   const propios = conceptos.filter(ce => ce.hijoId === hijoId && cuotaIds.has(ce.cuotaAlimentariaId));
-  if (propios.length === 0) return null;
   let mensualARS = 0;
   let mensualUSD = 0;
   let otros = 0;
@@ -51,17 +60,17 @@ function resumenGastosDeHijo(
     if (cuota?.estado === 'borrador') hayBorrador = true;
     else if (cuota) hayCuotaReal = true;
     if (ce.frecuencia === 'mensual' && ce.montoEstimado != null) {
-      if (ce.moneda === 'USD')      mensualUSD += ce.montoEstimado;
-      else                          mensualARS += ce.montoEstimado;
+      if (ce.moneda === 'USD') mensualUSD += ce.montoEstimado;
+      else                     mensualARS += ce.montoEstimado;
     } else {
       otros++;
     }
   }
   return {
+    conceptosPropios: propios,
     mensualARS,
     mensualUSD,
-    conceptosOtraFrecuencia: otros,
-    totalConceptos:          propios.length,
+    otraFrecuencia:  otros,
     hayBorrador,
     hayCuotaReal,
   };
@@ -69,6 +78,14 @@ function resumenGastosDeHijo(
 
 const formatMonto = (n: number, simbolo: string): string =>
   `${simbolo} ${n.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+
+// Categorías comunes para el form rápido de gasto del hijo. El enum
+// completo (CATEGORIA_CONCEPTO_LABELS) sigue disponible — esto es solo
+// el orden que mostramos por defecto.
+const CATEGORIAS_GASTO_HIJO: CategoriaConceptoEspecie[] = [
+  'colegio', 'extracurricular', 'prepaga', 'terapia', 'acompanante_terapeutico',
+  'transporte', 'gastos_medicos', 'medicamentos', 'vestimenta', 'otro',
+];
 
 interface HijosPanelProps {
   matterId: string;
@@ -99,6 +116,8 @@ export const HijosPanel: React.FC<HijosPanelProps> = ({ matterId }) => {
   const {
     hijos, matters, cuotasAlimentarias, cuotaConceptosEspecie,
     handleCreateHijoCaso, handleUpdateHijoCaso, handleDeleteHijoCaso,
+    handleCreateCuotaAlimentaria,
+    handleCreateCuotaConceptoEspecie, handleUpdateCuotaConceptoEspecie, handleDeleteCuotaConceptoEspecie,
   } = useAppContext();
 
   // Si este matter es sub-proceso (incidente / apelación), los hijos viven
@@ -133,20 +152,59 @@ export const HijosPanel: React.FC<HijosPanelProps> = ({ matterId }) => {
   }, [hijos, matterId, parentMatterId]);
 
   // GAP UX-29: las cuotas (incluidas las canastas borrador) viven en el
-  // matter raíz cuando este es sub-proceso. El resumen de gastos por hijo
-  // se calcula sobre todas las cuotas del matter raíz.
+  // matter raíz cuando este es sub-proceso. Los gastos por hijo se
+  // calculan sobre todas las cuotas del matter raíz.
   const cuotasDelMatterRaiz = useMemo(
     () => cuotasAlimentarias.filter(c => c.matterId === rootMatterId),
     [cuotasAlimentarias, rootMatterId],
   );
-  const resumenGastosPorHijoId = useMemo(() => {
-    const map = new Map<string, ResumenGastosHijo>();
+  const gastosPorHijoId = useMemo(() => {
+    const map = new Map<string, GastosHijoDesglose>();
     for (const h of hijosDelMatter) {
-      const r = resumenGastosDeHijo(h.id, cuotasDelMatterRaiz, cuotaConceptosEspecie);
-      if (r) map.set(h.id, r);
+      map.set(h.id, gastosDelHijo(h.id, cuotasDelMatterRaiz, cuotaConceptosEspecie));
     }
     return map;
   }, [hijosDelMatter, cuotasDelMatterRaiz, cuotaConceptosEspecie]);
+
+  // Helper que devuelve la canasta borrador del matter raíz, creándola
+  // si no existe. Toda la persistencia de "gastos del hijo" es contra
+  // un único borrador por matter — el usuario no lo ve, lo manipula
+  // implícitamente al cargar gastos en HijoCard.
+  const getOrCreateCanastaBorrador = async (): Promise<string> => {
+    const existente = cuotasDelMatterRaiz.find(c => c.estado === 'borrador');
+    if (existente) return existente.id;
+    const creada = await handleCreateCuotaAlimentaria({
+      matterId:        rootMatterId,
+      estado:          'borrador',
+      obligadoRol:     'contraparte',
+      alcance:         'todos_los_hijos',
+      hijosCubiertos:  [],
+      frecuencia:      'mensual',
+    } as Omit<CuotaAlimentaria, 'id' | 'createdAt' | 'updatedAt'>);
+    return creada.id;
+  };
+
+  // Form modal de gasto — se abre desde cualquier HijoCard.
+  const [gastoFormHijoId, setGastoFormHijoId]       = useState<string | null>(null);
+  const [gastoEditing, setGastoEditing]             = useState<CuotaConceptoEspecie | null>(null);
+
+  const openNuevoGasto = (hijoId: string) => {
+    setGastoEditing(null);
+    setGastoFormHijoId(hijoId);
+  };
+  const openEditarGasto = (gasto: CuotaConceptoEspecie) => {
+    setGastoEditing(gasto);
+    setGastoFormHijoId(gasto.hijoId ?? null);
+  };
+  const closeGastoForm = () => {
+    setGastoFormHijoId(null);
+    setGastoEditing(null);
+  };
+
+  const onDeleteGasto = async (gasto: CuotaConceptoEspecie) => {
+    if (!window.confirm(`Eliminar el gasto "${gasto.concepto}"?`)) return;
+    await handleDeleteCuotaConceptoEspecie(gasto.id);
+  };
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editing, setEditing] = useState<HijoCaso | null>(null);
@@ -202,9 +260,12 @@ export const HijosPanel: React.FC<HijosPanelProps> = ({ matterId }) => {
           <HijoCard
             key={h.id}
             hijo={h}
-            resumenGastos={resumenGastosPorHijoId.get(h.id)}
+            gastos={gastosPorHijoId.get(h.id)}
             onEdit={() => openEdit(h)}
             onDelete={() => onDelete(h)}
+            onAgregarGasto={() => openNuevoGasto(h.id)}
+            onEditarGasto={openEditarGasto}
+            onEliminarGasto={onDeleteGasto}
           />
         ))}
       </div>
@@ -223,6 +284,29 @@ export const HijosPanel: React.FC<HijosPanelProps> = ({ matterId }) => {
           }
         }}
       />
+
+      {/* GAP UX-29 (revisión B): form de gasto que se abre desde cualquier
+          HijoCard. La canasta borrador se crea on-demand al guardar. */}
+      <GastoForm
+        isOpen={gastoFormHijoId !== null}
+        hijoId={gastoFormHijoId}
+        editing={gastoEditing}
+        nombreHijo={hijosDelMatter.find(h => h.id === gastoFormHijoId)?.nombre}
+        onClose={closeGastoForm}
+        onSave={async (data) => {
+          if (gastoEditing) {
+            await handleUpdateCuotaConceptoEspecie(gastoEditing.id, data);
+          } else if (gastoFormHijoId) {
+            const cuotaId = await getOrCreateCanastaBorrador();
+            await handleCreateCuotaConceptoEspecie({
+              ...data,
+              cuotaAlimentariaId: cuotaId,
+              hijoId:             gastoFormHijoId,
+            } as Omit<CuotaConceptoEspecie, 'id' | 'createdAt' | 'updatedAt'>);
+          }
+          closeGastoForm();
+        }}
+      />
     </div>
   );
 };
@@ -231,12 +315,16 @@ export const HijosPanel: React.FC<HijosPanelProps> = ({ matterId }) => {
 
 const HijoCard: React.FC<{
   hijo: HijoCaso;
-  /** GAP UX-29: resumen de gastos cargados específicamente para este hijo
-   *  (canasta borrador o cuota fijada). Undefined si no hay nada cargado. */
-  resumenGastos?: ResumenGastosHijo;
+  /** GAP UX-29 (revisión B): gastos del hijo, persisten internamente como
+   *  conceptos en especie de la canasta borrador del matter. Pasados por
+   *  el panel padre. */
+  gastos?: GastosHijoDesglose;
   onEdit: () => void;
   onDelete: () => void;
-}> = ({ hijo: h, resumenGastos, onEdit, onDelete }) => {
+  onAgregarGasto: () => void;
+  onEditarGasto: (g: CuotaConceptoEspecie) => void;
+  onEliminarGasto: (g: CuotaConceptoEspecie) => Promise<void>;
+}> = ({ hijo: h, gastos, onEdit, onDelete, onAgregarGasto, onEditarGasto, onEliminarGasto }) => {
   const edad = edadEnAnios(h.fechaNacimiento);
   const fechaCumple18 = (() => {
     try { return addYears(parseISO(h.fechaNacimiento), 18); } catch { return null; }
@@ -359,43 +447,17 @@ const HijoCard: React.FC<{
             </div>
           )}
 
-          {/* GAP UX-29: resumen de gastos cargados para este hijo. Sirve
-              de bridge entre el panel de hijos y el panel de cuotas. */}
-          {resumenGastos && (
-            <div className="text-[11px] text-foreground/90 bg-emerald-500/5 border border-emerald-500/20 rounded-lg px-3 py-2 flex items-start gap-2">
-              <Wallet size={12} className="shrink-0 mt-0.5 text-emerald-700" />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-bold text-emerald-700">Gastos cargados:</span>
-                  {resumenGastos.mensualARS > 0 && (
-                    <span className="font-bold text-foreground">
-                      {formatMonto(resumenGastos.mensualARS, '$')}/mes
-                    </span>
-                  )}
-                  {resumenGastos.mensualUSD > 0 && (
-                    <span className="font-bold text-foreground">
-                      {formatMonto(resumenGastos.mensualUSD, 'US$')}/mes
-                    </span>
-                  )}
-                  {resumenGastos.conceptosOtraFrecuencia > 0 && (
-                    <span className="text-muted-foreground italic">
-                      + {resumenGastos.conceptosOtraFrecuencia} con frecuencia/monto distinto
-                    </span>
-                  )}
-                </div>
-                <div className="text-[10px] text-muted-foreground flex items-center gap-2 flex-wrap mt-0.5">
-                  <span>{resumenGastos.totalConceptos} concepto{resumenGastos.totalConceptos === 1 ? '' : 's'} específico{resumenGastos.totalConceptos === 1 ? '' : 's'}</span>
-                  {resumenGastos.hayBorrador && (
-                    <span className="text-violet-700 dark:text-violet-300">· en canasta borrador</span>
-                  )}
-                  {resumenGastos.hayCuotaReal && (
-                    <span className="text-emerald-700 dark:text-emerald-300">· en cuota fijada</span>
-                  )}
-                  <span className="italic">— editá desde la pestaña de cuotas alimentarias</span>
-                </div>
-              </div>
-            </div>
-          )}
+          {/* GAP UX-29 (revisión B): sección editable de gastos del hijo.
+              Reemplaza al resumen pasivo anterior — los gastos se cargan
+              directo desde acá, sin tener que entender el panel de cuotas
+              ni el modelo de canasta/borrador. La canasta se crea sola
+              por debajo cuando se guarda el primer gasto del matter. */}
+          <GastosDeHijo
+            gastos={gastos}
+            onAgregar={onAgregarGasto}
+            onEditar={onEditarGasto}
+            onEliminar={onEliminarGasto}
+          />
 
           {h.notas && (
             <p className="text-[11px] text-muted-foreground italic">{h.notas}</p>
@@ -765,6 +827,291 @@ const HijoForm: React.FC<HijoFormProps> = ({ isOpen, editing, nextOrden, regimen
             className="min-h-[60px]"
           />
         </section>
+      </div>
+    </Modal>
+  );
+};
+
+// ─── Gastos del hijo (GAP UX-29 revisión B) ────────────────────
+//
+// Sub-bloque editable dentro de cada HijoCard. Lista los gastos
+// específicos del hijo (concepto + monto + frecuencia) y expone CTAs
+// para agregar / editar / eliminar.
+
+const GastosDeHijo: React.FC<{
+  gastos?: GastosHijoDesglose;
+  onAgregar: () => void;
+  onEditar:  (g: CuotaConceptoEspecie) => void;
+  onEliminar: (g: CuotaConceptoEspecie) => Promise<void>;
+}> = ({ gastos, onAgregar, onEditar, onEliminar }) => {
+  const conceptos = gastos?.conceptosPropios ?? [];
+
+  return (
+    <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 space-y-2">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Wallet size={12} className="text-emerald-700" />
+          <span className="text-[11px] font-black uppercase tracking-widest text-emerald-700">
+            Gastos del hijo
+          </span>
+          {gastos && gastos.mensualARS > 0 && (
+            <span className="text-[11px] font-bold text-foreground">
+              {formatMonto(gastos.mensualARS, '$')}/mes
+            </span>
+          )}
+          {gastos && gastos.mensualUSD > 0 && (
+            <span className="text-[11px] font-bold text-foreground">
+              {formatMonto(gastos.mensualUSD, 'US$')}/mes
+            </span>
+          )}
+          {gastos && gastos.otraFrecuencia > 0 && (
+            <span className="text-[10px] text-muted-foreground italic">
+              + {gastos.otraFrecuencia} con frecuencia/monto distinto
+            </span>
+          )}
+        </div>
+        <button
+          onClick={onAgregar}
+          className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md border border-emerald-500/40 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200 text-[10px] font-bold uppercase tracking-wider hover:bg-emerald-500/20 transition-colors"
+        >
+          <Plus size={11} /> Agregar gasto
+        </button>
+      </div>
+
+      {conceptos.length === 0 && (
+        <p className="text-[11px] text-muted-foreground italic">
+          Sin gastos cargados — agregá colegio, actividades, prepaga, terapias. Sirven después para fundar el pedido de cuota.
+        </p>
+      )}
+
+      {conceptos.length > 0 && (
+        <ul className="space-y-1">
+          {conceptos.map(g => (
+            <li key={g.id} className="flex items-start gap-2 px-2 py-1.5 rounded-md bg-background/50 border border-border/40">
+              <Sparkles size={11} className="shrink-0 mt-0.5 text-emerald-600" />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-[12px] font-bold text-foreground">{g.concepto}</span>
+                  <Badge variant="outline" className="text-[8px]">{CATEGORIA_CONCEPTO_LABELS[g.categoria]}</Badge>
+                  {g.montoEstimado != null && (
+                    <span className="text-[11px] font-bold text-emerald-700">
+                      {formatMonto(g.montoEstimado, g.moneda === 'USD' ? 'US$' : g.moneda === 'EUR' ? '€' : '$')}
+                      {' / '}
+                      {FRECUENCIA_CUOTA_LABELS[g.frecuencia].toLowerCase()}
+                    </span>
+                  )}
+                </div>
+                {g.prestador && (
+                  <p className="text-[10px] text-muted-foreground">{g.prestador}</p>
+                )}
+              </div>
+              <div className="flex items-center gap-1 shrink-0">
+                <button onClick={() => onEditar(g)} className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors" title="Editar gasto">
+                  <Pencil size={11} />
+                </button>
+                <button onClick={() => onEliminar(g)} className="p-1 rounded hover:bg-rose-500/10 text-muted-foreground hover:text-rose-600 transition-colors" title="Eliminar gasto">
+                  <Trash2 size={11} />
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+};
+
+// ─── Form modal de gasto ───────────────────────────────────────
+//
+// Form rápido para cargar un gasto del hijo. Defaults razonables: ARS
+// como moneda, mensual como frecuencia, "obligado paga directo" como
+// pagador. El usuario puede ajustar después desde el panel de cuotas
+// si necesita más control (ej. reembolso, compartido, AT específico).
+
+interface GastoFormProps {
+  isOpen: boolean;
+  hijoId: string | null;
+  nombreHijo?: string;
+  editing: CuotaConceptoEspecie | null;
+  onClose: () => void;
+  onSave: (data: Partial<CuotaConceptoEspecie>) => Promise<void>;
+}
+
+const GastoForm: React.FC<GastoFormProps> = ({ isOpen, hijoId, nombreHijo, editing, onClose, onSave }) => {
+  const [categoria, setCategoria]       = useState<CategoriaConceptoEspecie>('colegio');
+  const [concepto, setConcepto]         = useState('');
+  const [prestador, setPrestador]       = useState('');
+  const [monto, setMonto]               = useState('');
+  const [moneda, setMoneda]             = useState<Moneda>('ARS');
+  const [frecuencia, setFrecuencia]     = useState<FrecuenciaCuotaAlim>('mensual');
+  const [pagador, setPagador]           = useState<PagadorConcepto>('obligado_directo');
+  const [pagadorDetalle, setPagadorDetalle] = useState('');
+  const [notas, setNotas]               = useState('');
+  const [saving, setSaving]             = useState(false);
+
+  React.useEffect(() => {
+    if (!isOpen) return;
+    setCategoria(editing?.categoria         ?? 'colegio');
+    setConcepto(editing?.concepto           ?? '');
+    setPrestador(editing?.prestador         ?? '');
+    setMonto(editing?.montoEstimado != null ? String(editing.montoEstimado) : '');
+    setMoneda(editing?.moneda               ?? 'ARS');
+    setFrecuencia(editing?.frecuencia       ?? 'mensual');
+    setPagador(editing?.pagador             ?? 'obligado_directo');
+    setPagadorDetalle(editing?.pagadorDetalle ?? '');
+    setNotas(editing?.notas                 ?? '');
+  }, [isOpen, editing]);
+
+  const puedeGuardar = concepto.trim().length > 0;
+
+  const handleSubmit = async () => {
+    if (!puedeGuardar) return;
+    setSaving(true);
+    try {
+      const montoNum = monto.trim() ? Number(monto.replace(',', '.')) : undefined;
+      await onSave({
+        categoria,
+        concepto:        concepto.trim(),
+        prestador:       prestador.trim()       || undefined,
+        montoEstimado:   Number.isFinite(montoNum) ? montoNum : undefined,
+        moneda:          montoNum != null ? moneda : undefined,
+        frecuencia,
+        pagador,
+        pagadorDetalle:  pagadorDetalle.trim() || undefined,
+        notas:           notas.trim()          || undefined,
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={saving ? () => {} : onClose}
+      title={editing
+        ? `Editar gasto${nombreHijo ? ' de ' + nombreHijo : ''}`
+        : `Nuevo gasto${nombreHijo ? ' de ' + nombreHijo : ''}`}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose} disabled={saving}>Cancelar</Button>
+          <Button variant="primary" onClick={handleSubmit} disabled={saving || !puedeGuardar}>
+            {saving ? 'Guardando…' : (editing ? 'Guardar cambios' : 'Agregar gasto')}
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label>Categoría *</Label>
+            <select
+              value={categoria}
+              onChange={e => setCategoria(e.target.value as CategoriaConceptoEspecie)}
+              className="w-full h-10 px-3 bg-muted/50 border border-border/50 rounded-xl text-sm font-bold"
+            >
+              {CATEGORIAS_GASTO_HIJO.map(cat => (
+                <option key={cat} value={cat}>{CATEGORIA_CONCEPTO_LABELS[cat]}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <Label>Frecuencia</Label>
+            <select
+              value={frecuencia}
+              onChange={e => setFrecuencia(e.target.value as FrecuenciaCuotaAlim)}
+              className="w-full h-10 px-3 bg-muted/50 border border-border/50 rounded-xl text-sm font-bold"
+            >
+              {(Object.keys(FRECUENCIA_CUOTA_LABELS) as FrecuenciaCuotaAlim[]).map(f => (
+                <option key={f} value={f}>{FRECUENCIA_CUOTA_LABELS[f]}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <Label>Concepto *</Label>
+          <Input
+            value={concepto}
+            onChange={e => setConcepto(e.target.value)}
+            placeholder='Ej: "Colegio Parroquial San José" / "Fútbol Club Atlanta" / "TO Lic. Pérez 2x/sem"'
+          />
+        </div>
+
+        <div>
+          <Label>Prestador</Label>
+          <Input
+            value={prestador}
+            onChange={e => setPrestador(e.target.value)}
+            placeholder='Opcional — quién brinda el servicio'
+          />
+        </div>
+
+        <div className="grid grid-cols-3 gap-3">
+          <div className="col-span-2">
+            <Label>Monto estimado</Label>
+            <Input
+              type="text"
+              value={monto}
+              onChange={e => setMonto(e.target.value.replace(/[^0-9.,]/g, ''))}
+              placeholder="280000"
+            />
+          </div>
+          <div>
+            <Label>Moneda</Label>
+            <select
+              value={moneda}
+              onChange={e => setMoneda(e.target.value as Moneda)}
+              className="w-full h-10 px-3 bg-muted/50 border border-border/50 rounded-xl text-sm font-bold"
+            >
+              <option value="ARS">ARS</option>
+              <option value="USD">USD</option>
+              <option value="EUR">EUR</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label>Quién paga</Label>
+            <select
+              value={pagador}
+              onChange={e => setPagador(e.target.value as PagadorConcepto)}
+              className="w-full h-10 px-3 bg-muted/50 border border-border/50 rounded-xl text-sm font-bold"
+            >
+              <option value="obligado_directo">Obligado paga directo</option>
+              <option value="reembolso">Beneficiario paga, obligado reembolsa</option>
+              <option value="compartido_50_50">Compartido 50/50</option>
+              <option value="compartido_otro">Compartido (otra proporción)</option>
+            </select>
+          </div>
+          <div>
+            <Label>Detalle del pagador</Label>
+            <Input
+              value={pagadorDetalle}
+              onChange={e => setPagadorDetalle(e.target.value)}
+              placeholder='Opcional — ej. "70/30"'
+            />
+          </div>
+        </div>
+
+        <div>
+          <Label>Notas</Label>
+          <Textarea
+            value={notas}
+            onChange={e => setNotas(e.target.value)}
+            placeholder="Opcional"
+            className="min-h-[60px]"
+          />
+        </div>
+
+        {!editing && (
+          <p className="text-[10px] text-muted-foreground italic">
+            Los gastos quedan agrupados en una "canasta" del caso — sirven después para fundar el pedido
+            de cuota provisoria. Cuando llegue el momento del pedido formal, desde el panel de Cuotas
+            podés convertir la canasta en cuota fijada con un click.
+          </p>
+        )}
       </div>
     </Modal>
   );

@@ -220,63 +220,40 @@ export const CuotasAlimentariasPanel: React.FC<CuotasAlimentariasPanelProps> = (
             </p>
           </div>
         </div>
-        {/* GAP UX-29: dos entradas paralelas. "Canasta" (borrador) es para
-            estructurar gastos durante la entrevista/instrucción, antes de
-            que exista pedido formal. "Cuota" es para el régimen ya fijado
-            (provisoria, definitiva, etc.). */}
-        <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => {
-              setCuotaEditing(null);
-              setNuevaCuotaPreestado('borrador');
-              setCuotaFormOpen(true);
-            }}
-            className="gap-2 border-violet-500/40 text-violet-700 hover:bg-violet-500/5"
-            title="Cargar gastos del/los hijos sin pedir cuota todavía — sirve para fundar después un pedido"
-          >
-            <Plus size={14} /> Cargar canasta
-          </Button>
-          <Button
-            size="sm"
-            onClick={() => {
-              setCuotaEditing(null);
-              setNuevaCuotaPreestado('provisoria');
-              setCuotaFormOpen(true);
-            }}
-            className="gap-2"
-          >
-            <Plus size={14} /> Nueva cuota
-          </Button>
-        </div>
+        {/* GAP UX-29 (revisión B): la entrada principal de carga es ahora
+            el panel de Hijos (cargás gastos por hijo y se agrupan en una
+            canasta automática del caso). Acá solo queda el botón para
+            crear una cuota fijada (provisoria o definitiva), que es el
+            paso siguiente cuando ya hay resolución del juzgado. */}
+        <Button
+          size="sm"
+          onClick={() => {
+            setCuotaEditing(null);
+            setNuevaCuotaPreestado('provisoria');
+            setCuotaFormOpen(true);
+          }}
+          className="gap-2"
+        >
+          <Plus size={14} /> Nueva cuota fijada
+        </Button>
       </div>
 
       {cuotasDelMatter.length === 0 && (
-        <div className="rounded-xl border-2 border-dashed border-violet-500/30 bg-violet-500/5 p-6 text-center space-y-3">
-          <Wallet size={24} className="mx-auto text-violet-600/60" />
+        <div className="rounded-xl border-2 border-dashed border-emerald-500/30 bg-emerald-500/5 p-6 text-center space-y-3">
+          <Wallet size={24} className="mx-auto text-emerald-600/60" />
           <div className="space-y-1.5">
             <p className="text-sm font-bold text-foreground">
-              Sin gastos ni cuotas cargados
+              Sin cuotas fijadas ni gastos cargados
             </p>
             <p className="text-[12px] text-muted-foreground max-w-md mx-auto">
-              Si todavía no se fijó cuota, empezá cargando la <strong>canasta de gastos</strong>:
-              colegio, actividades, prepaga, etc. Eso te queda como base para fundar el pedido
-              de cuota provisoria. Cuando llegue ese momento, convertís la canasta en cuota
-              fijada con un click.
+              Para empezar, andá al panel de <strong>Hijos</strong> y cargá los gastos recurrentes
+              (colegio, actividades, prepaga, terapias) directamente en la card de cada chico.
+              Sirven después para fundar el pedido de cuota provisoria.
+              <br /><br />
+              Si ya tenés una cuota fijada por sentencia o resolución, usá el botón
+              "Nueva cuota fijada" arriba.
             </p>
           </div>
-          <Button
-            size="sm"
-            onClick={() => {
-              setCuotaEditing(null);
-              setNuevaCuotaPreestado('borrador');
-              setCuotaFormOpen(true);
-            }}
-            className="gap-2 bg-violet-600 hover:bg-violet-700 text-white"
-          >
-            <Plus size={14} /> Cargar canasta de gastos
-          </Button>
         </div>
       )}
 
@@ -367,18 +344,19 @@ export const CuotasAlimentariasPanel: React.FC<CuotasAlimentariasPanelProps> = (
         </div>
       )}
 
-      {/* GAP UX-29: bloque de borradores arriba — visualmente separado de
-          las cuotas reales. Cuando el caso evoluciona a pedido formal, el
-          usuario convierte el borrador con "Convertir a cuota fijada". */}
+      {/* GAP UX-29 (revisión B): bloque de canasta del caso — agrupa los
+          gastos cargados desde el panel de Hijos. Cuando el caso evoluciona
+          a pedido formal, "Convertir a cuota fijada" muta el estado y los
+          gastos quedan asociados a la cuota provisoria/definitiva. */}
       {borradores.length > 0 && (
         <div className="space-y-2">
-          <div className="flex items-center gap-2 px-1">
+          <div className="flex items-center gap-2 px-1 flex-wrap">
             <Sparkles size={12} className="text-violet-600" />
             <h4 className="text-[10px] font-black uppercase tracking-widest text-violet-700 dark:text-violet-300">
-              Canasta de gastos (trabajo previo)
+              Canasta de gastos del caso
             </h4>
             <span className="text-[10px] text-muted-foreground italic">
-              — todavía no es cuota fijada
+              — agrupa los gastos cargados desde el panel de Hijos. Todavía no es cuota fijada.
             </span>
           </div>
           <div className="space-y-3">
