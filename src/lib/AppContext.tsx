@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { Matter, Client, Consultation, LegalDocument, Task, TimelineEvent, UserProfile, Communication, Expediente, MatterMilestone, EventoExpediente, Plazo, Jurisdiccion, TipoProceso, TipoEvento, HiloPrueba, Perito, CompensacionEconomica, CuotaCompensacion, FrecuenciaCuota, LetradoParte, HonorarioRegulado, MatterKind, IncidenteTipo, INCIDENTE_TIPO_LABELS, AspectoApelado, ASPECTO_APELADO_LABELS, Cedula, CedulaIntento, HijoCaso, Reconvencion, Bien, BienValuacion, SociedadInterpuesta, CausaRelacionada, Cautelar, Veedor, CuotaAlimentaria, CuotaConceptoEspecie } from '../types';
+import { Matter, Client, Consultation, LegalDocument, Task, TimelineEvent, UserProfile, Communication, Expediente, MatterMilestone, EventoExpediente, Plazo, Jurisdiccion, TipoProceso, TipoEvento, HiloPrueba, Perito, CompensacionEconomica, CuotaCompensacion, FrecuenciaCuota, LetradoParte, HonorarioRegulado, MatterKind, IncidenteTipo, INCIDENTE_TIPO_LABELS, AspectoApelado, ASPECTO_APELADO_LABELS, Cedula, CedulaIntento, HijoCaso, Reconvencion, Bien, BienValuacion, SociedadInterpuesta, CausaRelacionada, Cautelar, Veedor, CuotaAlimentaria, CuotaConceptoEspecie, Controversia } from '../types';
 import { GlobalFilters, defaultFilters } from '../components/FiltersContent';
 import { useAuth } from './auth';
 import * as db from './db';
@@ -228,6 +228,12 @@ interface AppContextType {
   handleCreateCuotaConceptoEspecie: (c: Omit<CuotaConceptoEspecie, 'id' | 'createdAt' | 'updatedAt'>) => Promise<CuotaConceptoEspecie>;
   handleUpdateCuotaConceptoEspecie: (id: string, changes: Partial<CuotaConceptoEspecie>) => Promise<void>;
   handleDeleteCuotaConceptoEspecie: (id: string) => Promise<void>;
+
+  // Controversias del caso (migración 055 — GAP UX-33)
+  controversias: Controversia[];
+  handleCreateControversia: (c: Omit<Controversia, 'id' | 'createdAt' | 'updatedAt'>) => Promise<Controversia>;
+  handleUpdateControversia: (id: string, changes: Partial<Controversia>) => Promise<void>;
+  handleDeleteControversia: (id: string) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -269,6 +275,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [veedores, setVeedores] = useState<Veedor[]>([]);
   const [cuotasAlimentarias, setCuotasAlimentarias] = useState<CuotaAlimentaria[]>([]);
   const [cuotaConceptosEspecie, setCuotaConceptosEspecie] = useState<CuotaConceptoEspecie[]>([]);
+  // GAP UX-33: controversias del caso (hechos extrajudiciales).
+  const [controversias, setControversias] = useState<Controversia[]>([]);
   const [plazos, setPlazos] = useState<Plazo[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -330,8 +338,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       safe(db.fetchVeedores(),               'veedores'),
       safe(db.fetchCuotasAlimentarias(),     'cuotas_alimentarias'),
       safe(db.fetchCuotaConceptosEspecie(),  'cuota_conceptos_especie'),
+      safe(db.fetchControversias(),          'controversias_caso'),
     ])
-      .then(([m, c, co, d, t, tl, p, ex, ms, ev, pl, hi, pe, comps, cuotas, letr, honor, ced, cedI, hjs, rec, bn, bv, si, cr, cau, vd, ca, ce]) => {
+      .then(([m, c, co, d, t, tl, p, ex, ms, ev, pl, hi, pe, comps, cuotas, letr, honor, ced, cedI, hjs, rec, bn, bv, si, cr, cau, vd, ca, ce, ctr]) => {
         setMatters(m);
         setClients(c);
         setConsultations(co);
@@ -361,6 +370,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setVeedores(vd);
         setCuotasAlimentarias(ca);
         setCuotaConceptosEspecie(ce);
+        setControversias(ctr);
       })
       .finally(() => setIsLoading(false));
   }, [userId]);
@@ -2426,6 +2436,56 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  // ── Controversias del caso (migración 055 — GAP UX-33) ─────
+  const handleCreateControversia = async (
+    c: Omit<Controversia, 'id' | 'createdAt' | 'updatedAt'>,
+  ): Promise<Controversia> => {
+    const optimistic: Controversia = {
+      ...c, id: crypto.randomUUID(),
+      createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+    };
+    setControversias(prev => [optimistic, ...prev]);
+    try {
+      const saved = await db.createControversia(c);
+      setControversias(prev => prev.map(x => x.id === optimistic.id ? saved : x));
+      audit('crear_controversia', 'controversia', saved.id, saved.titulo, {
+        matterId: saved.matterId, categoria: saved.categoria, plazoCritico: saved.plazoCritico,
+      });
+      return saved;
+    } catch (err) {
+      console.error('Error creando controversia:', err);
+      setControversias(prev => prev.filter(x => x.id !== optimistic.id));
+      throw err;
+    }
+  };
+
+  const handleUpdateControversia = async (id: string, changes: Partial<Controversia>): Promise<void> => {
+    const prev = controversias;
+    setControversias(curr => curr.map(c => c.id === id ? { ...c, ...changes, updatedAt: new Date().toISOString() } : c));
+    try {
+      await db.updateControversia(id, changes);
+      const c = controversias.find(x => x.id === id);
+      const accion = changes.estado === 'judicializada' ? 'judicializar_controversia' : 'editar_controversia';
+      audit(accion, 'controversia', id, c?.titulo, { changes: Object.keys(changes) });
+    } catch (err) {
+      console.error('Error actualizando controversia:', err);
+      setControversias(prev);
+    }
+  };
+
+  const handleDeleteControversia = async (id: string): Promise<void> => {
+    const prev = controversias;
+    const c = controversias.find(x => x.id === id);
+    setControversias(curr => curr.filter(x => x.id !== id));
+    try {
+      await db.deleteControversia(id);
+      audit('eliminar_controversia', 'controversia', id, c?.titulo);
+    } catch (err) {
+      console.error('Error eliminando controversia:', err);
+      setControversias(prev);
+    }
+  };
+
   const handleUpdateAssignments = async (matterId: string, profileIds: string[], leadId: string) => {
     // Optimistic update
     setMatters(prev => prev.map(m =>
@@ -2506,6 +2566,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       cuotasAlimentarias, cuotaConceptosEspecie,
       handleCreateCuotaAlimentaria, handleUpdateCuotaAlimentaria, handleDeleteCuotaAlimentaria,
       handleCreateCuotaConceptoEspecie, handleUpdateCuotaConceptoEspecie, handleDeleteCuotaConceptoEspecie,
+      controversias,
+      handleCreateControversia, handleUpdateControversia, handleDeleteControversia,
     }}>
       {children}
     </AppContext.Provider>

@@ -32,6 +32,7 @@ import {
   Eye,
   Wallet,
   Sparkles,
+  Flag,
 } from 'lucide-react';
 
 // ── Action metadata ────────────────────────────────────────────────
@@ -92,6 +93,10 @@ const ACTION_META: Record<AuditAction, { label: string; icon: React.ElementType;
   crear_concepto_especie:     { label: 'Cargó concepto en especie',  icon: Sparkles,  color: 'text-emerald-600' },
   editar_concepto_especie:    { label: 'Editó concepto en especie',  icon: Sparkles,  color: 'text-blue-600' },
   eliminar_concepto_especie:  { label: 'Eliminó concepto en especie', icon: Sparkles, color: 'text-red-600' },
+  crear_controversia:         { label: 'Cargó controversia',         icon: Flag,      color: 'text-emerald-600' },
+  editar_controversia:        { label: 'Editó controversia',         icon: Flag,      color: 'text-blue-600' },
+  eliminar_controversia:      { label: 'Eliminó controversia',       icon: Flag,      color: 'text-red-600' },
+  judicializar_controversia:  { label: 'Judicializó controversia',   icon: Flag,      color: 'text-violet-600' },
   login:                   { label: 'Inició sesión',            icon: LogIn,       color: 'text-muted-foreground' },
   logout:                  { label: 'Cerró sesión',             icon: LogOut,      color: 'text-muted-foreground' },
 };
@@ -118,6 +123,7 @@ const ENTITY_LABELS: Record<AuditEntityType, string> = {
   veedor: 'Veedores',
   cuota_alimentaria: 'Cuotas alimentarias',
   concepto_especie: 'Conceptos en especie',
+  controversia: 'Controversias',
 };
 
 // ── Helpers ────────────────────────────────────────────────────────

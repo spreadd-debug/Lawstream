@@ -734,6 +734,7 @@ export type AuditAction =
   | 'crear_veedor' | 'editar_veedor' | 'eliminar_veedor'
   | 'crear_cuota_alimentaria' | 'editar_cuota_alimentaria' | 'eliminar_cuota_alimentaria'
   | 'crear_concepto_especie' | 'editar_concepto_especie' | 'eliminar_concepto_especie'
+  | 'crear_controversia' | 'editar_controversia' | 'eliminar_controversia' | 'judicializar_controversia'
   | 'login' | 'logout';
 
 export type AuditEntityType =
@@ -743,7 +744,8 @@ export type AuditEntityType =
   | 'bien' | 'bien_valuacion' | 'sociedad_interpuesta'
   | 'causa_relacionada'
   | 'cautelar' | 'veedor'
-  | 'cuota_alimentaria' | 'concepto_especie';
+  | 'cuota_alimentaria' | 'concepto_especie'
+  | 'controversia';
 
 export interface AuditLogEntry {
   id: string;
@@ -810,6 +812,11 @@ export type TipoEvento =
   | 'exhorto_internacional_diligenciado'
   | 'exequatur_iniciado'
   | 'exequatur_concedido'
+  // GAP UX-33: cuando una controversia pre-judicial se judicializa
+  // (incidente, pedido cautelar, etc.), se inserta un evento en el
+  // timeline procesal con este tipo y metadata.controversiaId para
+  // mantener la traza bidireccional.
+  | 'controversia_judicializada'
   | 'otro';
 
 export type OrigenEvento = 'manual' | 'scraper_mev' | 'scraper_pjn';
@@ -1728,4 +1735,69 @@ export interface Communication {
   enviadoPor: string;
   visibleParaCliente: boolean;
   createdAt: string;
+}
+
+// ── CONTROVERSIAS DEL CASO (GAP UX-33) ───────────────────────
+// Hechos extrajudiciales que generan conflicto antes de que entre el
+// expediente (o en paralelo). El cónyuge anuncia que se lleva los
+// chicos, saca un préstamo, cambia la obra social, etc. La app los
+// estructura para que el abogado pueda priorizarlos por plazo y, si
+// hace falta, judicializarlos como sub-proceso (incidente).
+
+export type CategoriaControversia =
+  | 'vacaciones'
+  | 'cuota_alimentaria'
+  | 'regimen_comunicacion'
+  | 'mudanza'
+  | 'bienes'
+  | 'comunicacion'
+  | 'salud'
+  | 'educacion'
+  | 'otra';
+
+export const CATEGORIA_CONTROVERSIA_LABELS: Record<CategoriaControversia, string> = {
+  vacaciones:           'Vacaciones',
+  cuota_alimentaria:    'Cuota alimentaria',
+  regimen_comunicacion: 'Régimen de comunicación',
+  mudanza:              'Mudanza / cambio de domicilio',
+  bienes:               'Bienes',
+  comunicacion:         'Comunicación entre partes',
+  salud:                'Salud',
+  educacion:            'Educación',
+  otra:                 'Otra',
+};
+
+export type EstadoControversia =
+  | 'abierta' | 'negociando' | 'acordada' | 'judicializada' | 'desistida';
+
+export const ESTADO_CONTROVERSIA_LABELS: Record<EstadoControversia, string> = {
+  abierta:        'Abierta',
+  negociando:     'Negociando',
+  acordada:       'Acordada (extrajudicial)',
+  judicializada:  'Judicializada',
+  desistida:      'Desistida',
+};
+
+// Estados que cuentan como "abiertas" para la UI: aparecen arriba con
+// banner de plazo y se incluyen en el resumen de alertas (UX-9).
+export const ESTADO_CONTROVERSIA_ABIERTOS: EstadoControversia[] = ['abierta', 'negociando'];
+
+export interface Controversia {
+  id: string;
+  matterId: string;
+  categoria: CategoriaControversia;
+  titulo: string;
+  fechaHecho: string;                  // 'YYYY-MM-DD'
+  descripcion?: string;
+  posicionCliente?: string;
+  posicionContraparte?: string;
+  plazoCritico?: string;               // 'YYYY-MM-DD'
+  estado: EstadoControversia;
+  subprocesoId?: string;
+  eventoOrigenId?: string;
+  documentosUrls: string[];
+  notas?: string;
+  createdBy?: string;
+  createdAt: string;
+  updatedAt: string;
 }

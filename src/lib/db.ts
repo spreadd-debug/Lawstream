@@ -109,6 +109,9 @@ import {
   AjusteCuota,
   CategoriaConceptoEspecie,
   PagadorConcepto,
+  Controversia,
+  CategoriaControversia,
+  EstadoControversia,
 } from '../types';
 
 // ── Profiles ──────────────────────────────────────────────────────
@@ -3517,5 +3520,73 @@ export const updateCuotaConceptoEspecie = async (id: string, changes: Partial<Cu
 
 export const deleteCuotaConceptoEspecie = async (id: string): Promise<void> => {
   const { error } = await supabase.from('cuota_conceptos_especie').delete().eq('id', id);
+  if (error) throw error;
+};
+
+// ── Controversias del caso (migración 055 — GAP UX-33) ───────
+
+const toControversia = (r: any): Controversia => ({
+  id:                  r.id,
+  matterId:            r.matter_id,
+  categoria:           r.categoria             as CategoriaControversia,
+  titulo:              r.titulo,
+  fechaHecho:          r.fecha_hecho,
+  descripcion:         r.descripcion           ?? undefined,
+  posicionCliente:     r.posicion_cliente      ?? undefined,
+  posicionContraparte: r.posicion_contraparte  ?? undefined,
+  plazoCritico:        r.plazo_critico         ?? undefined,
+  estado:              r.estado                as EstadoControversia,
+  subprocesoId:        r.subproceso_id         ?? undefined,
+  eventoOrigenId:      r.evento_origen_id      ?? undefined,
+  documentosUrls:      Array.isArray(r.documentos_urls) ? r.documentos_urls : [],
+  notas:               r.notas                 ?? undefined,
+  createdBy:           r.created_by            ?? undefined,
+  createdAt:           r.created_at,
+  updatedAt:           r.updated_at,
+});
+
+const controversiaToRow = (c: Partial<Controversia>): Record<string, unknown> => {
+  const row: Record<string, unknown> = {};
+  if (c.matterId            !== undefined) row.matter_id            = c.matterId;
+  if (c.categoria           !== undefined) row.categoria            = c.categoria;
+  if (c.titulo              !== undefined) row.titulo               = c.titulo;
+  if (c.fechaHecho          !== undefined) row.fecha_hecho          = c.fechaHecho;
+  if (c.descripcion         !== undefined) row.descripcion          = c.descripcion          ?? null;
+  if (c.posicionCliente     !== undefined) row.posicion_cliente     = c.posicionCliente      ?? null;
+  if (c.posicionContraparte !== undefined) row.posicion_contraparte = c.posicionContraparte  ?? null;
+  if (c.plazoCritico        !== undefined) row.plazo_critico        = c.plazoCritico         ?? null;
+  if (c.estado              !== undefined) row.estado               = c.estado;
+  if (c.subprocesoId        !== undefined) row.subproceso_id        = c.subprocesoId         ?? null;
+  if (c.eventoOrigenId      !== undefined) row.evento_origen_id     = c.eventoOrigenId       ?? null;
+  if (c.documentosUrls      !== undefined) row.documentos_urls      = c.documentosUrls;
+  if (c.notas               !== undefined) row.notas                = c.notas               ?? null;
+  if (c.createdBy           !== undefined) row.created_by           = c.createdBy           ?? null;
+  return row;
+};
+
+export const fetchControversias = async (): Promise<Controversia[]> => {
+  const { data, error } = await supabase
+    .from('controversias_caso')
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(toControversia);
+};
+
+export const createControversia = async (
+  c: Omit<Controversia, 'id' | 'createdAt' | 'updatedAt'>,
+): Promise<Controversia> => {
+  const { data, error } = await supabase.from('controversias_caso').insert(controversiaToRow(c)).select().single();
+  if (error) throw error;
+  return toControversia(data);
+};
+
+export const updateControversia = async (id: string, changes: Partial<Controversia>): Promise<void> => {
+  const { error } = await supabase.from('controversias_caso').update(controversiaToRow(changes)).eq('id', id);
+  if (error) throw error;
+};
+
+export const deleteControversia = async (id: string): Promise<void> => {
+  const { error } = await supabase.from('controversias_caso').delete().eq('id', id);
   if (error) throw error;
 };

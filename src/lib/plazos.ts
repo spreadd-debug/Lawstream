@@ -354,6 +354,7 @@ export const PLAZOS_POR_EVENTO: Record<TipoEvento, PlazosConVariantes> = {
   cambio_representacion: { default: [] },
   mutacion_tipo_divorcio: { default: [] },
   deshacer_mutacion_tipo_divorcio: { default: [] },
+  controversia_judicializada: { default: [] },
   demanda_reconvencional: {
     default: [
       { tipo: 'Contestar reconvención', dias: 15, diasHabiles: true, descripcion: 'Art. 358 CPCCN / 354 CPCC PBA — traslado de la reconvención (juicio ordinario)' },
@@ -531,6 +532,7 @@ export const TIPOS_EVENTO: TipoEventoDef[] = [
   { tipo: 'cambio_representacion',     label: 'Cambio de representación',     descripcionCorta: 'Renuncia o cesión de patrocinio' },
   { tipo: 'mutacion_tipo_divorcio',           label: 'Mutación de tipo de divorcio',          descripcionCorta: 'De común acuerdo ↔ contencioso' },
   { tipo: 'deshacer_mutacion_tipo_divorcio',  label: 'Deshacer mutación de tipo de divorcio', descripcionCorta: 'Revertir mutación reciente (≤24h)' },
+  { tipo: 'controversia_judicializada',       label: 'Controversia judicializada',            descripcionCorta: 'Hecho extrajudicial llevado a juicio' },
   { tipo: 'demanda_reconvencional',         label: 'Demanda reconvencional',       descripcionCorta: 'Contrademanda — dispara plazo de contestación' },
   { tipo: 'contestacion_reconvencion',      label: 'Contestación de reconvención', descripcionCorta: 'Se contesta la reconvención' },
   { tipo: 'exhorto_internacional_librado',     label: 'Exhorto internacional librado',     descripcionCorta: 'Sale del juzgado local hacia autoridad extranjera' },

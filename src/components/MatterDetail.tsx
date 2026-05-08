@@ -72,6 +72,12 @@ import { ResumenAlertasMatter, AlertaResumen, SeveridadAlerta } from './ResumenA
 import { urgenciaDePlazo, diasRestantes, exhortosPendientes, calcularVencimientoSync, resolveJurisdiccion } from '../lib/plazos';
 import { detectarCruceViolencia } from '../lib/violencia';
 import { detectarSenalesCautelar } from '../lib/cautelaresSugeridas';
+import {
+  controversiaMasUrgenteAbierta, severidadAgregadaControversias,
+  diasHastaPlazo, severidadControversia, estaAbierta as controversiaEstaAbierta,
+} from '../lib/controversias';
+import { ControversiasPanel } from './ControversiasPanel';
+import { CATEGORIA_CONTROVERSIA_LABELS } from '../types';
 import { proximosACumplir18, recienCumplio18 } from '../lib/hijosTransicion';
 
 interface MatterDetailProps {
@@ -102,7 +108,7 @@ export const MatterDetail = ({
   currentUser, currentUserRole,
 }: MatterDetailProps) => {
   const navigate = useNavigate();
-  const { clients, matters: allMatters, plazos: allPlazos, eventos: allEventos, hijos: allHijos, reconvenciones: allReconvenciones, cautelares: allCautelares, bienes: allBienes, cuotasAlimentarias: allCuotasAlim, handleEditMatter, setEditMatterFocusField, handleArchiveMatter } = useAppContext();
+  const { clients, matters: allMatters, plazos: allPlazos, eventos: allEventos, hijos: allHijos, reconvenciones: allReconvenciones, cautelares: allCautelares, bienes: allBienes, cuotasAlimentarias: allCuotasAlim, controversias: allControversias, handleEditMatter, setEditMatterFocusField, handleArchiveMatter } = useAppContext();
   // GAP 1 — sub-procesos: si este matter tiene padre, mostramos breadcrumb.
   const parentMatter = matter.parentMatterId ? allMatters.find(m => m.id === matter.parentMatterId) : undefined;
   const isSubProceso = matter.kind === 'incidente' || matter.kind === 'apelacion';
@@ -354,6 +360,29 @@ export const MatterDetail = ({
   };
   const mostrarSenalesCautelar = senalesCautelar.ameritaEvaluar && !cautelarPreventivaDismissed;
 
+  // GAP UX-33: controversias del matter — banner + alerta. La fuente de
+  // verdad sigue siendo el panel; acá solo derivamos estado para el
+  // header. Las controversias del matter (NO del raíz, porque incluso
+  // siendo sub-proceso queremos ver las propias).
+  const controversiasDelMatter = useMemo(
+    () => allControversias.filter(c => c.matterId === matter.id),
+    [allControversias, matter.id],
+  );
+  const controversiaUrgente = useMemo(
+    () => controversiaMasUrgenteAbierta(controversiasDelMatter),
+    [controversiasDelMatter],
+  );
+  const severidadControversiasMatter = useMemo(
+    () => severidadAgregadaControversias(controversiasDelMatter),
+    [controversiasDelMatter],
+  );
+  const cantControversiasAbiertas = useMemo(
+    () => controversiasDelMatter.filter(controversiaEstaAbierta).length,
+    [controversiasDelMatter],
+  );
+  const mostrarBannerControversia = !!controversiaUrgente
+    && (severidadControversiasMatter === 'critica' || severidadControversiasMatter === 'alta');
+
   // GAP UX-31: cuando el usuario clickea "Crear inhibición general" en el
   // banner, le pasamos al CautelaresPanel un prefill con los defaults
   // razonables (tipo + contra contraparte) y, si hay un único pasivo
@@ -440,8 +469,25 @@ export const MatterDetail = ({
         tono: 'rose',
       });
     }
+    // GAP UX-33: controversias abiertas del caso. Severidad escala con
+    // la urgencia agregada — vencida/inminente = crítica, próxima = alta.
+    if (cantControversiasAbiertas > 0) {
+      const sev = severidadControversiasMatter === 'critica' ? 'critica'
+                : severidadControversiasMatter === 'alta'    ? 'alta'
+                : 'media';
+      const tono = severidadControversiasMatter === 'critica' ? 'rose'
+                 : severidadControversiasMatter === 'alta'    ? 'amber'
+                 : 'amber';
+      list.push({
+        id: 'controversias',
+        severidad: sev as SeveridadAlerta,
+        titulo: 'Controversias abiertas',
+        chip: `Controversia${cantControversiasAbiertas === 1 ? '' : 's'} (${cantControversiasAbiertas})`,
+        tono,
+      });
+    }
     return list;
-  }, [jurisdiccionFaltante, tipoDivorcioPorDefinir, tieneMedida, medidaVencida, cruceViolencia.regimenLuceAmplio, parcialmenteFirme, esFamilia, hayTransicionMayoria, transicionMayoriaSeveridad, aplicaReconvencion, reconvencionesPendientes.length, reconvencionSeveridad, exhortosLargos.length, cautelaresVigentes.length, mostrarSenalesCautelar, senalesCautelar.pasivosRelevantes.length]);
+  }, [jurisdiccionFaltante, tipoDivorcioPorDefinir, tieneMedida, medidaVencida, cruceViolencia.regimenLuceAmplio, parcialmenteFirme, esFamilia, hayTransicionMayoria, transicionMayoriaSeveridad, aplicaReconvencion, reconvencionesPendientes.length, reconvencionSeveridad, exhortosLargos.length, cautelaresVigentes.length, mostrarSenalesCautelar, senalesCautelar.pasivosRelevantes.length, cantControversiasAbiertas, severidadControversiasMatter]);
 
   const debeColapsar = alertasActivas.length >= 3;
   const lsKey = `lawstream:alertas-expandidas:${matter.id}`;
@@ -1157,6 +1203,66 @@ export const MatterDetail = ({
           </div>
         </div>
       )}
+
+      {/* ═══════════════════════ BANNER CONTROVERSIA URGENTE (GAP UX-33) ═══════════════════════ */}
+      {/* Aparece cuando hay controversia abierta con plazo vencido / ≤ 7 días.
+          CTA scrollea al panel dentro del tab Flujo. */}
+      {mostrarBannerControversia && controversiaUrgente && (() => {
+        const dias = diasHastaPlazo(controversiaUrgente.plazoCritico);
+        const sev  = severidadControversia(controversiaUrgente);
+        const esCritica = sev === 'vencida' || sev === 'inminente';
+        const colorBorder = esCritica ? 'border-rose-500/40' : 'border-amber-500/40';
+        const colorBg     = esCritica ? 'bg-rose-500/10'     : 'bg-amber-500/10';
+        const colorIcon   = esCritica ? 'text-rose-700'      : 'text-amber-700';
+        const colorIconBg = esCritica ? 'bg-rose-500/20'     : 'bg-amber-500/20';
+        const colorTitle  = esCritica ? 'text-rose-700 dark:text-rose-300' : 'text-amber-700 dark:text-amber-300';
+        const colorBtn    = esCritica ? 'bg-rose-600 hover:bg-rose-700'    : 'bg-amber-600 hover:bg-amber-700';
+        const txtPlazo = dias === null ? null
+          : dias < 0  ? `vencido hace ${Math.abs(dias)} ${Math.abs(dias) === 1 ? 'día' : 'días'}`
+          : dias === 0 ? 'vence hoy'
+          : dias === 1 ? 'vence mañana'
+          : `vence en ${dias} días`;
+        return (
+          <div
+            role="alert"
+            className={cn('flex items-start gap-3 p-4 rounded-2xl border shadow-sm', colorBorder, colorBg)}
+          >
+            <div className={cn('shrink-0 w-10 h-10 rounded-xl flex items-center justify-center', colorIconBg, colorIcon)}>
+              <AlertCircle size={20} />
+            </div>
+            <div className="flex-1 min-w-0 space-y-1">
+              <span className={cn('text-[11px] font-black uppercase tracking-widest', colorTitle)}>
+                Controversia urgente
+              </span>
+              <p className="text-sm font-bold text-foreground">
+                {controversiaUrgente.titulo}
+                <span className="text-[11px] font-normal text-muted-foreground ml-2">
+                  · {CATEGORIA_CONTROVERSIA_LABELS[controversiaUrgente.categoria]}
+                  {txtPlazo && <span className={cn('ml-2 font-bold', colorTitle)}>· Plazo {txtPlazo}</span>}
+                </span>
+              </p>
+              {cantControversiasAbiertas > 1 && (
+                <p className="text-[11px] text-muted-foreground">
+                  + {cantControversiasAbiertas - 1} controversia{cantControversiasAbiertas - 1 === 1 ? '' : 's'} abierta{cantControversiasAbiertas - 1 === 1 ? '' : 's'} más
+                </p>
+              )}
+            </div>
+            <button
+              onClick={() => {
+                setActiveTab('flujo');
+                // Scroll al panel después del re-render.
+                setTimeout(() => {
+                  document.querySelector('[data-controversias-panel]')
+                    ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 50);
+              }}
+              className={cn('shrink-0 px-3 py-2 rounded-xl text-white text-[10px] font-black uppercase tracking-widest transition-colors', colorBtn)}
+            >
+              Ver controversia
+            </button>
+          </div>
+        );
+      })()}
 
       {/* ═══════════════════════ BANNER CAUTELAR PATRIMONIAL VIGENTE (GAP R15) ═══════════════════════ */}
       {cautelaresVigentes.length > 0 && (
@@ -2038,6 +2144,11 @@ export const MatterDetail = ({
                 )}
               </div>
             )}
+
+            {/* GAP UX-33: controversias del caso — sub-sección del tab Flujo */}
+            <section data-controversias-panel className="border-t border-border/40 pt-8 mt-8 scroll-mt-4">
+              <ControversiasPanel matterId={matter.id} />
+            </section>
           </div>
         )}
 
