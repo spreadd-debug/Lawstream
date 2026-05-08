@@ -170,6 +170,12 @@ export const HijosPanel: React.FC<HijosPanelProps> = ({ matterId }) => {
   // si no existe. Toda la persistencia de "gastos del hijo" es contra
   // un único borrador por matter — el usuario no lo ve, lo manipula
   // implícitamente al cargar gastos en HijoCard.
+  //
+  // Nota: NO mandamos hijosCubiertos en el insert. La columna tiene
+  // DEFAULT ARRAY[]::UUID[] en SQL — pasarle el array vacío desde JS
+  // a veces rompe la serialización de Supabase (UUID[] vs string[]).
+  // Mejor dejar que la DB ponga el default. El cast a Omit<...> lo
+  // permite porque cuotaAlimentariaToRow ignora las keys undefined.
   const getOrCreateCanastaBorrador = async (): Promise<string> => {
     const existente = cuotasDelMatterRaiz.find(c => c.estado === 'borrador');
     if (existente) return existente.id;
@@ -178,7 +184,6 @@ export const HijosPanel: React.FC<HijosPanelProps> = ({ matterId }) => {
       estado:          'borrador',
       obligadoRol:     'contraparte',
       alcance:         'todos_los_hijos',
-      hijosCubiertos:  [],
       frecuencia:      'mensual',
     } as Omit<CuotaAlimentaria, 'id' | 'createdAt' | 'updatedAt'>);
     return creada.id;
