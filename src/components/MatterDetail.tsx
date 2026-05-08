@@ -33,7 +33,7 @@ import {
   Search,
   X,
 } from 'lucide-react';
-import { Matter, TimelineEvent, Task, LegalDocument, Expediente, MatterMilestone, FlowSnapshot, INCIDENTE_TIPO_LABELS, ASPECTO_APELADO_LABELS, APELADO_POR_LABELS } from '../types';
+import { Matter, TimelineEvent, Task, LegalDocument, Expediente, MatterMilestone, FlowSnapshot, Cautelar, INCIDENTE_TIPO_LABELS, ASPECTO_APELADO_LABELS, APELADO_POR_LABELS } from '../types';
 import { Badge, Card, Button, Modal, Input, Textarea, Select } from './UI';
 import { format, parseISO, differenceInCalendarDays } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -353,6 +353,28 @@ export const MatterDetail = ({
     try { localStorage.setItem(lsKeyCautelar, '1'); } catch {}
   };
   const mostrarSenalesCautelar = senalesCautelar.ameritaEvaluar && !cautelarPreventivaDismissed;
+
+  // GAP UX-31: cuando el usuario clickea "Crear inhibición general" en el
+  // banner, le pasamos al CautelaresPanel un prefill con los defaults
+  // razonables (tipo + contra contraparte) y, si hay un único pasivo
+  // relevante, lo vinculamos como bienId. El panel abre el form con esos
+  // valores cargados y limpia el prefill al consumirlo.
+  const [cautelarPrefill, setCautelarPrefill] = useState<Partial<Cautelar> | null>(null);
+  const dispararCrearInhibicion = () => {
+    const unicoPasivo = senalesCautelar.pasivosRelevantes.length === 1
+      ? senalesCautelar.pasivosRelevantes[0].bien.id
+      : undefined;
+    setCautelarPrefill({
+      tipo:          'inhibicion_general',
+      contraRol:     'contraparte',
+      estado:        'solicitada',
+      bienId:        unicoPasivo,
+      observaciones: senalesCautelar.pasivosRelevantes.length > 0
+        ? `Cautelar preventiva sugerida por ${senalesCautelar.pasivosRelevantes.length} pasivo(s) significativo(s) de la contraparte.`
+        : undefined,
+    });
+    setActiveTab('patrimonio');
+  };
 
   // GAP UX-9 — Centro de alertas. Cuando se acumulan ≥ 3 alertas activas
   // los banners apilados degradan la legibilidad del header. Mostramos un
@@ -1119,10 +1141,11 @@ export const MatterDetail = ({
           </div>
           <div className="shrink-0 flex flex-col gap-2">
             <button
-              onClick={() => setActiveTab('patrimonio')}
+              onClick={dispararCrearInhibicion}
               className="px-3 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-black uppercase tracking-widest transition-colors"
+              title="Abre el form de cautelar pre-llenado con tipo 'Inhibición general' contra la contraparte"
             >
-              Ir a patrimonio
+              Crear inhibición general
             </button>
             <button
               onClick={dismissCautelarPreventiva}
@@ -2080,7 +2103,11 @@ export const MatterDetail = ({
           <div className="py-8 space-y-10">
             <BienesPanel matterId={patrimonioMatterId} />
             <div className="border-t border-border/40" />
-            <CautelaresPanel matterId={patrimonioMatterId} />
+            <CautelaresPanel
+              matterId={patrimonioMatterId}
+              prefillNuevaCautelar={cautelarPrefill ?? undefined}
+              onPrefillConsumido={() => setCautelarPrefill(null)}
+            />
           </div>
         )}
 

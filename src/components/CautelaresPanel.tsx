@@ -35,6 +35,14 @@ import {
 
 interface CautelaresPanelProps {
   matterId: string;
+  /** GAP UX-31: cuando el banner de "evaluar cautelar preventiva" en
+   *  MatterDetail dispara la creación, pasa los defaults aquí. El panel
+   *  abre el form con esos valores pre-llenos. Solo aplica al crear, no
+   *  al editar. */
+  prefillNuevaCautelar?: Partial<Cautelar>;
+  /** Callback que el panel invoca al consumir el prefill — el padre
+   *  debería limpiar el state para evitar re-aperturas no deseadas. */
+  onPrefillConsumido?: () => void;
 }
 
 const TIPO_OPTS: TipoCautelar[] = [
@@ -67,7 +75,9 @@ const VEEDOR_TONE: Record<EstadoVeedor, string> = {
 
 const ESTADO_VIGENTE: EstadoCautelar[] = ['solicitada', 'concedida', 'trabada', 'parcialmente_levantada'];
 
-export const CautelaresPanel: React.FC<CautelaresPanelProps> = ({ matterId }) => {
+export const CautelaresPanel: React.FC<CautelaresPanelProps> = ({
+  matterId, prefillNuevaCautelar, onPrefillConsumido,
+}) => {
   const {
     cautelares, veedores, bienes, sociedadesInterpuestas,
     handleCreateCautelar, handleUpdateCautelar, handleDeleteCautelar,
@@ -93,8 +103,22 @@ export const CautelaresPanel: React.FC<CautelaresPanelProps> = ({ matterId }) =>
 
   const [cautFormOpen, setCautFormOpen]   = useState(false);
   const [cautEditing, setCautEditing]     = useState<Cautelar | null>(null);
+  // GAP UX-31: defaults pre-llenos cuando el padre dispara la creación
+  // desde el banner de "evaluar cautelar preventiva". null = creación
+  // normal con los defaults básicos del form.
+  const [cautPrefill, setCautPrefill]     = useState<Partial<Cautelar> | null>(null);
   const [veeFormOpen, setVeeFormOpen]     = useState(false);
   const [veeEditing, setVeeEditing]       = useState<Veedor | null>(null);
+
+  // Reaccionar al prop prefillNuevaCautelar — abrir el form con los
+  // valores pre-llenos y avisar al padre para que limpie el state.
+  React.useEffect(() => {
+    if (!prefillNuevaCautelar) return;
+    setCautEditing(null);
+    setCautPrefill(prefillNuevaCautelar);
+    setCautFormOpen(true);
+    onPrefillConsumido?.();
+  }, [prefillNuevaCautelar, onPrefillConsumido]);
 
   const onDeleteCaut = async (c: Cautelar) => {
     if (!window.confirm(`Eliminar la cautelar "${TIPO_CAUTELAR_LABELS[c.tipo]}"? Los veedores vinculados quedarán sin FK pero se preservan.`)) return;
@@ -185,9 +209,10 @@ export const CautelaresPanel: React.FC<CautelaresPanelProps> = ({ matterId }) =>
       <CautelarForm
         isOpen={cautFormOpen}
         editing={cautEditing}
+        prefill={cautPrefill}
         bienes={bienesDelMatter}
         sociedades={sociedadesDelMatter}
-        onClose={() => setCautFormOpen(false)}
+        onClose={() => { setCautFormOpen(false); setCautPrefill(null); }}
         onSave={async (data) => {
           if (cautEditing) {
             await handleUpdateCautelar(cautEditing.id, data);
@@ -371,13 +396,16 @@ const VeedorCard: React.FC<{
 interface CautelarFormProps {
   isOpen: boolean;
   editing: Cautelar | null;
+  /** GAP UX-31: defaults pre-llenos cuando se abre desde el banner de
+   *  evaluar cautelar preventiva. Solo aplica si editing es null. */
+  prefill?: Partial<Cautelar> | null;
   bienes: { id: string; descripcion: string }[];
   sociedades: { id: string; denominacion: string }[];
   onClose: () => void;
   onSave: (data: Partial<Cautelar>) => Promise<void>;
 }
 
-const CautelarForm: React.FC<CautelarFormProps> = ({ isOpen, editing, bienes, sociedades, onClose, onSave }) => {
+const CautelarForm: React.FC<CautelarFormProps> = ({ isOpen, editing, prefill, bienes, sociedades, onClose, onSave }) => {
   const [tipo, setTipo]                                   = useState<TipoCautelar>('inhibicion_general');
   const [contraRol, setContraRol]                         = useState<TitularRol>('contraparte');
   const [contraDetalle, setContraDetalle]                 = useState('');
@@ -400,25 +428,28 @@ const CautelarForm: React.FC<CautelarFormProps> = ({ isOpen, editing, bienes, so
 
   React.useEffect(() => {
     if (!isOpen) return;
-    setTipo(editing?.tipo ?? 'inhibicion_general');
-    setContraRol(editing?.contraRol ?? 'contraparte');
-    setContraDetalle(editing?.contraDetalle ?? '');
-    setBienId(editing?.bienId ?? '');
-    setSociedadId(editing?.sociedadInterpuestaId ?? '');
-    setAlcance(editing?.alcance ?? '');
-    setEstado(editing?.estado ?? 'solicitada');
-    setFechaSolicitud(editing?.fechaSolicitud ?? '');
-    setFechaResolucion(editing?.fechaResolucion ?? '');
-    setFechaTraba(editing?.fechaTraba ?? '');
-    setFechaLevantamientoParcial(editing?.fechaLevantamientoParcial ?? '');
-    setFechaLevantamientoTotal(editing?.fechaLevantamientoTotal ?? '');
-    setFechaRechazo(editing?.fechaRechazo ?? '');
-    setRegistroInscripcion(editing?.registroInscripcion ?? '');
-    setCaucionTipo(editing?.caucionTipo ?? '');
-    setCaucionMontoDesc(editing?.caucionMontoDesc ?? '');
-    setObservaciones(editing?.observaciones ?? '');
-    setNotas(editing?.notas ?? '');
-  }, [isOpen, editing]);
+    // Si hay editing, ese manda. Si no, el prefill (puede venir del
+    // banner UX-31). Si tampoco hay prefill, defaults básicos.
+    const seed = editing ?? prefill ?? {};
+    setTipo(seed.tipo ?? 'inhibicion_general');
+    setContraRol(seed.contraRol ?? 'contraparte');
+    setContraDetalle(seed.contraDetalle ?? '');
+    setBienId(seed.bienId ?? '');
+    setSociedadId(seed.sociedadInterpuestaId ?? '');
+    setAlcance(seed.alcance ?? '');
+    setEstado(seed.estado ?? 'solicitada');
+    setFechaSolicitud(seed.fechaSolicitud ?? '');
+    setFechaResolucion(seed.fechaResolucion ?? '');
+    setFechaTraba(seed.fechaTraba ?? '');
+    setFechaLevantamientoParcial(seed.fechaLevantamientoParcial ?? '');
+    setFechaLevantamientoTotal(seed.fechaLevantamientoTotal ?? '');
+    setFechaRechazo(seed.fechaRechazo ?? '');
+    setRegistroInscripcion(seed.registroInscripcion ?? '');
+    setCaucionTipo(seed.caucionTipo ?? '');
+    setCaucionMontoDesc(seed.caucionMontoDesc ?? '');
+    setObservaciones(seed.observaciones ?? '');
+    setNotas(seed.notas ?? '');
+  }, [isOpen, editing, prefill]);
 
   const puedeGuardar = !!tipo && !!estado;
 
