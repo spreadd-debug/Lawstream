@@ -284,6 +284,16 @@ export const CautelaresPanel: React.FC<CautelaresPanelProps> = ({
                ?? matterDelPanel?.caseData?.alimentante_dni
                ?? matterDelPanel?.caseData?.otro_progenitor_dni,
         }}
+        clienteDefaults={{
+          nombre: matterDelPanel?.caseData?.conyuge1_nombre
+               ?? matterDelPanel?.caseData?.actor_nombre
+               ?? matterDelPanel?.caseData?.victima_nombre
+               ?? matterDelPanel?.caseData?.trabajador_nombre,
+          dni:    matterDelPanel?.caseData?.conyuge1_dni
+               ?? matterDelPanel?.caseData?.actor_dni
+               ?? matterDelPanel?.caseData?.victima_dni
+               ?? matterDelPanel?.caseData?.trabajador_dni,
+        }}
         bienes={bienesDelMatter}
         sociedades={sociedadesDelMatter}
         onClose={() => { setCautFormOpen(false); setCautPrefill(null); }}
@@ -520,23 +530,77 @@ const VeedorCard: React.FC<{
 interface CautelarFormProps {
   isOpen: boolean;
   editing: Cautelar | null;
-  /** GAP UX-31: defaults pre-llenos cuando se abre desde el banner de
-   *  evaluar cautelar preventiva. Solo aplica si editing es null. */
   prefill?: Partial<Cautelar> | null;
-  /** GAP UX-34: datos de la contraparte del matter para auto-rellenar
-   *  el "Detalle (sobre quién)" cuando contraRol === 'contraparte'. El
-   *  panel los pasa leyendo matter.caseData. */
+  /** Datos de la contraparte del matter (conyuge2_* / demandado_* / etc.)
+   *  para autocompletar el detalle cuando contraRol === 'contraparte'. */
   contraparteDefaults?: { nombre?: string; dni?: string };
+  /** Datos del cliente del matter (conyuge1_* / actor_* / etc.)
+   *  para autocompletar cuando contraRol === 'cliente' (cautelar defensiva
+   *  trabada por la otra parte sobre los bienes del propio cliente). */
+  clienteDefaults?: { nombre?: string; dni?: string };
   bienes: { id: string; descripcion: string }[];
   sociedades: { id: string; denominacion: string }[];
   onClose: () => void;
   onSave: (data: Partial<Cautelar>) => Promise<void>;
 }
 
-const CautelarForm: React.FC<CautelarFormProps> = ({ isOpen, editing, prefill, contraparteDefaults, bienes, sociedades, onClose, onSave }) => {
+// Helper: construye el texto auto para "Detalle (sobre quién)" según el
+// rol y los defaults disponibles. Devuelve '' si no tiene datos.
+function buildDetalleAuto(
+  rol: TitularRol,
+  cliente?: { nombre?: string; dni?: string },
+  contraparte?: { nombre?: string; dni?: string },
+  sociedadId?: string,
+  sociedades?: { id: string; denominacion: string }[],
+): string {
+  const fmt = (p: { nombre?: string; dni?: string } | undefined) =>
+    p?.nombre
+      ? [p.nombre, p.dni && `DNI ${p.dni}`].filter(Boolean).join(', ')
+      : '';
+  switch (rol) {
+    case 'cliente':
+      return fmt(cliente);
+    case 'contraparte':
+      return fmt(contraparte);
+    case 'ambos': {
+      const a = fmt(cliente);
+      const b = fmt(contraparte);
+      return a && b ? `${a} y ${b}` : a || b;
+    }
+    case 'tercero': {
+      // Si hay sociedad interpuesta seleccionada, usarla como punto de
+      // partida; si no, vacío (hay demasiadas variantes — texto libre).
+      const soc = sociedades?.find(s => s.id === sociedadId);
+      return soc ? `${soc.denominacion} (sociedad interpuesta)` : '';
+    }
+    default:
+      return '';
+  }
+}
+
+// Texto de ayuda contextual según el rol seleccionado.
+const CONTRA_ROL_HINT: Record<TitularRol, string> = {
+  cliente:
+    'Cautelar trabada POR la contraparte sobre bienes de tu cliente. Registrala para seguimiento defensivo (traba, vencimiento, levantamiento).',
+  contraparte:
+    'La medida recae sobre los bienes del demandado / otro cónyuge. El caso más común.',
+  ambos:
+    'Afecta a ambas partes a la vez — ej. acreedor común del matrimonio, inmueble en condominio co-titulado, co-deudores solidarios.',
+  tercero:
+    'Contra alguien que no es parte principal: sociedad interpuesta, empleador (retención de haberes), banco depositario, tenedor del bien, garante.',
+};
+
+const CautelarForm: React.FC<CautelarFormProps> = ({
+  isOpen, editing, prefill, contraparteDefaults, clienteDefaults,
+  bienes, sociedades, onClose, onSave,
+}) => {
   const [tipo, setTipo]                                   = useState<TipoCautelar>('inhibicion_general');
   const [contraRol, setContraRol]                         = useState<TitularRol>('contraparte');
   const [contraDetalle, setContraDetalle]                 = useState('');
+  // Cuando el form auto-rellena el detalle, detalleAutoFilled === true.
+  // Si el usuario escribe manualmente, pasa a false y ya no se sobreescribe
+  // aunque el usuario cambie el rol.
+  const [detalleAutoFilled, setDetalleAutoFilled]         = useState(true);
   const [bienId, setBienId]                               = useState('');
   const [sociedadId, setSociedadId]                       = useState('');
   const [alcance, setAlcance]                             = useState('');
@@ -554,23 +618,17 @@ const CautelarForm: React.FC<CautelarFormProps> = ({ isOpen, editing, prefill, c
   const [notas, setNotas]                                 = useState('');
   const [saving, setSaving]                               = useState(false);
 
+  // Al abrir o cambiar lo que se edita / prefill, inicializar todos
+  // los campos y auto-rellenar el detalle.
   React.useEffect(() => {
     if (!isOpen) return;
-    // Si hay editing, ese manda. Si no, el prefill (puede venir del
-    // banner UX-31). Si tampoco hay prefill, defaults básicos.
     const seed = editing ?? prefill ?? {};
     setTipo(seed.tipo ?? 'inhibicion_general');
-    const contraRolEfectivo = seed.contraRol ?? 'contraparte';
-    setContraRol(contraRolEfectivo);
-    // GAP UX-34: si la cautelar va contra la contraparte y no hay
-    // contraDetalle explícito, autocompletar desde caseData.conyuge2_*
-    // (o demandado_* / alimentante_*) que el panel pasa.
-    const detalleAuto = (contraRolEfectivo === 'contraparte' && contraparteDefaults?.nombre)
-      ? [contraparteDefaults.nombre, contraparteDefaults.dni && `DNI ${contraparteDefaults.dni}`].filter(Boolean).join(', ')
-      : '';
-    setContraDetalle(seed.contraDetalle ?? detalleAuto);
+    const rolEfectivo = seed.contraRol ?? 'contraparte';
+    setContraRol(rolEfectivo);
     setBienId(seed.bienId ?? '');
-    setSociedadId(seed.sociedadInterpuestaId ?? '');
+    const socId = seed.sociedadInterpuestaId ?? '';
+    setSociedadId(socId);
     setAlcance(seed.alcance ?? '');
     setEstado(seed.estado ?? 'solicitada');
     setFechaSolicitud(seed.fechaSolicitud ?? '');
@@ -584,7 +642,24 @@ const CautelarForm: React.FC<CautelarFormProps> = ({ isOpen, editing, prefill, c
     setCaucionMontoDesc(seed.caucionMontoDesc ?? '');
     setObservaciones(seed.observaciones ?? '');
     setNotas(seed.notas ?? '');
+    // Si el seed ya tenía contraDetalle, respetarlo y marcar como manual.
+    if (seed.contraDetalle) {
+      setContraDetalle(seed.contraDetalle);
+      setDetalleAutoFilled(false);
+    } else {
+      const auto = buildDetalleAuto(rolEfectivo, clienteDefaults, contraparteDefaults, socId, sociedades);
+      setContraDetalle(auto);
+      setDetalleAutoFilled(true);
+    }
   }, [isOpen, editing, prefill]);
+
+  // Cuando el usuario cambia el rol (y no editó manualmente el detalle),
+  // recalcular el texto automático.
+  React.useEffect(() => {
+    if (!isOpen || !detalleAutoFilled) return;
+    const auto = buildDetalleAuto(contraRol, clienteDefaults, contraparteDefaults, sociedadId, sociedades);
+    setContraDetalle(auto);
+  }, [contraRol, sociedadId, isOpen, detalleAutoFilled, clienteDefaults, contraparteDefaults, sociedades]);
 
   const puedeGuardar = !!tipo && !!estado;
 
@@ -647,20 +722,41 @@ const CautelarForm: React.FC<CautelarFormProps> = ({ isOpen, editing, prefill, c
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <Label>Contra *</Label>
-            <select value={contraRol} onChange={e => setContraRol(e.target.value as TitularRol)} className="w-full h-10 px-3 bg-muted/50 border border-border/50 rounded-xl text-sm font-bold">
-              <option value="cliente">{TITULAR_ROL_LABELS.cliente}</option>
-              <option value="contraparte">{TITULAR_ROL_LABELS.contraparte}</option>
-              <option value="ambos">{TITULAR_ROL_LABELS.ambos}</option>
-              <option value="tercero">{TITULAR_ROL_LABELS.tercero}</option>
-            </select>
+        <div className="space-y-2">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Contra *</Label>
+              <select
+                value={contraRol}
+                onChange={e => setContraRol(e.target.value as TitularRol)}
+                className="w-full h-10 px-3 bg-muted/50 border border-border/50 rounded-xl text-sm font-bold"
+              >
+                <option value="cliente">{TITULAR_ROL_LABELS.cliente}</option>
+                <option value="contraparte">{TITULAR_ROL_LABELS.contraparte}</option>
+                <option value="ambos">{TITULAR_ROL_LABELS.ambos}</option>
+                <option value="tercero">{TITULAR_ROL_LABELS.tercero}</option>
+              </select>
+            </div>
+            <div>
+              <Label>Detalle (sobre quién)</Label>
+              <Input
+                value={contraDetalle}
+                onChange={e => {
+                  setContraDetalle(e.target.value);
+                  setDetalleAutoFilled(false);
+                }}
+                placeholder={
+                  contraRol === 'tercero'
+                    ? 'Ej: sociedad / empleador / banco / tenedor del bien'
+                    : 'Nombre y DNI — se auto-rellena desde los datos del caso'
+                }
+              />
+            </div>
           </div>
-          <div>
-            <Label>Detalle (sobre quién)</Label>
-            <Input value={contraDetalle} onChange={e => setContraDetalle(e.target.value)} placeholder="Ej: Sebastián Ruiz, DNI 25.890.123" />
-          </div>
+          {/* Helper text contextual — explica qué significa cada rol */}
+          <p className="text-[10px] text-muted-foreground italic px-0.5">
+            {CONTRA_ROL_HINT[contraRol]}
+          </p>
         </div>
 
         <div>
