@@ -141,6 +141,21 @@ export const MATTER_TEMPLATES: MatterTemplate[] = [
             ],
           },
           {
+            // Datos personales básicos del otro cónyuge. Se pre-populan
+            // con lo que el abogado cargó en el Step 1 del wizard (textbox
+            // libre). Acá el domicilio se completa con el formato
+            // estructurado requerido para escritos y cédulas.
+            title: 'Datos del Otro Cónyuge',
+            icon: 'UserPlus',
+            fields: [
+              { key: 'conyuge2_nombre', label: 'Nombre completo', type: 'text', placeholder: 'Apellido, Nombre' },
+              { key: 'conyuge2_dni', label: 'DNI', type: 'text', placeholder: '12.345.678' },
+              { key: 'conyuge2_domicilio', label: 'Domicilio actual', type: 'domicilio' },
+              { key: 'conyuge2_abogado', label: 'Abogado/a de la contraparte', type: 'text', placeholder: 'Dr/Dra. Nombre' },
+              { key: 'conyuge2_abogado_matricula', label: 'Matrícula (T°/F°/Colegio)', type: 'text', placeholder: 'Ej: T° 89 F° 234 CPACF' },
+            ],
+          },
+          {
             title: 'Datos Laborales — Cónyuge 2',
             icon: 'Briefcase',
             fields: [
@@ -150,8 +165,6 @@ export const MATTER_TEMPLATES: MatterTemplate[] = [
               { key: 'conyuge2_situacion_laboral', label: 'Situación laboral', type: 'select', options: ['Empleado en relación de dependencia', 'Monotributista', 'Autónomo', 'Desempleado', 'Jubilado/Pensionado', 'Otro'] },
               { key: 'conyuge2_empleador', label: 'Empleador / Actividad', type: 'text', placeholder: 'Nombre de empresa o actividad' },
               { key: 'conyuge2_ingreso_mensual', label: 'Ingreso mensual neto', type: 'money' },
-              { key: 'conyuge2_abogado', label: 'Abogado de la otra parte', type: 'text', placeholder: 'Nombre del letrado' },
-              { key: 'conyuge2_abogado_matricula', label: 'Matrícula (T°/F°/Colegio)', type: 'text', placeholder: 'Ej: T° 89 F° 234 CPACF' },
             ],
           },
           {
@@ -568,6 +581,17 @@ export const MATTER_TEMPLATES: MatterTemplate[] = [
             ],
           },
           {
+            title: 'Datos del Otro Cónyuge',
+            icon: 'UserPlus',
+            fields: [
+              { key: 'conyuge2_nombre', label: 'Nombre completo', type: 'text', placeholder: 'Apellido, Nombre' },
+              { key: 'conyuge2_dni', label: 'DNI', type: 'text', placeholder: '12.345.678' },
+              { key: 'conyuge2_domicilio', label: 'Domicilio actual', type: 'domicilio' },
+              { key: 'conyuge2_abogado', label: 'Abogado/a de la contraparte', type: 'text', placeholder: 'Dr/Dra. Nombre' },
+              { key: 'conyuge2_abogado_matricula', label: 'Matrícula (T°/F°/Colegio)', type: 'text', placeholder: 'Ej: T° 89 F° 234 CALP' },
+            ],
+          },
+          {
             title: 'Datos Laborales — Cónyuge 2',
             icon: 'Briefcase',
             fields: [
@@ -577,8 +601,6 @@ export const MATTER_TEMPLATES: MatterTemplate[] = [
               { key: 'conyuge2_situacion_laboral', label: 'Situación laboral', type: 'select', options: ['Empleado en relación de dependencia', 'Monotributista', 'Autónomo', 'Desempleado', 'Jubilado/Pensionado', 'Otro'] },
               { key: 'conyuge2_empleador', label: 'Empleador / Actividad', type: 'text', placeholder: 'Nombre de empresa o actividad' },
               { key: 'conyuge2_ingreso_mensual', label: 'Ingreso mensual neto', type: 'money' },
-              { key: 'conyuge2_abogado', label: 'Abogado de la otra parte', type: 'text', placeholder: 'Nombre del letrado' },
-              { key: 'conyuge2_abogado_matricula', label: 'Matrícula (T°/F°/Colegio)', type: 'text', placeholder: 'Ej: T° 89 F° 234 CALP' },
             ],
           },
           {

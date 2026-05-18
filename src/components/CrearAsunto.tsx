@@ -1270,7 +1270,7 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
                       })}
                     />
                     <Input
-                      placeholder="Domicilio actual"
+                      placeholder="Ej: Caballito, CABA — se estructura en detalle desde la ficha"
                       className="bg-muted/20 border-border/50 h-11"
                       value={formData.caseData.conyuge2_domicilio || ''}
                       onChange={e => setFormData({
@@ -1279,6 +1279,9 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
                       })}
                     />
                   </div>
+                  <p className="text-[10px] text-muted-foreground italic px-0.5">
+                    Si no tenés la dirección exacta ahora, es suficiente con el barrio o ciudad. Completás calle, número, piso y CP desde la ficha del caso antes de armar la demanda.
+                  </p>
                 </div>
               )}
 
