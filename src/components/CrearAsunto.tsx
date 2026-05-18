@@ -165,8 +165,97 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
     name: '',
     email: '',
     phone: '',
-    type: 'Persona' as 'Persona' | 'Empresa'
+    type: 'Persona' as 'Persona' | 'Empresa',
+    // Campos opcionales que se pre-populan en caseData cuando se crea el
+    // asunto — evita pedirlos dos veces (en el form de cliente y en la
+    // Ficha de Instrucción del case).
+    dni:       '',
+    domicilio: '',
   });
+
+  // Cuando el usuario selecciona (o crea) un cliente, auto-populamos los
+  // campos de caseData que corresponden a "la parte" — conyuge1_* en
+  // familia/divorcio, trabajador_* en laboral, victima_* en daños, etc.
+  // Solo populamos campos que están vacíos: si el usuario ya los llenó
+  // a mano (ej. vino de una consulta prefillada), no los pisamos.
+  useEffect(() => {
+    if (!selectedClient) return;
+
+    const subtype = formData.subtype;
+    const type    = formData.type;
+
+    const applyIfEmpty = (updates: Record<string, string>) => {
+      setFormData(prev => {
+        const cd = prev.caseData ?? {};
+        const merged: Record<string, string> = {};
+        for (const [k, v] of Object.entries(updates)) {
+          if (v && !cd[k]) merged[k] = v;
+        }
+        if (Object.keys(merged).length === 0) return prev;
+        return { ...prev, caseData: { ...cd, ...merged } };
+      });
+    };
+
+    // ── Familia / Divorcio / Alimentos / Régimen de comunicación ──
+    if (type === 'Familia') {
+      applyIfEmpty({
+        conyuge1_nombre:           selectedClient.name         ?? '',
+        conyuge1_dni:              selectedClient.dni          ?? '',
+        conyuge1_domicilio:        selectedClient.domicilio    ?? '',
+        conyuge1_email:            selectedClient.email        ?? '',
+        conyuge1_telefono:         selectedClient.phone        ?? '',
+        conyuge1_fecha_nacimiento: selectedClient.fechaNacimiento ?? '',
+        conyuge1_nacionalidad:     selectedClient.nacionalidad ?? '',
+        conyuge1_profesion:        selectedClient.profesion    ?? '',
+        conyuge1_situacion_laboral: selectedClient.situacionLaboral ?? '',
+        conyuge1_empleador:        selectedClient.empleador    ?? '',
+        conyuge1_ingreso_mensual:  selectedClient.ingresosEstimados ?? '',
+        // Alias alternativos que usan algunos subtemplates de familia
+        progenitor_nombre:         selectedClient.name         ?? '',
+        progenitor_dni:            selectedClient.dni          ?? '',
+        progenitor_domicilio:      selectedClient.domicilio    ?? '',
+      });
+    }
+
+    // ── Laboral ──
+    if (type === 'Laboral') {
+      applyIfEmpty({
+        trabajador_nombre:    selectedClient.name      ?? '',
+        trabajador_dni:       selectedClient.dni       ?? '',
+        trabajador_domicilio: selectedClient.domicilio ?? '',
+        trabajador_email:     selectedClient.email     ?? '',
+        trabajador_telefono:  selectedClient.phone     ?? '',
+      });
+    }
+
+    // ── Daños ──
+    if (type === 'Daños') {
+      applyIfEmpty({
+        victima_nombre:    selectedClient.name      ?? '',
+        victima_dni:       selectedClient.dni       ?? '',
+        victima_domicilio: selectedClient.domicilio ?? '',
+        victima_email:     selectedClient.email     ?? '',
+        victima_telefono:  selectedClient.phone     ?? '',
+      });
+    }
+
+    // ── Civil / Comercial / Sucesiones / Penal ── campo genérico "actor"
+    if (['Civil', 'Comercial', 'Sucesiones', 'Penal'].includes(type)) {
+      applyIfEmpty({
+        actor_nombre:    selectedClient.name      ?? '',
+        actor_dni:       selectedClient.dni       ?? '',
+        actor_domicilio: selectedClient.domicilio ?? '',
+        actor_email:     selectedClient.email     ?? '',
+        actor_telefono:  selectedClient.phone     ?? '',
+        // también aliases de sucesiones
+        heredero_nombre: selectedClient.name      ?? '',
+        heredero_dni:    selectedClient.dni       ?? '',
+        persona_nombre:  selectedClient.name      ?? '',
+        persona_dni:     selectedClient.dni       ?? '',
+      });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedClient]);
 
   // Resolve the active template and its wizard sections
   const activeTemplate = useMemo(() => findTemplate(formData.type, formData.subtype, formData.jurisdiction), [formData.type, formData.subtype, formData.jurisdiction]);
@@ -257,7 +346,7 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
     }
     setSelectedClient(newClient);
     setIsCreatingClient(false);
-    setNewClientData({ name: '', email: '', phone: '', type: 'Persona' });
+    setNewClientData({ name: '', email: '', phone: '', type: 'Persona', dni: '', domicilio: '' });
   };
 
   // Update suggestions when template changes
@@ -1046,7 +1135,28 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
                           className="bg-background h-10"
                         />
                       </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-[9px]">DNI / CUIT</Label>
+                        <Input
+                          value={newClientData.dni}
+                          onChange={e => setNewClientData({...newClientData, dni: e.target.value})}
+                          placeholder="12.345.678"
+                          className="bg-background h-10"
+                        />
+                      </div>
+                      <div className="space-y-1.5 md:col-span-2">
+                        <Label className="text-[9px]">Domicilio</Label>
+                        <Input
+                          value={newClientData.domicilio}
+                          onChange={e => setNewClientData({...newClientData, domicilio: e.target.value})}
+                          placeholder="Ej: Av. Corrientes 4820 3°D, CABA"
+                          className="bg-background h-10"
+                        />
+                      </div>
                     </div>
+                    <p className="text-[10px] text-muted-foreground italic">
+                      DNI y domicilio son opcionales acá pero se pre-populan automáticamente en la ficha del caso para no pedirlos de nuevo.
+                    </p>
                     <div className="flex justify-end pt-1">
                       <Button size="sm" onClick={handleCreateClient} disabled={!newClientData.name} className="gap-2 bg-teal-600 hover:bg-teal-700">
                         <Check size={14} />
