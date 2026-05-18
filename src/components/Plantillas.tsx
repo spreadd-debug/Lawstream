@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Card, Badge, Button, Input, Drawer, MoneyInput } from './UI';
 import { LegalTemplate, MatterType, Matter, Client, Expediente } from '../types';
 import { LEGAL_TEMPLATES } from '../data/legalTemplates';
@@ -201,9 +201,13 @@ export const Plantillas = ({ matters = [], clients = [] }: PlantillasProps) => {
   const [selectedTemplate, setSelectedTemplate] = useState<LegalTemplate | null>(null);
   const [mode, setMode] = useState<'preview' | 'generate'>('preview');
   const [placeholderValues, setPlaceholderValues] = useState<Record<string, string>>({});
+  const navigate = useNavigate();
   const [copied, setCopied] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [autoFillMatterId, setAutoFillMatterId] = useState<string>('');
+  // Cuando se llega desde un asunto (?matter=id), guardamos el id para poder
+  // volver. Se persiste aunque se limpien los searchParams.
+  const [fromMatterId, setFromMatterId] = useState<string>('');
 
   // Handle URL params: ?template=<id>&matter=<matterId>
   useEffect(() => {
@@ -217,6 +221,7 @@ export const Plantillas = ({ matters = [], clients = [] }: PlantillasProps) => {
         setMode('generate');
         if (matterId) {
           setAutoFillMatterId(matterId);
+          setFromMatterId(matterId);
           // Auto-fill from matter data
           const matter = matters.find(m => m.id === matterId);
           if (matter) {
@@ -379,7 +384,17 @@ export const Plantillas = ({ matters = [], clients = [] }: PlantillasProps) => {
     <div className="space-y-6 max-w-7xl mx-auto px-4">
       {/* Header */}
       <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div>
+        <div className="space-y-1">
+          {/* Botón de vuelta al asunto — solo visible cuando se llega desde un matter */}
+          {fromMatterId && (
+            <button
+              onClick={() => navigate(`/asuntos/${fromMatterId}`)}
+              className="inline-flex items-center gap-1.5 text-[11px] font-bold text-muted-foreground hover:text-foreground transition-colors mb-1"
+            >
+              <ArrowLeft size={13} />
+              Volver al asunto
+            </button>
+          )}
           <h1 className="text-3xl font-black tracking-tighter text-foreground flex items-center gap-3">
             <Scale className="text-primary" size={28} />
             Plantillas Legales
@@ -697,6 +712,16 @@ export const Plantillas = ({ matters = [], clients = [] }: PlantillasProps) => {
 
                   {/* Actions */}
                   <div className="flex items-center gap-3 pb-4 flex-wrap">
+                    {fromMatterId && (
+                      <Button
+                        onClick={() => navigate(`/asuntos/${fromMatterId}`)}
+                        variant="outline"
+                        className="gap-2 text-[10px] font-black uppercase tracking-widest rounded-xl h-11 px-5 border-teal-500/40 text-teal-700 hover:bg-teal-500/5"
+                      >
+                        <ArrowLeft size={14} />
+                        Volver al asunto
+                      </Button>
+                    )}
                     <Button
                       onClick={handleCopy}
                       className={cn(
