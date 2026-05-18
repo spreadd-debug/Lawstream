@@ -70,8 +70,10 @@ export function parseDomicilio(raw: string): DomicilioData {
 
   let s = raw.trim();
 
-  // Extraer CP al final: "CP 1195" o "C.P. 1195"
-  const cpMatch = s.match(/,?\s*C\.?P\.?\s*(\d{4,5})\s*$/i);
+  // Extraer CP al final: "CP 1195" o "C.P. 1195".
+  // Acepta cualquier cantidad de dígitos (no sólo 4-5) para que funcione
+  // correctamente mientras el usuario está escribiendo el código postal.
+  const cpMatch = s.match(/,?\s*C\.?P\.?\s*(\d+)\s*$/i);
   let cp = '';
   if (cpMatch) {
     cp = cpMatch[1];
@@ -139,14 +141,27 @@ export const DomicilioInput: React.FC<DomicilioInputProps> = ({
 }) => {
   const [d, setD] = useState<DomicilioData>(() => parseDomicilio(value));
 
-  // Sync cuando llega un nuevo value externo (ej. reset del form).
+  // Ref para evitar que el useEffect re-parsee el value cuando el cambio
+  // vino de adentro del componente. Sin esto, cada keystroke en CP dispara:
+  //   update → onChange("..., CP 1") → useEffect → parseDomicilio("..., CP 1")
+  //   → si el regex no matchea (ej. CP incompleto), lo pone como localidad
+  //   → el campo CP queda vacío → el próximo char crea otro "CP X" en el string.
+  const skipNextSync = React.useRef(false);
+
+  // Sync cuando llega un nuevo value EXTERNO (ej. reset del form del padre).
+  // Se salta si el cambio vino de dentro para no romper el tipeo del usuario.
   useEffect(() => {
+    if (skipNextSync.current) {
+      skipNextSync.current = false;
+      return;
+    }
     setD(parseDomicilio(value));
   }, [value]);
 
   const update = useCallback((key: keyof DomicilioData, val: string) => {
     setD(prev => {
       const next = { ...prev, [key]: val };
+      skipNextSync.current = true;
       onChange(serializeDomicilio(next));
       return next;
     });
