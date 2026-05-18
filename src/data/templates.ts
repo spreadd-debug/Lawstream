@@ -3055,7 +3055,7 @@ export function getSubtypesForJurisdiction(rama: string, jurisdiccion: string): 
 export interface WizardFieldDef {
   key: string;
   label: string;
-  type: 'text' | 'date' | 'select' | 'number' | 'money' | 'textarea' | 'repeatable';
+  type: 'text' | 'date' | 'select' | 'number' | 'money' | 'textarea' | 'repeatable' | 'domicilio';
   placeholder?: string;
   options?: string[];      // for select type
   required?: boolean;
@@ -3077,7 +3077,7 @@ export const WIZARD_FIELDS_BY_TEMPLATE: Record<string, WizardSection[]> = {
       fields: [
         { key: 'conyuge1_nombre', label: 'Nombre completo', type: 'text', placeholder: 'Apellido, Nombre', required: true },
         { key: 'conyuge1_dni', label: 'DNI', type: 'text', placeholder: '12.345.678' },
-        { key: 'conyuge1_domicilio', label: 'Domicilio actual', type: 'text', placeholder: 'Dirección...' },
+        { key: 'conyuge1_domicilio', label: 'Domicilio actual', type: 'domicilio' },
       ],
     },
     // GAP UX-3: la sección "Datos del Otro Cónyuge" se movió al Step 1
@@ -3106,7 +3106,7 @@ export const WIZARD_FIELDS_BY_TEMPLATE: Record<string, WizardSection[]> = {
       fields: [
         { key: 'conyuge1_nombre', label: 'Nombre completo', type: 'text', placeholder: 'Apellido, Nombre', required: true },
         { key: 'conyuge1_dni', label: 'DNI', type: 'text', placeholder: '12.345.678' },
-        { key: 'conyuge1_domicilio', label: 'Domicilio actual', type: 'text', placeholder: 'Dirección...' },
+        { key: 'conyuge1_domicilio', label: 'Domicilio actual', type: 'domicilio' },
       ],
     },
     // GAP UX-3: la sección "Datos del Otro Cónyuge" se movió al Step 1
@@ -3146,7 +3146,7 @@ export const WIZARD_FIELDS_BY_TEMPLATE: Record<string, WizardSection[]> = {
       fields: [
         { key: 'alimentante_nombre', label: 'Nombre completo', type: 'text', placeholder: 'Nombre del alimentante', required: true },
         { key: 'alimentante_dni', label: 'DNI', type: 'text', placeholder: '12.345.678' },
-        { key: 'alimentante_domicilio', label: 'Domicilio conocido', type: 'text', placeholder: 'Dirección...' },
+        { key: 'alimentante_domicilio', label: 'Domicilio conocido', type: 'domicilio' },
         { key: 'alimentante_empleador', label: 'Empleador / Actividad', type: 'text', placeholder: 'Empresa o actividad independiente' },
         { key: 'alimentante_ingreso_estimado', label: 'Ingreso mensual estimado', type: 'money' },
       ],
@@ -3181,7 +3181,7 @@ export const WIZARD_FIELDS_BY_TEMPLATE: Record<string, WizardSection[]> = {
       fields: [
         { key: 'otro_progenitor_nombre', label: 'Nombre completo', type: 'text', required: true },
         { key: 'otro_progenitor_dni', label: 'DNI', type: 'text', placeholder: '12.345.678' },
-        { key: 'otro_progenitor_domicilio', label: 'Domicilio', type: 'text' },
+        { key: 'otro_progenitor_domicilio', label: 'Domicilio', type: 'domicilio' },
       ],
     },
     {
@@ -3209,7 +3209,7 @@ export const WIZARD_FIELDS_BY_TEMPLATE: Record<string, WizardSection[]> = {
       icon: 'UserPlus',
       fields: [
         { key: 'otro_progenitor_nombre', label: 'Nombre completo', type: 'text', required: true },
-        { key: 'otro_progenitor_domicilio', label: 'Domicilio', type: 'text' },
+        { key: 'otro_progenitor_domicilio', label: 'Domicilio', type: 'domicilio' },
         { key: 'distancia_domicilios', label: 'Distancia entre domicilios', type: 'select', options: ['Misma ciudad', 'Otra ciudad cercana', 'Otra provincia', 'Otro país'] },
       ],
     },
@@ -3239,7 +3239,7 @@ export const WIZARD_FIELDS_BY_TEMPLATE: Record<string, WizardSection[]> = {
       fields: [
         { key: 'progenitor_nombre', label: 'Nombre completo', type: 'text', required: true },
         { key: 'progenitor_dni', label: 'DNI', type: 'text' },
-        { key: 'progenitor_domicilio', label: 'Domicilio conocido', type: 'text' },
+        { key: 'progenitor_domicilio', label: 'Domicilio conocido', type: 'domicilio' },
       ],
     },
     {
@@ -3259,7 +3259,7 @@ export const WIZARD_FIELDS_BY_TEMPLATE: Record<string, WizardSection[]> = {
       fields: [
         { key: 'victima_nombre', label: 'Nombre completo', type: 'text', required: true },
         { key: 'victima_dni', label: 'DNI', type: 'text', required: true },
-        { key: 'victima_domicilio', label: 'Domicilio actual', type: 'text', required: true },
+        { key: 'victima_domicilio', label: 'Domicilio actual', type: 'domicilio', required: true },
         { key: 'victima_telefono', label: 'Teléfono de contacto', type: 'text', required: true },
         { key: 'menores_convivientes', label: 'Menores convivientes (cantidad)', type: 'number', placeholder: '0' },
       ],
@@ -3270,7 +3270,7 @@ export const WIZARD_FIELDS_BY_TEMPLATE: Record<string, WizardSection[]> = {
       fields: [
         { key: 'agresor_nombre', label: 'Nombre completo', type: 'text', required: true },
         { key: 'agresor_dni', label: 'DNI', type: 'text' },
-        { key: 'agresor_domicilio', label: 'Domicilio', type: 'text' },
+        { key: 'agresor_domicilio', label: 'Domicilio', type: 'domicilio' },
         { key: 'vinculo', label: 'Vínculo con la víctima', type: 'select', options: ['Cónyuge', 'Ex-cónyuge', 'Conviviente', 'Ex-conviviente', 'Novio/a', 'Progenitor', 'Otro familiar'], required: true },
       ],
     },
@@ -3293,7 +3293,7 @@ export const WIZARD_FIELDS_BY_TEMPLATE: Record<string, WizardSection[]> = {
       fields: [
         { key: 'adoptante_nombre', label: 'Nombre completo', type: 'text', required: true },
         { key: 'adoptante_dni', label: 'DNI', type: 'text', required: true },
-        { key: 'adoptante_domicilio', label: 'Domicilio', type: 'text', required: true },
+        { key: 'adoptante_domicilio', label: 'Domicilio', type: 'domicilio', required: true },
         { key: 'adoptante_estado_civil', label: 'Estado civil', type: 'select', options: ['Soltero/a', 'Casado/a', 'Divorciado/a', 'Viudo/a', 'Unión convivencial'] },
       ],
     },
@@ -3335,7 +3335,7 @@ export const WIZARD_FIELDS_BY_TEMPLATE: Record<string, WizardSection[]> = {
         { key: 'trabajador_nombre', label: 'Nombre completo', type: 'text', required: true },
         { key: 'trabajador_dni', label: 'DNI', type: 'text', required: true },
         { key: 'trabajador_cuil', label: 'CUIL', type: 'text', placeholder: '20-12345678-9' },
-        { key: 'trabajador_domicilio', label: 'Domicilio', type: 'text' },
+        { key: 'trabajador_domicilio', label: 'Domicilio', type: 'domicilio' },
         { key: 'categoria', label: 'Categoría laboral (según CCT)', type: 'text', placeholder: 'Ej: Administrativo A...' },
       ],
     },
@@ -3345,7 +3345,7 @@ export const WIZARD_FIELDS_BY_TEMPLATE: Record<string, WizardSection[]> = {
       fields: [
         { key: 'empleador_nombre', label: 'Razón social', type: 'text', required: true },
         { key: 'empleador_cuit', label: 'CUIT', type: 'text', placeholder: '30-12345678-9' },
-        { key: 'empleador_domicilio', label: 'Domicilio legal (CABA)', type: 'text', required: true },
+        { key: 'empleador_domicilio', label: 'Domicilio legal (CABA)', type: 'domicilio', required: true },
         { key: 'empleador_actividad', label: 'Actividad principal', type: 'text' },
         { key: 'tipo_empresa', label: 'Tipo de empresa', type: 'select', options: ['Gran empresa', 'MIPYME'] },
       ],
@@ -3382,7 +3382,7 @@ export const WIZARD_FIELDS_BY_TEMPLATE: Record<string, WizardSection[]> = {
         { key: 'trabajador_nombre', label: 'Nombre completo', type: 'text', required: true },
         { key: 'trabajador_dni', label: 'DNI', type: 'text', required: true },
         { key: 'trabajador_cuil', label: 'CUIL', type: 'text', placeholder: '20-12345678-9' },
-        { key: 'trabajador_domicilio', label: 'Domicilio', type: 'text' },
+        { key: 'trabajador_domicilio', label: 'Domicilio', type: 'domicilio' },
         { key: 'categoria', label: 'Categoría laboral (según CCT)', type: 'text', placeholder: 'Ej: Administrativo A...' },
       ],
     },
@@ -3392,7 +3392,7 @@ export const WIZARD_FIELDS_BY_TEMPLATE: Record<string, WizardSection[]> = {
       fields: [
         { key: 'empleador_nombre', label: 'Razón social', type: 'text', required: true },
         { key: 'empleador_cuit', label: 'CUIT', type: 'text', placeholder: '30-12345678-9' },
-        { key: 'empleador_domicilio', label: 'Domicilio legal (Provincia de Buenos Aires)', type: 'text', required: true },
+        { key: 'empleador_domicilio', label: 'Domicilio legal (Provincia de Buenos Aires)', type: 'domicilio', required: true },
         { key: 'empleador_actividad', label: 'Actividad principal', type: 'text' },
         { key: 'tipo_empresa', label: 'Tipo de empresa', type: 'select', options: ['Gran empresa', 'MIPYME'] },
       ],
@@ -3437,7 +3437,7 @@ export const WIZARD_FIELDS_BY_TEMPLATE: Record<string, WizardSection[]> = {
       fields: [
         { key: 'empleador_nombre', label: 'Razón social', type: 'text', required: true },
         { key: 'empleador_cuit', label: 'CUIT', type: 'text', placeholder: '30-12345678-9' },
-        { key: 'empleador_domicilio', label: 'Domicilio legal', type: 'text' },
+        { key: 'empleador_domicilio', label: 'Domicilio legal', type: 'domicilio' },
       ],
     },
     {
@@ -3479,7 +3479,7 @@ export const WIZARD_FIELDS_BY_TEMPLATE: Record<string, WizardSection[]> = {
       fields: [
         { key: 'empleador_nombre', label: 'Razón social', type: 'text', required: true },
         { key: 'empleador_cuit', label: 'CUIT', type: 'text', placeholder: '30-12345678-9' },
-        { key: 'empleador_domicilio', label: 'Domicilio legal (PBA)', type: 'text' },
+        { key: 'empleador_domicilio', label: 'Domicilio legal (PBA)', type: 'domicilio' },
       ],
     },
     {
@@ -3512,7 +3512,7 @@ export const WIZARD_FIELDS_BY_TEMPLATE: Record<string, WizardSection[]> = {
         { key: 'trabajador_nombre', label: 'Nombre completo', type: 'text', required: true },
         { key: 'trabajador_dni', label: 'DNI', type: 'text', required: true },
         { key: 'trabajador_cuil', label: 'CUIL', type: 'text', placeholder: '20-12345678-9' },
-        { key: 'trabajador_domicilio', label: 'Domicilio', type: 'text' },
+        { key: 'trabajador_domicilio', label: 'Domicilio', type: 'domicilio' },
       ],
     },
     {
@@ -3521,7 +3521,7 @@ export const WIZARD_FIELDS_BY_TEMPLATE: Record<string, WizardSection[]> = {
       fields: [
         { key: 'empleador_nombre', label: 'Razón social / Nombre', type: 'text', required: true },
         { key: 'empleador_cuit', label: 'CUIT (si se conoce)', type: 'text', placeholder: '30-12345678-9' },
-        { key: 'empleador_domicilio', label: 'Domicilio conocido', type: 'text' },
+        { key: 'empleador_domicilio', label: 'Domicilio conocido', type: 'domicilio' },
         { key: 'empleador_actividad', label: 'Actividad', type: 'text' },
       ],
     },
@@ -3555,7 +3555,7 @@ export const WIZARD_FIELDS_BY_TEMPLATE: Record<string, WizardSection[]> = {
         { key: 'trabajador_nombre', label: 'Nombre completo', type: 'text', required: true },
         { key: 'trabajador_dni', label: 'DNI', type: 'text', required: true },
         { key: 'trabajador_cuil', label: 'CUIL', type: 'text', placeholder: '20-12345678-9' },
-        { key: 'trabajador_domicilio', label: 'Domicilio', type: 'text' },
+        { key: 'trabajador_domicilio', label: 'Domicilio', type: 'domicilio' },
       ],
     },
     {
@@ -3564,7 +3564,7 @@ export const WIZARD_FIELDS_BY_TEMPLATE: Record<string, WizardSection[]> = {
       fields: [
         { key: 'empleador_nombre', label: 'Razón social / Nombre', type: 'text', required: true },
         { key: 'empleador_cuit', label: 'CUIT (si se conoce)', type: 'text', placeholder: '30-12345678-9' },
-        { key: 'empleador_domicilio', label: 'Domicilio conocido (PBA)', type: 'text' },
+        { key: 'empleador_domicilio', label: 'Domicilio conocido (PBA)', type: 'domicilio' },
         { key: 'empleador_actividad', label: 'Actividad', type: 'text' },
       ],
     },
@@ -3591,7 +3591,7 @@ export const WIZARD_FIELDS_BY_TEMPLATE: Record<string, WizardSection[]> = {
         { key: 'trabajador_nombre', label: 'Nombre completo', type: 'text', required: true },
         { key: 'trabajador_dni', label: 'DNI', type: 'text', required: true },
         { key: 'trabajador_cuil', label: 'CUIL', type: 'text', placeholder: '20-12345678-9' },
-        { key: 'trabajador_domicilio', label: 'Domicilio', type: 'text' },
+        { key: 'trabajador_domicilio', label: 'Domicilio', type: 'domicilio' },
       ],
     },
     {
@@ -3627,7 +3627,7 @@ export const WIZARD_FIELDS_BY_TEMPLATE: Record<string, WizardSection[]> = {
         { key: 'trabajador_nombre', label: 'Nombre completo', type: 'text', required: true },
         { key: 'trabajador_dni', label: 'DNI', type: 'text', required: true },
         { key: 'trabajador_cuil', label: 'CUIL', type: 'text', placeholder: '20-12345678-9' },
-        { key: 'trabajador_domicilio', label: 'Domicilio (PBA)', type: 'text', required: true },
+        { key: 'trabajador_domicilio', label: 'Domicilio (PBA)', type: 'domicilio', required: true },
       ],
     },
     {
@@ -3765,7 +3765,7 @@ export const WIZARD_FIELDS_BY_TEMPLATE: Record<string, WizardSection[]> = {
       fields: [
         { key: 'contraparte_nombre', label: 'Nombre / Razón social', type: 'text', required: true },
         { key: 'contraparte_cuit', label: 'CUIT', type: 'text' },
-        { key: 'contraparte_domicilio', label: 'Domicilio', type: 'text' },
+        { key: 'contraparte_domicilio', label: 'Domicilio', type: 'domicilio' },
       ],
     },
     {
@@ -3787,7 +3787,7 @@ export const WIZARD_FIELDS_BY_TEMPLATE: Record<string, WizardSection[]> = {
       fields: [
         { key: 'deudor_nombre', label: 'Nombre / Razón social', type: 'text', required: true },
         { key: 'deudor_cuit', label: 'CUIT/DNI', type: 'text' },
-        { key: 'deudor_domicilio', label: 'Domicilio', type: 'text' },
+        { key: 'deudor_domicilio', label: 'Domicilio', type: 'domicilio' },
       ],
     },
     {
@@ -3809,7 +3809,7 @@ export const WIZARD_FIELDS_BY_TEMPLATE: Record<string, WizardSection[]> = {
       fields: [
         { key: 'librador_nombre', label: 'Nombre / Razón social', type: 'text', required: true },
         { key: 'librador_cuit', label: 'CUIT/DNI', type: 'text' },
-        { key: 'librador_domicilio', label: 'Domicilio', type: 'text' },
+        { key: 'librador_domicilio', label: 'Domicilio', type: 'domicilio' },
       ],
     },
     {
@@ -3833,7 +3833,7 @@ export const WIZARD_FIELDS_BY_TEMPLATE: Record<string, WizardSection[]> = {
         { key: 'causante_nombre', label: 'Nombre completo', type: 'text', required: true },
         { key: 'causante_dni', label: 'DNI', type: 'text', required: true },
         { key: 'causante_fecha_fallecimiento', label: 'Fecha de fallecimiento', type: 'date', required: true },
-        { key: 'causante_ultimo_domicilio', label: 'Último domicilio', type: 'text', required: true },
+        { key: 'causante_ultimo_domicilio', label: 'Último domicilio', type: 'domicilio', required: true },
       ],
     },
     {

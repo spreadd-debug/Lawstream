@@ -12,6 +12,7 @@ import {
   RESULTADOS_EXITOSOS,
 } from '../types';
 import { Modal, Button, Input, Textarea } from './UI';
+import { DomicilioInput } from './DomicilioInput';
 import { cn } from '../lib/utils';
 import {
   Mail,
@@ -376,12 +377,11 @@ const CrearCedulaModal: React.FC<CrearCedulaModalProps> = ({ isOpen, onClose, on
 
         <div>
           <label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground mb-2 block">
-            Domicilio *
+            Domicilio de notificación *
           </label>
-          <Input
+          <DomicilioInput
             value={domicilio}
-            onChange={e => setDomicilio(e.target.value)}
-            placeholder="Calle, número, depto/piso, localidad"
+            onChange={setDomicilio}
           />
         </div>
 

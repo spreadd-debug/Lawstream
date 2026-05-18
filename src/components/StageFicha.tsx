@@ -16,6 +16,7 @@ import {
 import { Button, Input, Label, Textarea, MoneyInput, Badge } from './UI';
 import { cn } from '../lib/utils';
 import { detectarCruceViolencia } from '../lib/violencia';
+import { DomicilioInput } from './DomicilioInput';
 
 interface SubFieldDef {
   key: string;
@@ -29,7 +30,7 @@ interface SubFieldDef {
 interface FichaFieldDef {
   key: string;
   label: string;
-  type: 'text' | 'date' | 'select' | 'number' | 'money' | 'textarea' | 'repeatable' | 'info';
+  type: 'text' | 'date' | 'select' | 'number' | 'money' | 'textarea' | 'repeatable' | 'info' | 'domicilio';
   placeholder?: string;
   options?: string[];
   required?: boolean;
@@ -259,6 +260,22 @@ export const StageFicha: React.FC<StageFichaProps> = ({
                     // comunicación cuando hay medida de protección vigente.
                     const showCruceViolencia = field.key === 'regimen_comunicacion';
                     const cruce = showCruceViolencia ? detectarCruceViolencia(data) : null;
+
+                    // ── Domicilio estructurado (GAP UX-35) ──
+                    if (field.type === 'domicilio') {
+                      return (
+                        <div key={field.key} className="md:col-span-2 space-y-1.5">
+                          <Label className="text-[10px]">
+                            {field.label}
+                            {field.required && <span className="text-rose-500 ml-0.5">*</span>}
+                          </Label>
+                          <DomicilioInput
+                            value={data[field.key] || ''}
+                            onChange={v => set(field.key, v)}
+                          />
+                        </div>
+                      );
+                    }
 
                     // ── Standard fields ──
                     return (

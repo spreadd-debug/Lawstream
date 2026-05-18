@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card, Button, Input, Badge, Label, Textarea, MoneyInput } from './UI';
+import { DomicilioInput } from './DomicilioInput';
 import { 
   ArrowLeft, 
   ArrowRight, 
@@ -1146,11 +1147,10 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
                       </div>
                       <div className="space-y-1.5 md:col-span-2">
                         <Label className="text-[9px]">Domicilio</Label>
-                        <Input
+                        <DomicilioInput
                           value={newClientData.domicilio}
-                          onChange={e => setNewClientData({...newClientData, domicilio: e.target.value})}
-                          placeholder="Ej: Av. Corrientes 4820 3°D, CABA"
-                          className="bg-background h-10"
+                          onChange={(v: string) => setNewClientData({...newClientData, domicilio: v})}
+                          className="bg-background"
                         />
                       </div>
                     </div>

@@ -300,7 +300,7 @@ export interface FlowStageTemplate {
     fields: {
       key: string;
       label: string;
-      type: 'text' | 'date' | 'select' | 'number' | 'money' | 'textarea' | 'repeatable' | 'info';
+      type: 'text' | 'date' | 'select' | 'number' | 'money' | 'textarea' | 'repeatable' | 'info' | 'domicilio';
       placeholder?: string;
       options?: string[];
       required?: boolean;
