@@ -26,19 +26,41 @@ import { updateConsultation } from '../lib/db';
 interface ChecklistField {
   key: string;
   label: string;
-  placeholder: string;
+  placeholder?: string;
   multiline?: boolean;
+  type?: 'text' | 'textarea' | 'number' | 'select';
+  options?: string[];
+  /** Ancho completo en el grid de 2 columnas */
+  fullWidth?: boolean;
 }
 
+const ESTADO_CIVIL_OPTS = [
+  'Soltero/a',
+  'Casado/a',
+  'Separado/a de hecho',
+  'Divorciado/a',
+  'Viudo/a',
+  'Unión convivencial',
+  'Otro',
+];
+
 const CHECKLIST_FIELDS: ChecklistField[] = [
-  { key: 'dni_cuit',          label: 'DNI / CUIT del cliente',           placeholder: 'Ej: 20-12345678-9' },
-  { key: 'domicilio',         label: 'Domicilio actual',                 placeholder: 'Calle, número, localidad, provincia' },
-  { key: 'estado_civil',      label: 'Estado civil',                     placeholder: 'Ej: Casado/a, Soltero/a, Divorciado/a...' },
-  { key: 'hijos_menores',     label: 'Hijos menores',                    placeholder: 'Cantidad y edades. Ej: 2 hijos (5 y 8)' },
-  { key: 'documentacion',     label: 'Documentación que trae',           placeholder: 'Detallar documentos que presentó...', multiline: true },
-  { key: 'datos_contraparte', label: 'Datos de la contraparte',          placeholder: 'Nombre, DNI/CUIT, domicilio conocido...', multiline: true },
-  { key: 'abogado_previo',    label: '¿Tiene abogado previo?',           placeholder: 'Sí/No. Nombre, qué pasó...' },
-  { key: 'urgencia_cautelar', label: '¿Hay urgencia o medida cautelar?', placeholder: 'Sí/No. Detallar...' },
+  { key: 'dni_cuit',              label: 'DNI / CUIT del cliente',           placeholder: 'Ej: 20-12345678-9' },
+  { key: 'domicilio',             label: 'Domicilio actual',                 placeholder: 'Calle, número, localidad, provincia' },
+  { key: 'estado_civil',          label: 'Estado civil',                     type: 'select', options: ESTADO_CIVIL_OPTS },
+  // Hijos: solo cantidad; los datos individuales (nombre, fecha de nac.)
+  // se cargan en el asunto después en el tab "Hijos".
+  { key: 'hijos_menores',         label: 'Cantidad de hijos menores',        type: 'number', placeholder: '0' },
+  { key: 'documentacion',         label: 'Documentación que trae',           placeholder: 'Detallar documentos...', multiline: true, fullWidth: true },
+  // Contraparte: campos separados para que todo termine bien en el asunto.
+  // El domicilio se puede cargar como texto libre acá — se estructura
+  // en la Ficha de Instrucción del caso antes de armar la demanda.
+  { key: 'contraparte_nombre',    label: 'Contraparte — Nombre',             placeholder: 'Apellido, Nombre / Razón social', fullWidth: true },
+  { key: 'contraparte_dni',       label: 'Contraparte — DNI / CUIT',         placeholder: 'Ej: 32.456.890' },
+  { key: 'contraparte_domicilio', label: 'Contraparte — Domicilio',          placeholder: 'Barrio o calle conocida' },
+  { key: 'contraparte_telefono',  label: 'Contraparte — Teléfono',           placeholder: 'Opcional' },
+  { key: 'abogado_previo',        label: '¿Tiene abogado previo?',           placeholder: 'Sí/No. Nombre, qué pasó...' },
+  { key: 'urgencia_cautelar',     label: '¿Hay urgencia o medida cautelar?', placeholder: 'Sí/No. Detallar...' },
 ];
 
 // ── Props ───────────────────────────────────────────────────────
@@ -281,9 +303,10 @@ export const EntrevistaModal: React.FC<EntrevistaModalProps> = ({
               {CHECKLIST_FIELDS.map((field) => {
                 const isExpanded = expandedField === field.key;
                 const hasValue = !!checklistData[field.key]?.trim();
+                const isFullWidth = field.fullWidth || isExpanded;
 
                 return (
-                  <div key={field.key} className={cn(isExpanded && 'col-span-2')}>
+                  <div key={field.key} className={cn(isFullWidth && 'col-span-2')}>
                     <button
                       onClick={() => setExpandedField(isExpanded ? null : field.key)}
                       className={cn(
@@ -296,9 +319,7 @@ export const EntrevistaModal: React.FC<EntrevistaModalProps> = ({
                     >
                       <div className={cn(
                         'w-4 h-4 rounded-md border-2 flex items-center justify-center shrink-0 transition-all',
-                        hasValue
-                          ? 'bg-amber-500 border-amber-500'
-                          : 'border-border'
+                        hasValue ? 'bg-amber-500 border-amber-500' : 'border-border'
                       )}>
                         {hasValue && <CheckCircle2 size={10} className="text-white" />}
                       </div>
@@ -316,7 +337,40 @@ export const EntrevistaModal: React.FC<EntrevistaModalProps> = ({
 
                     {isExpanded && (
                       <div className="px-3 pb-3 pt-2 border border-t-0 border-amber-500/20 rounded-b-xl bg-amber-500/5 animate-in slide-in-from-top-1 duration-150">
-                        {field.multiline ? (
+                        {field.type === 'select' ? (
+                          <select
+                            autoFocus
+                            value={checklistData[field.key] || ''}
+                            onChange={(e) => {
+                              const updated = { ...checklistData, [field.key]: e.target.value };
+                              setChecklistData(updated);
+                              handleSaveChecklist(updated);
+                            }}
+                            className="w-full px-3 py-2 text-sm rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+                          >
+                            <option value="">Seleccionar...</option>
+                            {field.options?.map(opt => (
+                              <option key={opt} value={opt}>{opt}</option>
+                            ))}
+                          </select>
+                        ) : field.type === 'number' ? (
+                          <div className="flex items-center gap-3">
+                            <input
+                              autoFocus
+                              type="number"
+                              min="0"
+                              max="20"
+                              value={checklistData[field.key] || ''}
+                              onChange={(e) => setChecklistData(prev => ({ ...prev, [field.key]: e.target.value }))}
+                              onBlur={() => handleSaveChecklist(checklistData)}
+                              placeholder={field.placeholder}
+                              className="w-24 px-3 py-2 text-sm rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-amber-500/20 placeholder:text-muted-foreground/50"
+                            />
+                            <span className="text-xs text-muted-foreground italic">
+                              Datos de cada hijo se cargan en el asunto (tab "Hijos")
+                            </span>
+                          </div>
+                        ) : field.multiline ? (
                           <textarea
                             autoFocus
                             value={checklistData[field.key] || ''}

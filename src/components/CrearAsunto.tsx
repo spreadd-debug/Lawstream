@@ -52,6 +52,10 @@ interface CrearAsuntoProps {
     description?: string;
     fromConsultationId?: string;
     checklistData?: Record<string, string>;
+    // Campos de la entrevista que ahora también se propagan al asunto
+    diagnostico?: string;
+    solucionPropuesta?: string;
+    notes?: string[];
   } | null;
 }
 
@@ -135,14 +139,31 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
         }
       }
 
-      // Map interview checklist data to wizard case data fields
+      // Map interview checklist data to wizard case data fields.
+      // Todos los campos de la entrevista fluyen al asunto —
+      // nada se pierde al convertir consulta → asunto.
       if (prefilledData.checklistData) {
         const cl = prefilledData.checklistData;
         const mapped: Record<string, string> = {};
 
-        if (cl.dni_cuit) mapped.conyuge1_dni = cl.dni_cuit;
-        if (cl.domicilio) mapped.conyuge1_domicilio = cl.domicilio;
-        if (cl.hijos_menores) mapped.hijos_menores = cl.hijos_menores;
+        // ── Cliente ──
+        if (cl.dni_cuit)     mapped.conyuge1_dni       = cl.dni_cuit;
+        if (cl.domicilio)    mapped.conyuge1_domicilio  = cl.domicilio;
+        if (cl.estado_civil) mapped.estado_civil_cliente = cl.estado_civil;
+        if (cl.hijos_menores) mapped.hijos_menores      = cl.hijos_menores;
+
+        // ── Contraparte — nuevo formato (campos separados) ──
+        if (cl.contraparte_nombre)    mapped.conyuge2_nombre    = cl.contraparte_nombre;
+        if (cl.contraparte_dni)       mapped.conyuge2_dni       = cl.contraparte_dni;
+        if (cl.contraparte_domicilio) mapped.conyuge2_domicilio = cl.contraparte_domicilio;
+        if (cl.contraparte_telefono)  mapped.conyuge2_telefono  = cl.contraparte_telefono;
+
+        // ── Contraparte — legacy (textarea libre, backward compat) ──
+        if (cl.datos_contraparte && !cl.contraparte_nombre) {
+          mapped.conyuge2_nombre = cl.datos_contraparte;
+        }
+
+        // ── Urgencia / cautelar ──
         if (cl.urgencia_cautelar) {
           const u = cl.urgencia_cautelar.toLowerCase().trim();
           if (u.startsWith('no') || u === '') {
@@ -152,11 +173,35 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
             mapped.urgencia_detalle = cl.urgencia_cautelar;
           }
         }
-        if (cl.datos_contraparte) mapped.conyuge2_nombre = cl.datos_contraparte;
+
+        // ── Campos que antes se perdían — ahora se guardan en caseData ──
+        if (cl.documentacion)     mapped.documentacion_entrevista = cl.documentacion;
+        if (cl.abogado_previo)    mapped.abogado_previo           = cl.abogado_previo;
 
         setFormData(prev => ({
           ...prev,
           caseData: { ...prev.caseData, ...mapped },
+        }));
+      }
+
+      // ── Diagnóstico, solución y notas: van a description + caseData ──
+      if (prefilledData.diagnostico || prefilledData.solucionPropuesta || prefilledData.notes?.length) {
+        const partes: string[] = [];
+        if (prefilledData.diagnostico) partes.push(`Diagnóstico: ${prefilledData.diagnostico}`);
+        if (prefilledData.solucionPropuesta) partes.push(`Solución propuesta: ${prefilledData.solucionPropuesta}`);
+        const descripcionExtra = partes.join('\n');
+
+        setFormData(prev => ({
+          ...prev,
+          description: prev.description ? prev.description : descripcionExtra,
+          caseData: {
+            ...prev.caseData,
+            ...(prefilledData.diagnostico && { diagnostico_inicial: prefilledData.diagnostico }),
+            ...(prefilledData.solucionPropuesta && { solucion_propuesta: prefilledData.solucionPropuesta }),
+            ...(prefilledData.notes?.length && {
+              notas_entrevista: prefilledData.notes.join(' | '),
+            }),
+          },
         }));
       }
     }

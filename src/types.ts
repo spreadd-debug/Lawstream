@@ -179,6 +179,15 @@ export interface Consultation {
   diagnostico?: string;
   solucionPropuesta?: string;
   atendidoPor?: string;
+  /** Datos capturados durante la entrevista de consulta.
+   *  Todos los valores son strings para mantener Record<string,string>
+   *  compatible con el estado del componente. Claves adicionales
+   *  introducidas en el refactor de entrevista estructurada:
+   *   - contraparte_nombre / contraparte_dni / contraparte_domicilio / contraparte_telefono
+   *   - hijos_menores: número como string ("2")
+   *   - estado_civil: valor del select ("Casado/a", etc.)
+   *  Legacy: datos_contraparte (string libre) — sigue siendo leído
+   *  por backward compat en la conversión a asunto. */
   checklistData?: Record<string, string>;
 }
 
