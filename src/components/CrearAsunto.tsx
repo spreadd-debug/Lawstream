@@ -219,92 +219,65 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
     domicilio: '',
   });
 
-  // Cuando el usuario selecciona (o crea) un cliente, auto-populamos los
-  // campos de caseData que corresponden a "la parte" — conyuge1_* en
-  // familia/divorcio, trabajador_* en laboral, victima_* en daños, etc.
-  // Solo populamos campos que están vacíos: si el usuario ya los llenó
-  // a mano (ej. vino de una consulta prefillada), no los pisamos.
-  useEffect(() => {
-    if (!selectedClient) return;
-
-    const subtype = formData.subtype;
-    const type    = formData.type;
-
-    const applyIfEmpty = (updates: Record<string, string>) => {
-      setFormData(prev => {
-        const cd = prev.caseData ?? {};
-        const merged: Record<string, string> = {};
-        for (const [k, v] of Object.entries(updates)) {
-          if (v && !cd[k]) merged[k] = v;
-        }
-        if (Object.keys(merged).length === 0) return prev;
-        return { ...prev, caseData: { ...cd, ...merged } };
-      });
-    };
-
-    // ── Familia / Divorcio / Alimentos / Régimen de comunicación ──
+  // Helper que devuelve los campos a pre-poblar en caseData según el tipo
+  // de matter y los datos del cliente. Se llama desde el selector de tipo,
+  // jurisdicción, subtype Y desde la selección de cliente — así no depende
+  // del timing del useEffect (evita que los resets de caseData en los
+  // selectores vacíen los datos antes de que el effect los vuelva a llenar).
+  const buildClientCaseData = (type: string, client: any): Record<string, string> => {
+    if (!client?.name) return {};
+    const kv = (v: string | undefined) => v?.trim() || '';
     if (type === 'Familia') {
-      applyIfEmpty({
-        conyuge1_nombre:           selectedClient.name         ?? '',
-        conyuge1_dni:              selectedClient.dni          ?? '',
-        conyuge1_domicilio:        selectedClient.domicilio    ?? '',
-        conyuge1_email:            selectedClient.email        ?? '',
-        conyuge1_telefono:         selectedClient.phone        ?? '',
-        conyuge1_fecha_nacimiento: selectedClient.fechaNacimiento ?? '',
-        conyuge1_nacionalidad:     selectedClient.nacionalidad ?? '',
-        conyuge1_profesion:        selectedClient.profesion    ?? '',
-        conyuge1_situacion_laboral: selectedClient.situacionLaboral ?? '',
-        conyuge1_empleador:        selectedClient.empleador    ?? '',
-        conyuge1_ingreso_mensual:  selectedClient.ingresosEstimados ?? '',
-        // Alias alternativos que usan algunos subtemplates de familia
-        progenitor_nombre:         selectedClient.name         ?? '',
-        progenitor_dni:            selectedClient.dni          ?? '',
-        progenitor_domicilio:      selectedClient.domicilio    ?? '',
-      });
+      return {
+        ...(kv(client.name)              && { conyuge1_nombre:            kv(client.name) }),
+        ...(kv(client.dni)               && { conyuge1_dni:               kv(client.dni) }),
+        ...(kv(client.domicilio)         && { conyuge1_domicilio:         kv(client.domicilio) }),
+        ...(kv(client.email)             && { conyuge1_email:             kv(client.email) }),
+        ...(kv(client.phone)             && { conyuge1_telefono:          kv(client.phone) }),
+        ...(kv(client.fechaNacimiento)   && { conyuge1_fecha_nacimiento:  kv(client.fechaNacimiento) }),
+        ...(kv(client.nacionalidad)      && { conyuge1_nacionalidad:      kv(client.nacionalidad) }),
+        ...(kv(client.profesion)         && { conyuge1_profesion:         kv(client.profesion) }),
+        ...(kv(client.situacionLaboral)  && { conyuge1_situacion_laboral: kv(client.situacionLaboral) }),
+        ...(kv(client.empleador)         && { conyuge1_empleador:         kv(client.empleador) }),
+        ...(kv(client.ingresosEstimados) && { conyuge1_ingreso_mensual:   kv(client.ingresosEstimados) }),
+        ...(kv(client.name)              && { progenitor_nombre:          kv(client.name) }),
+        ...(kv(client.dni)               && { progenitor_dni:             kv(client.dni) }),
+        ...(kv(client.domicilio)         && { progenitor_domicilio:       kv(client.domicilio) }),
+      };
     }
-
-    // ── Laboral ──
     if (type === 'Laboral') {
-      applyIfEmpty({
-        trabajador_nombre:    selectedClient.name      ?? '',
-        trabajador_dni:       selectedClient.dni       ?? '',
-        trabajador_domicilio: selectedClient.domicilio ?? '',
-        trabajador_email:     selectedClient.email     ?? '',
-        trabajador_telefono:  selectedClient.phone     ?? '',
-      });
+      return {
+        ...(kv(client.name)      && { trabajador_nombre:    kv(client.name) }),
+        ...(kv(client.dni)       && { trabajador_dni:       kv(client.dni) }),
+        ...(kv(client.domicilio) && { trabajador_domicilio: kv(client.domicilio) }),
+        ...(kv(client.email)     && { trabajador_email:     kv(client.email) }),
+        ...(kv(client.phone)     && { trabajador_telefono:  kv(client.phone) }),
+      };
     }
-
-    // ── Daños ──
     if (type === 'Daños') {
-      applyIfEmpty({
-        victima_nombre:    selectedClient.name      ?? '',
-        victima_dni:       selectedClient.dni       ?? '',
-        victima_domicilio: selectedClient.domicilio ?? '',
-        victima_email:     selectedClient.email     ?? '',
-        victima_telefono:  selectedClient.phone     ?? '',
-      });
+      return {
+        ...(kv(client.name)      && { victima_nombre:    kv(client.name) }),
+        ...(kv(client.dni)       && { victima_dni:       kv(client.dni) }),
+        ...(kv(client.domicilio) && { victima_domicilio: kv(client.domicilio) }),
+        ...(kv(client.email)     && { victima_email:     kv(client.email) }),
+        ...(kv(client.phone)     && { victima_telefono:  kv(client.phone) }),
+      };
     }
-
-    // ── Civil / Comercial / Sucesiones / Penal ── campo genérico "actor"
     if (['Civil', 'Comercial', 'Sucesiones', 'Penal'].includes(type)) {
-      applyIfEmpty({
-        actor_nombre:    selectedClient.name      ?? '',
-        actor_dni:       selectedClient.dni       ?? '',
-        actor_domicilio: selectedClient.domicilio ?? '',
-        actor_email:     selectedClient.email     ?? '',
-        actor_telefono:  selectedClient.phone     ?? '',
-        // también aliases de sucesiones
-        heredero_nombre: selectedClient.name      ?? '',
-        heredero_dni:    selectedClient.dni       ?? '',
-        persona_nombre:  selectedClient.name      ?? '',
-        persona_dni:     selectedClient.dni       ?? '',
-      });
+      return {
+        ...(kv(client.name)      && { actor_nombre:     kv(client.name) }),
+        ...(kv(client.dni)       && { actor_dni:        kv(client.dni) }),
+        ...(kv(client.domicilio) && { actor_domicilio:  kv(client.domicilio) }),
+        ...(kv(client.email)     && { actor_email:      kv(client.email) }),
+        ...(kv(client.phone)     && { actor_telefono:   kv(client.phone) }),
+        ...(kv(client.name)      && { heredero_nombre:  kv(client.name) }),
+        ...(kv(client.dni)       && { heredero_dni:     kv(client.dni) }),
+        ...(kv(client.name)      && { persona_nombre:   kv(client.name) }),
+        ...(kv(client.dni)       && { persona_dni:      kv(client.dni) }),
+      };
     }
-  // formData.type se agrega a las deps para que el efecto re-corra cuando
-  // el usuario elige el tipo DESPUÉS de haber seleccionado el cliente
-  // (el selector de cliente es visible desde el inicio, antes de elegir tipo).
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedClient, formData.type]);
+    return {};
+  };
 
   // Resolve the active template and its wizard sections
   const activeTemplate = useMemo(() => findTemplate(formData.type, formData.subtype, formData.jurisdiction), [formData.type, formData.subtype, formData.jurisdiction]);
@@ -396,6 +369,11 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
     setSelectedClient(newClient);
     setIsCreatingClient(false);
     setNewClientData({ name: '', email: '', phone: '', type: 'Persona', dni: '', domicilio: '' });
+    // Pre-poblar caseData con datos del nuevo cliente
+    const clientData = buildClientCaseData(formData.type, newClient);
+    if (Object.keys(clientData).length > 0) {
+      setFormData(prev => ({ ...prev, caseData: { ...prev.caseData, ...clientData } }));
+    }
   };
 
   // Update suggestions when template changes
@@ -836,7 +814,7 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
                 ].map(t => (
                   <button
                     key={t.value}
-                    onClick={() => { setFormData({...formData, type: t.value, subtype: '', jurisdiction: '', title: '', caseData: {}, checklist: [], docs: [], milestones: [], blockers: [], selectedTemplateId: ''}); setTitleManuallyEdited(false); }}
+                    onClick={() => { setFormData({...formData, type: t.value, subtype: '', jurisdiction: '', title: '', caseData: buildClientCaseData(t.value, selectedClient), checklist: [], docs: [], milestones: [], blockers: [], selectedTemplateId: ''}); setTitleManuallyEdited(false); }}
                     className={cn(
                       "relative group flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all duration-200",
                       formData.type === t.value
@@ -891,7 +869,7 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
                         const resetTipoProceso = (j.value !== 'PBA' && formData.tipoProceso === 'sumario')
                           ? 'ordinario' as const
                           : formData.tipoProceso;
-                        setFormData({...formData, jurisdiction: j.value, tipoProceso: resetTipoProceso, subtype: '', title: '', caseData: {}, checklist: [], docs: [], milestones: [], blockers: [], selectedTemplateId: ''});
+                        setFormData({...formData, jurisdiction: j.value, tipoProceso: resetTipoProceso, subtype: '', title: '', caseData: buildClientCaseData(formData.type, selectedClient), checklist: [], docs: [], milestones: [], blockers: [], selectedTemplateId: ''});
                         setTitleManuallyEdited(false);
                       }}
                       title={j.hint}
@@ -1023,7 +1001,7 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
                   {availableSubtypes.map(s => (
                     <button
                       key={s.value}
-                      onClick={() => { setFormData({...formData, subtype: s.value, title: '', caseData: {}, checklist: [], docs: [], milestones: [], blockers: [], selectedTemplateId: ''}); setTitleManuallyEdited(false); }}
+                      onClick={() => { setFormData({...formData, subtype: s.value, title: '', caseData: buildClientCaseData(formData.type, selectedClient), checklist: [], docs: [], milestones: [], blockers: [], selectedTemplateId: ''}); setTitleManuallyEdited(false); }}
                       className={cn(
                         "px-4 py-2.5 rounded-xl border-2 text-sm font-bold transition-all duration-200",
                         formData.subtype === s.value
@@ -1245,7 +1223,13 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
                         {filteredClients.map(client => (
                           <button
                             key={client.id}
-                            onClick={() => setSelectedClient(client)}
+                            onClick={() => {
+                              setSelectedClient(client);
+                              const cd = buildClientCaseData(formData.type, client);
+                              if (Object.keys(cd).length > 0) {
+                                setFormData(prev => ({ ...prev, caseData: { ...prev.caseData, ...cd } }));
+                              }
+                            }}
                             className="w-full p-3 flex items-center gap-3 hover:bg-teal-500/5 rounded-lg transition-colors text-left"
                           >
                             <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-[10px] font-black">
