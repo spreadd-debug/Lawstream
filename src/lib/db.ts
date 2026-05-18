@@ -216,15 +216,26 @@ const toMatter = (r: any): Matter => ({
 });
 
 const toClient = (r: any): Client => ({
-  id:            r.id,
-  name:          r.name,
-  email:         r.email         ?? '',
-  phone:         r.phone         ?? '',
-  type:          r.type,
-  lastActivity:  r.last_activity,
-  notes:         r.notes         ?? undefined,
-  activeMatters: 0, // calculado en el front desde la lista de matters
-  closedMatters: 0,
+  id:                r.id,
+  name:              r.name,
+  email:             r.email              ?? '',
+  phone:             r.phone              ?? '',
+  type:              r.type,
+  lastActivity:      r.last_activity,
+  notes:             r.notes              ?? undefined,
+  activeMatters:     0,
+  closedMatters:     0,
+  // Campos extendidos — null en DB llega como undefined en el cliente.
+  // Se usan para pre-poblar los campos del asunto (conyuge1_*, trabajador_*, etc.)
+  // cuando el abogado selecciona un cliente existente en el wizard de crear asunto.
+  dni:               r.dni               ?? undefined,
+  domicilio:         r.domicilio         ?? undefined,
+  fechaNacimiento:   r.fecha_nacimiento  ?? undefined,
+  nacionalidad:      r.nacionalidad      ?? undefined,
+  profesion:         r.profesion         ?? undefined,
+  situacionLaboral:  r.situacion_laboral ?? undefined,
+  empleador:         r.empleador         ?? undefined,
+  ingresosEstimados: r.ingresos_estimados ?? undefined,
 });
 
 const toConsultation = (r: any): Consultation => ({
@@ -326,12 +337,22 @@ const matterToRow = (m: Partial<Matter>) => ({
 });
 
 const clientToRow = (c: Partial<Client>) => ({
-  ...(c.name         !== undefined && { name:          c.name }),
-  ...(c.email        !== undefined && { email:         c.email }),
-  ...(c.phone        !== undefined && { phone:         c.phone }),
-  ...(c.type         !== undefined && { type:          c.type }),
-  ...(c.lastActivity !== undefined && { last_activity: c.lastActivity }),
-  ...(c.notes        !== undefined && { notes:         c.notes }),
+  ...(c.name              !== undefined && { name:               c.name }),
+  ...(c.email             !== undefined && { email:              c.email }),
+  ...(c.phone             !== undefined && { phone:              c.phone }),
+  ...(c.type              !== undefined && { type:               c.type }),
+  ...(c.lastActivity      !== undefined && { last_activity:      c.lastActivity }),
+  ...(c.notes             !== undefined && { notes:              c.notes }),
+  // Campos extendidos — se guardan cuando existen (si la columna no existe
+  // en DB, Supabase los ignora sin error gracias a su validación por schema).
+  ...(c.dni               !== undefined && { dni:                c.dni }),
+  ...(c.domicilio         !== undefined && { domicilio:          c.domicilio }),
+  ...(c.fechaNacimiento   !== undefined && { fecha_nacimiento:   c.fechaNacimiento }),
+  ...(c.nacionalidad      !== undefined && { nacionalidad:       c.nacionalidad }),
+  ...(c.profesion         !== undefined && { profesion:          c.profesion }),
+  ...(c.situacionLaboral  !== undefined && { situacion_laboral:  c.situacionLaboral }),
+  ...(c.empleador         !== undefined && { empleador:          c.empleador }),
+  ...(c.ingresosEstimados !== undefined && { ingresos_estimados: c.ingresosEstimados }),
 });
 
 const documentToRow = (d: Partial<LegalDocument>) => ({

@@ -300,8 +300,11 @@ export const CrearAsunto = ({ onBack, onSave, prefilledData, clients = [], onCre
         persona_dni:     selectedClient.dni       ?? '',
       });
     }
+  // formData.type se agrega a las deps para que el efecto re-corra cuando
+  // el usuario elige el tipo DESPUÉS de haber seleccionado el cliente
+  // (el selector de cliente es visible desde el inicio, antes de elegir tipo).
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedClient]);
+  }, [selectedClient, formData.type]);
 
   // Resolve the active template and its wizard sections
   const activeTemplate = useMemo(() => findTemplate(formData.type, formData.subtype, formData.jurisdiction), [formData.type, formData.subtype, formData.jurisdiction]);
