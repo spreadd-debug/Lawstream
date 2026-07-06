@@ -848,24 +848,19 @@ const BienForm: React.FC<BienFormProps> = ({ isOpen, editing, naturaleza, socied
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-3">
-          <div className="col-span-2">
-            <Label>Valor actual</Label>
-            <Input
-              type="text"
-              value={valorActual}
-              onChange={e => setValorActual(e.target.value.replace(/[^0-9.,]/g, ''))}
-              placeholder="Ej: 420000.00"
-            />
-          </div>
-          <div>
-            <Label>Moneda</Label>
-            <select value={monedaActual} onChange={e => setMonedaActual(e.target.value as Moneda)} className="w-full h-10 px-3 bg-muted/50 border border-border/50 rounded-xl text-sm font-bold">
-              <option value="ARS">ARS</option>
-              <option value="USD">USD</option>
-              <option value="EUR">EUR</option>
-            </select>
-          </div>
+        <div>
+          <Label>Valor actual</Label>
+          <MoneyInput
+            value={valorActual}
+            onChange={setValorActual}
+            currency={monedaActual}
+            onCurrencyChange={setMonedaActual}
+            showCurrencySelector
+            placeholder="Ej: 420.000"
+          />
+          <p className="text-[10px] text-muted-foreground italic mt-1">
+            Elegí la moneda a la izquierda. El resumen patrimonial totaliza cada moneda por separado.
+          </p>
         </div>
 
         <div>
@@ -1080,27 +1075,21 @@ const ValuacionesModal: React.FC<{
           <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
             Agregar valuación
           </h4>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>Fecha *</Label>
               <Input type="date" value={fecha} onChange={e => setFecha(e.target.value)} />
             </div>
             <div>
               <Label>Valor *</Label>
-              <Input
-                type="text"
+              <MoneyInput
                 value={valor}
-                onChange={e => setValor(e.target.value.replace(/[^0-9.,]/g, ''))}
-                placeholder="42000"
+                onChange={setValor}
+                currency={moneda}
+                onCurrencyChange={setMoneda}
+                showCurrencySelector
+                placeholder="42.000"
               />
-            </div>
-            <div>
-              <Label>Moneda</Label>
-              <select value={moneda} onChange={e => setMoneda(e.target.value as Moneda)} className="w-full h-10 px-3 bg-muted/50 border border-border/50 rounded-xl text-sm font-bold">
-                <option value="ARS">ARS</option>
-                <option value="USD">USD</option>
-                <option value="EUR">EUR</option>
-              </select>
             </div>
           </div>
           <div>

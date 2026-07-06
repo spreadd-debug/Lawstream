@@ -101,10 +101,8 @@ export const StageFicha: React.FC<StageFichaProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
-      <div
-        className="absolute inset-0 bg-background/80 backdrop-blur-sm animate-in fade-in duration-300"
-        onClick={onClose}
-      />
+      {/* Sin onClick: cerrar por click afuera hacía perder la ficha a medio cargar. */}
+      <div className="absolute inset-0 bg-background/80 backdrop-blur-sm animate-in fade-in duration-300" />
       <div className="relative w-full max-w-2xl max-h-[90vh] bg-card border border-border rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-300 overflow-hidden">
         {/* Header */}
         <header className="p-6 border-b border-border flex items-center justify-between shrink-0">

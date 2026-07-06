@@ -112,7 +112,7 @@ function parseTerapiasDesc(text: string): TerapiaParseada[] {
       // Prestador: "con Lic./Dr./Dra./Prof. <Apellido>"
       let prestador: string | undefined;
       const prestMatch = chunk.match(/con\s+((?:Lic|Dr|Dra|Prof)\.?\s+[A-ZÁÉÍÓÚÑ][\w'áéíóúñ-]+(?:\s+[A-ZÁÉÍÓÚÑ][\w'áéíóúñ-]+)?)/);
-      if (prestMatch) prestador = prestMatch[1];
+      if (prestMatch) prestador = prestMatch[1];  
       return {
         concepto: chunk,
         prestador,

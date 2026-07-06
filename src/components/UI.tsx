@@ -108,11 +108,13 @@ export const Input: React.FC<InputProps> = ({ className, ...props }) => {
 
 // ── MoneyInput ───────────────────────────────────────────────────
 
+type MoneyCurrency = 'ARS' | 'USD' | 'EUR';
+
 interface MoneyInputProps {
   value: string | number;
   onChange: (raw: string) => void;
-  currency?: 'ARS' | 'USD';
-  onCurrencyChange?: (c: 'ARS' | 'USD') => void;
+  currency?: MoneyCurrency;
+  onCurrencyChange?: (c: MoneyCurrency) => void;
   showCurrencySelector?: boolean;
   placeholder?: string;
   className?: string;
@@ -174,19 +176,20 @@ export const MoneyInput: React.FC<MoneyInputProps> = ({
     }
   };
 
-  const symbol = currency === 'USD' ? 'US$' : '$';
+  const symbol = currency === 'USD' ? 'US$' : currency === 'EUR' ? '€' : '$';
 
   return (
     <div className={cn('flex items-center gap-0', className)}>
       {showCurrencySelector && onCurrencyChange && (
         <select
           value={currency}
-          onChange={e => onCurrencyChange(e.target.value as 'ARS' | 'USD')}
+          onChange={e => onCurrencyChange(e.target.value as MoneyCurrency)}
           disabled={disabled}
           className="h-11 px-2 bg-muted border border-r-0 border-border/50 rounded-l-xl text-xs font-black text-muted-foreground focus:outline-none appearance-none cursor-pointer"
         >
           <option value="ARS">ARS</option>
           <option value="USD">USD</option>
+          <option value="EUR">EUR</option>
         </select>
       )}
       <div className={cn('relative flex-1', showCurrencySelector ? '' : '')}>
@@ -315,16 +318,22 @@ interface ModalProps {
   title: string;
   children: React.ReactNode;
   footer?: React.ReactNode;
+  // Por defecto el click en el backdrop NO cierra el modal: la mayoría de
+  // los modales son formularios con datos a medio cargar y cerrarlos por un
+  // click accidental afuera hace perder todo lo tipeado. Para cerrar hay que
+  // usar la X o el botón Cancelar/Cerrar. Poné esto en false explícitamente
+  // si querés que un modal de solo-lectura se cierre al clickear afuera.
+  closeOnBackdropClick?: boolean;
 }
 
-export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, footer }) => {
+export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, footer, closeOnBackdropClick = false }) => {
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div 
+      <div
         className="absolute inset-0 bg-background/80 backdrop-blur-sm animate-in fade-in duration-300"
-        onClick={onClose}
+        onClick={closeOnBackdropClick ? onClose : undefined}
       />
       <div className="relative w-full max-w-lg max-h-[90vh] bg-card border border-border rounded-3xl shadow-2xl flex flex-col animate-in zoom-in-95 duration-300 overflow-hidden">
         <header className="p-6 border-b border-border flex items-center justify-between shrink-0">

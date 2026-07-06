@@ -68,7 +68,8 @@ export const NuevaConsultaForm = ({ onSave, onClose, profiles = [] }: NuevaConsu
 
   return (
     <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      {/* Sin onClick: cerrar por click afuera hacía perder la consulta a medio cargar. */}
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
 
       <div className="relative w-full sm:max-w-lg bg-card border border-border rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col max-h-[95vh]">
 

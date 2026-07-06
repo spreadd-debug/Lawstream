@@ -182,7 +182,8 @@ export const EntrevistaModal: React.FC<EntrevistaModalProps> = ({
   // ── Render ──
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center">
-      <div className="absolute inset-0 bg-background/90 backdrop-blur-md" onClick={onClose} />
+      {/* Sin onClick: cerrar por click afuera hacía perder la entrevista a medio cargar. */}
+      <div className="absolute inset-0 bg-background/90 backdrop-blur-md" />
 
       <div className="relative w-full max-w-3xl max-h-[92vh] bg-card border border-border rounded-3xl shadow-2xl flex flex-col animate-in zoom-in-95 fade-in duration-200">
 
