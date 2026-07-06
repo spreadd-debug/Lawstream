@@ -30,6 +30,7 @@ import {
   TIPO_CAUTELAR_LABELS,
 } from '../types';
 import { Modal, Button, Input, Textarea, Label, Badge, MoneyInput } from './UI';
+import { DomicilioInput } from './DomicilioInput';
 import { cn } from '../lib/utils';
 import { format, parseISO, differenceInCalendarDays } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -61,7 +62,10 @@ interface BienFieldDescriptor {
   key: keyof BienAtributos;
   label: string;
   placeholder?: string;
-  kind?: 'text' | 'textarea';
+  // 'domicilio' usa DomicilioInput: presenta calle/nº/piso/dpto/localidad/
+  // provincia/CP estructurados pero guarda un string canónico serializado,
+  // apto para escritos judiciales (CP obligatorio para MEV).
+  kind?: 'text' | 'textarea' | 'domicilio';
 }
 
 const BIEN_ATRIBUTOS_CONFIG: Partial<Record<BienTipo, BienFieldDescriptor[]>> = {
@@ -69,7 +73,7 @@ const BIEN_ATRIBUTOS_CONFIG: Partial<Record<BienTipo, BienFieldDescriptor[]>> = 
     { key: 'matricula',             label: 'Matrícula / Folio',     placeholder: 'Ej: Matrícula 12.345, Cap. Fed.' },
     { key: 'nomenclaturaCatastral', label: 'Nomenclatura catastral', placeholder: 'Circ. / Secc. / Manz. / Parc.' },
     { key: 'partidaInmobiliaria',   label: 'Partida inmobiliaria',  placeholder: 'N° de partida ARBA / AGIP' },
-    { key: 'ubicacion',             label: 'Ubicación / Dirección', placeholder: 'Calle, número, piso, localidad', kind: 'textarea' },
+    { key: 'ubicacion',             label: 'Ubicación / Dirección', kind: 'domicilio' },
     { key: 'superficie',            label: 'Superficie',            placeholder: 'Ej: 78 m² cubiertos' },
   ],
   vehiculo: [
@@ -923,9 +927,14 @@ const BienForm: React.FC<BienFormProps> = ({ isOpen, editing, naturaleza, socied
             </div>
             <div className="grid grid-cols-2 gap-3">
               {BIEN_ATRIBUTOS_CONFIG[tipo]!.map(f => (
-                <div key={f.key} className={f.kind === 'textarea' ? 'col-span-2' : ''}>
+                <div key={f.key} className={f.kind === 'textarea' || f.kind === 'domicilio' ? 'col-span-2' : ''}>
                   <Label>{f.label}</Label>
-                  {f.kind === 'textarea' ? (
+                  {f.kind === 'domicilio' ? (
+                    <DomicilioInput
+                      value={atributos[f.key] ?? ''}
+                      onChange={val => setAtributos(a => ({ ...a, [f.key]: val }))}
+                    />
+                  ) : f.kind === 'textarea' ? (
                     <Textarea
                       value={atributos[f.key] ?? ''}
                       onChange={e => setAtributos(a => ({ ...a, [f.key]: e.target.value }))}
