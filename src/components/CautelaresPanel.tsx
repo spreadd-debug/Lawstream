@@ -141,9 +141,12 @@ export const CautelaresPanel: React.FC<CautelaresPanelProps> = ({
     [matters, matterId],
   );
 
-  // Navega a /plantillas con el template + matter pre-cargados.
-  const generarEscritoCautelar = (templateId: string) => {
-    navigate(`/plantillas?template=${encodeURIComponent(templateId)}&matter=${encodeURIComponent(matterId)}`);
+  // Navega a /plantillas con el template + matter pre-cargados. Si la cautelar
+  // está asociada a un bien, pasamos su id para que Plantillas auto-complete
+  // los datos del activo (matrícula, dominio, etc.) en el oficio de embargo.
+  const generarEscritoCautelar = (templateId: string, bienId?: string) => {
+    const bienParam = bienId ? `&bien=${encodeURIComponent(bienId)}` : '';
+    navigate(`/plantillas?template=${encodeURIComponent(templateId)}&matter=${encodeURIComponent(matterId)}${bienParam}`);
   };
 
   const cautelaresDelMatter = useMemo(
@@ -227,7 +230,7 @@ export const CautelaresPanel: React.FC<CautelaresPanelProps> = ({
               templates={templatesParaCautelar(c, matterDelPanel)}
               onEdit={() => { setCautEditing(c); setCautFormOpen(true); }}
               onDelete={() => onDeleteCaut(c)}
-              onGenerarEscrito={generarEscritoCautelar}
+              onGenerarEscrito={(templateId) => generarEscritoCautelar(templateId, c.bienId)}
             />
           ))}
         </div>

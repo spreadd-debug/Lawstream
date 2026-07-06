@@ -1372,6 +1372,37 @@ export interface SociedadInterpuesta {
   updatedAt: string;
 }
 
+// Atributos estructurados específicos por tipo de bien ("activo vivo").
+// Sparse — solo se completan los campos que aplican al `tipo` del bien.
+// Se guardan en la columna JSONB `bienes.atributos` y se auto-completan
+// en los oficios de embargo/cautelar (ver BIEN_AUTOFILL_MAP en Plantillas).
+export interface BienAtributos {
+  // inmueble
+  matricula?: string;
+  folio?: string;
+  nomenclaturaCatastral?: string;
+  partidaInmobiliaria?: string;
+  ubicacion?: string;
+  superficie?: string;
+  // vehiculo
+  marca?: string;
+  modelo?: string;
+  anio?: string;
+  dominio?: string;                    // patente
+  nroMotor?: string;
+  nroChasis?: string;
+  // cuenta_bancaria
+  banco?: string;
+  cbu?: string;
+  nroCuenta?: string;
+  tipoCuenta?: string;
+  // inversion_financiera
+  entidad?: string;
+  nroComitente?: string;
+  // sociedad
+  porcentajeParticipacion?: string;
+}
+
 export interface Bien {
   id: string;
   matterId: string;
@@ -1389,6 +1420,8 @@ export interface Bien {
   // GAP UX-30: justificación del carácter — crítico cuando es 'propio'
   // (anterior al matrimonio, donación, herencia, permuta de propio).
   motivoCaracter?: string;
+  // Atributos estructurados por tipo (patente, matrícula, CBU, etc.).
+  atributos?: BienAtributos;
   observaciones?: string;
   notas?: string;
   createdBy?: string;

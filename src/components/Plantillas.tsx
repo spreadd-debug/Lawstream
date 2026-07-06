@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Card, Badge, Button, Input, Drawer, MoneyInput } from './UI';
-import { LegalTemplate, MatterType, Matter, Client, Expediente } from '../types';
+import { LegalTemplate, MatterType, Matter, Client, Expediente, Bien } from '../types';
 import { LEGAL_TEMPLATES } from '../data/legalTemplates';
 import { cn } from '../lib/utils';
 import { fillTemplate, TEMPLATE_VARIABLES } from '../lib/templateEngine';
@@ -126,11 +126,39 @@ const AUTOFILL_MAP: Record<string, string[]> = {
   EMPLEADOR_ALIMENTANTE: ['alimentante_empleador'],
 };
 
+// ── Auto-fill de datos del bien (template placeholder → atributos del activo) ──
+// Cuando el escrito se genera desde una cautelar asociada a un bien, estos
+// resolvers completan los datos registrales del activo (matrícula, dominio,
+// CBU, etc.) que hoy se tipean a mano. Devuelven undefined cuando el bien no
+// tiene el dato o no corresponde al rol (actor vs demandado).
+const composeVehiculo = (b: Bien): string | undefined => {
+  const parts = [
+    b.atributos?.marca,
+    b.atributos?.modelo,
+    b.atributos?.anio,
+    b.atributos?.dominio ? `dominio ${b.atributos.dominio}` : undefined,
+  ].filter(Boolean);
+  return parts.length ? parts.join(' ') : undefined;
+};
+
+const BIEN_AUTOFILL_MAP: Record<string, (b: Bien) => string | undefined> = {
+  MATRICULA:          b => b.atributos?.matricula || b.atributos?.folio,
+  NOMENCLATURA:       b => b.atributos?.nomenclaturaCatastral,
+  INMUEBLE_UBICACION: b => b.atributos?.ubicacion || b.descripcion,
+  BANCO:              b => b.atributos?.banco,
+  CBU_O_CUENTA:       b => b.atributos?.cbu || b.atributos?.nroCuenta,
+  // El vehículo se rutea según el titular: el del cliente llena ACTOR, el de
+  // la contraparte llena DEMANDADO ('ambos' puede llenar cualquiera).
+  VEHICULO_ACTOR:     b => (b.titularRol === 'cliente' || b.titularRol === 'ambos') ? composeVehiculo(b) : undefined,
+  VEHICULO_DEMANDADO: b => (b.titularRol === 'contraparte' || b.titularRol === 'ambos') ? composeVehiculo(b) : undefined,
+};
+
 function autoFillFromMatter(
   template: LegalTemplate,
   matter: Matter,
   client?: Client,
   expedientes: Expediente[] = [],
+  bien?: Bien,
 ): Record<string, string> {
   const values: Record<string, string> = {};
   const cd = matter.caseData || {};
@@ -140,6 +168,14 @@ function autoFillFromMatter(
 
   for (const ph of template.placeholders) {
     const key = ph.key;
+
+    // 0. Datos del bien asociado (precedencia: es el activo específico del
+    //    embargo). Solo aplica si vinimos desde una cautelar con bien.
+    if (bien) {
+      const bienResolver = BIEN_AUTOFILL_MAP[key];
+      const bienValue = bienResolver?.(bien);
+      if (bienValue) { values[key] = bienValue; continue; }
+    }
 
     // 1. Check direct match in caseData (lowercase keys)
     if (cd[key]) { values[key] = cd[key]; continue; }
@@ -194,7 +230,7 @@ interface PlantillasProps {
 }
 
 export const Plantillas = ({ matters = [], clients = [] }: PlantillasProps) => {
-  const { expedientes } = useAppContext();
+  const { expedientes, bienes } = useAppContext();
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<MatterType | 'Todas'>('Todas');
@@ -205,6 +241,10 @@ export const Plantillas = ({ matters = [], clients = [] }: PlantillasProps) => {
   const [copied, setCopied] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [autoFillMatterId, setAutoFillMatterId] = useState<string>('');
+  // Bien asociado a la cautelar de origen (?bien=id), para auto-completar los
+  // datos del activo en el oficio de embargo. Se persiste para el botón de
+  // re-autofill manual.
+  const [autoFillBienId, setAutoFillBienId] = useState<string>('');
   // Cuando se llega desde un asunto (?matter=id), guardamos el id para poder
   // volver. Se persiste aunque se limpien los searchParams.
   const [fromMatterId, setFromMatterId] = useState<string>('');
@@ -213,12 +253,14 @@ export const Plantillas = ({ matters = [], clients = [] }: PlantillasProps) => {
   useEffect(() => {
     const templateId = searchParams.get('template');
     const matterId = searchParams.get('matter');
+    const bienId = searchParams.get('bien');
     if (templateId) {
       const tmpl = LEGAL_TEMPLATES.find(t => t.id === templateId);
       if (tmpl) {
         setSelectedTemplate(tmpl);
         setSelectedCategory(tmpl.category);
         setMode('generate');
+        if (bienId) setAutoFillBienId(bienId);
         if (matterId) {
           setAutoFillMatterId(matterId);
           setFromMatterId(matterId);
@@ -226,7 +268,8 @@ export const Plantillas = ({ matters = [], clients = [] }: PlantillasProps) => {
           const matter = matters.find(m => m.id === matterId);
           if (matter) {
             const client = clients.find(c => c.name === matter.client);
-            const autoValues = autoFillFromMatter(tmpl, matter, client, expedientes);
+            const bien = bienId ? bienes.find(b => b.id === bienId) : undefined;
+            const autoValues = autoFillFromMatter(tmpl, matter, client, expedientes, bien);
             setPlaceholderValues(autoValues);
           }
         }
@@ -241,7 +284,8 @@ export const Plantillas = ({ matters = [], clients = [] }: PlantillasProps) => {
     const matter = matters.find(m => m.id === autoFillMatterId);
     if (!matter) return;
     const client = clients.find(c => c.name === matter.client);
-    const autoValues = autoFillFromMatter(selectedTemplate, matter, client, expedientes);
+    const bien = autoFillBienId ? bienes.find(b => b.id === autoFillBienId) : undefined;
+    const autoValues = autoFillFromMatter(selectedTemplate, matter, client, expedientes, bien);
     setPlaceholderValues(prev => ({ ...prev, ...autoValues }));
   };
 

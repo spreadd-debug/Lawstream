@@ -15,6 +15,7 @@ import React, { useMemo, useState } from 'react';
 import { useAppContext } from '../lib/AppContext';
 import {
   Bien,
+  BienAtributos,
   BienValuacion,
   SociedadInterpuesta,
   Cautelar,
@@ -50,6 +51,63 @@ const TIPO_PASIVO_OPTS: BienTipo[] = [
   'hipoteca', 'tarjeta_credito', 'prestamo_personal',
   'prestamo_prendario', 'moratoria_fiscal', 'otro',
 ];
+
+// ─── Atributos estructurados por tipo ("activo vivo") ──────────
+// Config data-driven: el form renderiza estos campos según el `tipo`
+// del bien. Agregar un campo nuevo es una línea acá, sin tocar la base
+// (se guardan en la columna JSONB `bienes.atributos`). Estos datos se
+// auto-completan después en los oficios de embargo (ver Plantillas).
+interface BienFieldDescriptor {
+  key: keyof BienAtributos;
+  label: string;
+  placeholder?: string;
+  kind?: 'text' | 'textarea';
+}
+
+const BIEN_ATRIBUTOS_CONFIG: Partial<Record<BienTipo, BienFieldDescriptor[]>> = {
+  inmueble: [
+    { key: 'matricula',             label: 'Matrícula / Folio',     placeholder: 'Ej: Matrícula 12.345, Cap. Fed.' },
+    { key: 'nomenclaturaCatastral', label: 'Nomenclatura catastral', placeholder: 'Circ. / Secc. / Manz. / Parc.' },
+    { key: 'partidaInmobiliaria',   label: 'Partida inmobiliaria',  placeholder: 'N° de partida ARBA / AGIP' },
+    { key: 'ubicacion',             label: 'Ubicación / Dirección', placeholder: 'Calle, número, piso, localidad', kind: 'textarea' },
+    { key: 'superficie',            label: 'Superficie',            placeholder: 'Ej: 78 m² cubiertos' },
+  ],
+  vehiculo: [
+    { key: 'marca',    label: 'Marca',            placeholder: 'Ej: Toyota' },
+    { key: 'modelo',   label: 'Modelo',           placeholder: 'Ej: Corolla XEI' },
+    { key: 'anio',     label: 'Año',              placeholder: 'Ej: 2021' },
+    { key: 'dominio',  label: 'Dominio (patente)', placeholder: 'Ej: AB 123 CD' },
+    { key: 'nroMotor', label: 'N° de motor' },
+    { key: 'nroChasis', label: 'N° de chasis' },
+  ],
+  cuenta_bancaria: [
+    { key: 'banco',      label: 'Banco',         placeholder: 'Ej: Banco Galicia' },
+    { key: 'cbu',        label: 'CBU',           placeholder: '22 dígitos' },
+    { key: 'nroCuenta',  label: 'N° de cuenta' },
+    { key: 'tipoCuenta', label: 'Tipo de cuenta', placeholder: 'Caja de ahorro / Cta. corriente' },
+  ],
+  inversion_financiera: [
+    { key: 'entidad',      label: 'Entidad / Broker', placeholder: 'Ej: Bull Market Brokers' },
+    { key: 'nroComitente', label: 'N° de cuenta comitente' },
+  ],
+  sociedad: [
+    { key: 'porcentajeParticipacion', label: '% de participación', placeholder: 'Ej: 33,3%' },
+  ],
+};
+
+// Descarta strings vacíos y keys que no pertenecen al tipo actual, para que
+// cambiar el tipo a mitad de edición no deje datos colgados (mismo criterio
+// que el "limpiar motivoCaracter cuando no aplica").
+function pruneAtributos(atributos: BienAtributos, tipo: BienTipo): BienAtributos {
+  const permitidas = new Set((BIEN_ATRIBUTOS_CONFIG[tipo] ?? []).map(f => f.key));
+  const out: BienAtributos = {};
+  for (const [k, v] of Object.entries(atributos)) {
+    if (!permitidas.has(k as keyof BienAtributos)) continue;
+    const trimmed = typeof v === 'string' ? v.trim() : v;
+    if (trimmed) out[k as keyof BienAtributos] = trimmed as string;
+  }
+  return out;
+}
 
 const formatMoneda = (valor: number | undefined, moneda: Moneda | undefined): string => {
   if (valor == null || moneda == null) return '—';
@@ -585,6 +643,23 @@ const BienCard: React.FC<{
             )}
           </div>
 
+          {/* Atributos estructurados por tipo (patente, matrícula, CBU, etc.) */}
+          {(() => {
+            const campos = (BIEN_ATRIBUTOS_CONFIG[b.tipo] ?? [])
+              .map(f => ({ label: f.label, value: b.atributos?.[f.key]?.trim() }))
+              .filter(c => c.value);
+            if (campos.length === 0) return null;
+            return (
+              <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+                {campos.map(c => (
+                  <span key={c.label}>
+                    <span className="font-bold text-foreground/70">{c.label}:</span> {c.value}
+                  </span>
+                ))}
+              </div>
+            );
+          })()}
+
           {/* GAP UX-30: motivo del carácter propio — clave en liquidación */}
           {b.caracter === 'propio' && b.motivoCaracter?.trim() && (
             <div className="text-[11px] text-foreground/90 bg-violet-500/5 border border-violet-500/20 rounded-lg px-3 py-2">
@@ -725,6 +800,8 @@ const BienForm: React.FC<BienFormProps> = ({ isOpen, editing, naturaleza, socied
   // cuando es 'propio', si no quedó documentado se marca con alerta en la
   // card. No bloquea el guardado (el usuario puede completarlo después).
   const [motivoCaracter, setMotivoCaracter]   = useState('');
+  // Atributos estructurados por tipo (patente, matrícula, CBU, etc.).
+  const [atributos, setAtributos]             = useState<BienAtributos>({});
   const [observaciones, setObservaciones]     = useState('');
   const [notas, setNotas]                     = useState('');
   const [saving, setSaving]                   = useState(false);
@@ -742,6 +819,7 @@ const BienForm: React.FC<BienFormProps> = ({ isOpen, editing, naturaleza, socied
     setSociedadId(editing?.sociedadInterpuestaId ?? '');
     setCaracter(editing?.caracter ?? '');
     setMotivoCaracter(editing?.motivoCaracter ?? '');
+    setAtributos(editing?.atributos ?? {});
     setObservaciones(editing?.observaciones ?? '');
     setNotas(editing?.notas ?? '');
   }, [isOpen, editing]);
@@ -777,6 +855,8 @@ const BienForm: React.FC<BienFormProps> = ({ isOpen, editing, naturaleza, socied
         motivoCaracter:        caracter === 'propio'
                                  ? (motivoCaracter.trim() || undefined)
                                  : undefined,
+        // Solo persistimos atributos que aplican al tipo actual (prune).
+        atributos:             pruneAtributos(atributos, tipo),
         observaciones:         observaciones.trim() || undefined,
         notas:                 notas.trim()         || undefined,
       });
@@ -828,6 +908,42 @@ const BienForm: React.FC<BienFormProps> = ({ isOpen, editing, naturaleza, socied
               : 'Ej: Hipoteca Banco Nación sobre Juncal 2245'}
           />
         </div>
+
+        {/* Atributos estructurados según el tipo. Estos datos se auto-completan
+            en los oficios de embargo/cautelar (matrícula, dominio, CBU, etc.). */}
+        {(BIEN_ATRIBUTOS_CONFIG[tipo]?.length ?? 0) > 0 && (
+          <section className="rounded-xl border border-sky-500/30 bg-sky-500/5 p-3 space-y-3">
+            <div className="flex items-baseline justify-between gap-3 flex-wrap">
+              <Label className="!mb-0 text-sky-800 dark:text-sky-200">
+                Datos del {BIEN_TIPO_LABELS[tipo].toLowerCase()}
+              </Label>
+              <span className="text-[10px] text-sky-700 dark:text-sky-300 italic">
+                se auto-completan al generar oficios de embargo
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              {BIEN_ATRIBUTOS_CONFIG[tipo]!.map(f => (
+                <div key={f.key} className={f.kind === 'textarea' ? 'col-span-2' : ''}>
+                  <Label>{f.label}</Label>
+                  {f.kind === 'textarea' ? (
+                    <Textarea
+                      value={atributos[f.key] ?? ''}
+                      onChange={e => setAtributos(a => ({ ...a, [f.key]: e.target.value }))}
+                      placeholder={f.placeholder}
+                      className="min-h-[60px] bg-background"
+                    />
+                  ) : (
+                    <Input
+                      value={atributos[f.key] ?? ''}
+                      onChange={e => setAtributos(a => ({ ...a, [f.key]: e.target.value }))}
+                      placeholder={f.placeholder}
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         <div className="grid grid-cols-2 gap-3">
           <div>
