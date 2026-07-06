@@ -1429,6 +1429,16 @@ export interface Bien {
   updatedAt: string;
 }
 
+// Origen de una tasación — relevante como prueba: una tasación judicial
+// (perito designado) pesa distinto que una privada o una estimación propia.
+export type TipoTasacion = 'judicial' | 'privada' | 'estimada';
+
+export const TIPO_TASACION_LABELS: Record<TipoTasacion, string> = {
+  judicial: 'Judicial (perito)',
+  privada:  'Privada',
+  estimada: 'Estimada',
+};
+
 export interface BienValuacion {
   id: string;
   bienId: string;
@@ -1436,6 +1446,12 @@ export interface BienValuacion {
   valor: number;
   moneda: Moneda;
   fuente?: string;
+  // Datos estructurados de la tasación como prueba. Importan cuando la
+  // contraparte impugna el valor: quién tasó y con qué matrícula respalda.
+  tasadorNombre?: string;
+  tasadorMatricula?: string;           // ej. 'CPI 3421', 'CUCICBA 1234'
+  tipoTasacion?: TipoTasacion;
+  fechaInforme?: string;               // 'YYYY-MM-DD' — fecha del dictamen
   notas?: string;
   createdBy?: string;
   createdAt: string;

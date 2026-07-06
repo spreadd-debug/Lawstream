@@ -3050,6 +3050,10 @@ const toBienValuacion = (r: any): BienValuacion => ({
   valor:     Number(r.valor),
   moneda:    r.moneda,
   fuente:    r.fuente     ?? undefined,
+  tasadorNombre:    r.tasador_nombre    ?? undefined,
+  tasadorMatricula: r.tasador_matricula ?? undefined,
+  tipoTasacion:     r.tipo_tasacion     ?? undefined,
+  fechaInforme:     r.fecha_informe     ?? undefined,
   notas:     r.notas      ?? undefined,
   createdBy: r.created_by ?? undefined,
   createdAt: r.created_at,
@@ -3062,6 +3066,10 @@ const bienValuacionToRow = (v: Partial<BienValuacion>): Record<string, unknown> 
   if (v.valor     !== undefined) row.valor      = v.valor;
   if (v.moneda    !== undefined) row.moneda     = v.moneda;
   if (v.fuente    !== undefined) row.fuente     = v.fuente     ?? null;
+  if (v.tasadorNombre    !== undefined) row.tasador_nombre    = v.tasadorNombre    ?? null;
+  if (v.tasadorMatricula !== undefined) row.tasador_matricula = v.tasadorMatricula ?? null;
+  if (v.tipoTasacion     !== undefined) row.tipo_tasacion     = v.tipoTasacion     ?? null;
+  if (v.fechaInforme     !== undefined) row.fecha_informe     = v.fechaInforme     ?? null;
   if (v.notas     !== undefined) row.notas      = v.notas      ?? null;
   if (v.createdBy !== undefined) row.created_by = v.createdBy  ?? null;
   return row;

@@ -24,10 +24,12 @@ import {
   TitularRol,
   BienCaracter,
   Moneda,
+  TipoTasacion,
   BIEN_TIPO_LABELS,
   TITULAR_ROL_LABELS,
   BIEN_CARACTER_LABELS,
   TIPO_CAUTELAR_LABELS,
+  TIPO_TASACION_LABELS,
 } from '../types';
 import { Modal, Button, Input, Textarea, Label, Badge, MoneyInput } from './UI';
 import { DomicilioInput } from './DomicilioInput';
@@ -1107,6 +1109,10 @@ const ValuacionesModal: React.FC<{
   const [valor, setValor]   = useState('');
   const [moneda, setMoneda] = useState<Moneda>('ARS');
   const [fuente, setFuente] = useState('');
+  const [tasadorNombre, setTasadorNombre]       = useState('');
+  const [tasadorMatricula, setTasadorMatricula] = useState('');
+  const [tipoTasacion, setTipoTasacion]         = useState<TipoTasacion | ''>('');
+  const [fechaInforme, setFechaInforme]         = useState('');
   const [notas, setNotas]   = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -1114,6 +1120,7 @@ const ValuacionesModal: React.FC<{
     if (!isOpen) return;
     setFecha(new Date().toISOString().slice(0, 10));
     setValor(''); setFuente(''); setNotas('');
+    setTasadorNombre(''); setTasadorMatricula(''); setTipoTasacion(''); setFechaInforme('');
     setMoneda(bien?.monedaActual ?? 'ARS');
   }, [isOpen, bien]);
 
@@ -1130,8 +1137,19 @@ const ValuacionesModal: React.FC<{
     if (!Number.isFinite(valorNum) || valorNum < 0) return;
     setSaving(true);
     try {
-      await onCreate({ fecha, valor: valorNum, moneda, fuente: fuente.trim() || undefined, notas: notas.trim() || undefined });
+      await onCreate({
+        fecha,
+        valor: valorNum,
+        moneda,
+        fuente: fuente.trim() || undefined,
+        tasadorNombre:    tasadorNombre.trim()    || undefined,
+        tasadorMatricula: tasadorMatricula.trim() || undefined,
+        tipoTasacion:     tipoTasacion || undefined,
+        fechaInforme:     fechaInforme || undefined,
+        notas: notas.trim() || undefined,
+      });
       setValor(''); setFuente(''); setNotas('');
+      setTasadorNombre(''); setTasadorMatricula(''); setTipoTasacion(''); setFechaInforme('');
     } finally {
       setSaving(false);
     }
@@ -1180,6 +1198,17 @@ const ValuacionesModal: React.FC<{
                       </span>
                     )}
                   </div>
+                  {(v.tasadorNombre || v.tipoTasacion) && (
+                    <p className="text-[10px] text-amber-700 dark:text-amber-300 flex items-center gap-1 flex-wrap">
+                      {v.tipoTasacion && (
+                        <span className="font-bold uppercase tracking-wider">{TIPO_TASACION_LABELS[v.tipoTasacion]}</span>
+                      )}
+                      {v.tasadorNombre && <span>· {v.tasadorNombre}{v.tasadorMatricula ? ` (${v.tasadorMatricula})` : ''}</span>}
+                      {v.fechaInforme && (
+                        <span className="text-muted-foreground">· informe {format(parseISO(v.fechaInforme), 'd MMM yyyy', { locale: es })}</span>
+                      )}
+                    </p>
+                  )}
                   {v.fuente && <p className="text-[10px] text-muted-foreground italic">{v.fuente}</p>}
                   {v.notas  && <p className="text-[10px] text-muted-foreground italic line-clamp-2">{v.notas}</p>}
                 </div>
@@ -1222,9 +1251,59 @@ const ValuacionesModal: React.FC<{
             <Input
               value={fuente}
               onChange={e => setFuente(e.target.value)}
-              placeholder="Ej: Tasación Arq. Díaz / HSBC informa / Bull Market 30/09/2026"
+              placeholder="Ej: HSBC informa / Bull Market 30/09/2026 / valor de mercado"
             />
           </div>
+
+          {/* Datos de la tasación como prueba (GAP UX-38). Estructurados para
+              poder citar al tasador y su matrícula en un escrito y distinguir
+              el peso probatorio (judicial vs. privada vs. estimada). */}
+          <section className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 space-y-3">
+            <div className="flex items-baseline justify-between gap-3 flex-wrap">
+              <Label className="!mb-0 text-amber-800 dark:text-amber-200">Tasación (respaldo probatorio)</Label>
+              <span className="text-[10px] text-amber-700 dark:text-amber-300 italic">
+                clave si la contraparte impugna el valor
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Tasador</Label>
+                <Input
+                  value={tasadorNombre}
+                  onChange={e => setTasadorNombre(e.target.value)}
+                  placeholder="Ej: Marina Piluso"
+                  className="bg-background"
+                />
+              </div>
+              <div>
+                <Label>Matrícula</Label>
+                <Input
+                  value={tasadorMatricula}
+                  onChange={e => setTasadorMatricula(e.target.value)}
+                  placeholder="Ej: CPI 3421 / CUCICBA 1234"
+                  className="bg-background"
+                />
+              </div>
+              <div>
+                <Label>Tipo de tasación</Label>
+                <select
+                  value={tipoTasacion}
+                  onChange={e => setTipoTasacion(e.target.value as TipoTasacion | '')}
+                  className="w-full h-10 px-3 bg-background border border-border/50 rounded-xl text-sm font-bold"
+                >
+                  <option value="">— Sin especificar —</option>
+                  {(Object.keys(TIPO_TASACION_LABELS) as TipoTasacion[]).map(t => (
+                    <option key={t} value={t}>{TIPO_TASACION_LABELS[t]}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <Label>Fecha del informe</Label>
+                <Input type="date" value={fechaInforme} onChange={e => setFechaInforme(e.target.value)} className="bg-background" />
+              </div>
+            </div>
+          </section>
+
           <div>
             <Label>Notas</Label>
             <Textarea value={notas} onChange={e => setNotas(e.target.value)} className="min-h-[60px]" />
