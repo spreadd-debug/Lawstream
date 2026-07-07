@@ -93,7 +93,7 @@ export const MatriculaInput: React.FC<MatriculaInputProps> = ({
 
   return (
     <div className={cn('space-y-2', className)}>
-      <div className="grid grid-cols-12 gap-2">
+      <div className="grid grid-cols-12 gap-2 items-end">
         <div className="col-span-3 space-y-1">
           <Label className="text-[9px]">Tomo</Label>
           <Input

@@ -172,8 +172,11 @@ export const DomicilioInput: React.FC<DomicilioInputProps> = ({
 
   return (
     <div className={cn('space-y-2', className)}>
-      {/* Fila 1: calle + número + piso + dpto */}
-      <div className="grid grid-cols-12 gap-2">
+      {/* Fila 1: calle + número + piso + dpto.
+          items-end: en contenedores angostos algunas etiquetas se parten en
+          dos líneas (ej. "Número *"); alineando al fondo, los inputs quedan
+          parejos sin importar la altura de la etiqueta. */}
+      <div className="grid grid-cols-12 gap-2 items-end">
         <div className="col-span-5 space-y-1">
           <Label className="text-[9px]">Calle / Avenida *</Label>
           <Input
@@ -217,7 +220,7 @@ export const DomicilioInput: React.FC<DomicilioInputProps> = ({
       </div>
 
       {/* Fila 2: localidad + provincia + CP */}
-      <div className="grid grid-cols-12 gap-2">
+      <div className="grid grid-cols-12 gap-2 items-end">
         <div className="col-span-4 space-y-1">
           <Label className="text-[9px]">Localidad / Barrio *</Label>
           <Input
