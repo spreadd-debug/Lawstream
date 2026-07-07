@@ -17,6 +17,7 @@ import { Button, Input, Label, Textarea, MoneyInput, Badge } from './UI';
 import { cn } from '../lib/utils';
 import { detectarCruceViolencia } from '../lib/violencia';
 import { DomicilioInput } from './DomicilioInput';
+import { MatriculaInput } from './MatriculaInput';
 
 interface SubFieldDef {
   key: string;
@@ -30,7 +31,7 @@ interface SubFieldDef {
 interface FichaFieldDef {
   key: string;
   label: string;
-  type: 'text' | 'date' | 'select' | 'number' | 'money' | 'textarea' | 'repeatable' | 'info' | 'domicilio';
+  type: 'text' | 'date' | 'select' | 'number' | 'money' | 'textarea' | 'repeatable' | 'info' | 'domicilio' | 'matricula';
   placeholder?: string;
   options?: string[];
   required?: boolean;
@@ -268,6 +269,21 @@ export const StageFicha: React.FC<StageFichaProps> = ({
                             {field.required && <span className="text-rose-500 ml-0.5">*</span>}
                           </Label>
                           <DomicilioInput
+                            value={data[field.key] || ''}
+                            onChange={v => set(field.key, v)}
+                          />
+                        </div>
+                      );
+                    }
+
+                    if (field.type === 'matricula') {
+                      return (
+                        <div key={field.key} className="md:col-span-2 space-y-1.5">
+                          <Label className="text-[10px]">
+                            {field.label}
+                            {field.required && <span className="text-rose-500 ml-0.5">*</span>}
+                          </Label>
+                          <MatriculaInput
                             value={data[field.key] || ''}
                             onChange={v => set(field.key, v)}
                           />

@@ -309,7 +309,7 @@ export interface FlowStageTemplate {
     fields: {
       key: string;
       label: string;
-      type: 'text' | 'date' | 'select' | 'number' | 'money' | 'textarea' | 'repeatable' | 'info' | 'domicilio';
+      type: 'text' | 'date' | 'select' | 'number' | 'money' | 'textarea' | 'repeatable' | 'info' | 'domicilio' | 'matricula';
       placeholder?: string;
       options?: string[];
       required?: boolean;

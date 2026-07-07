@@ -40,6 +40,7 @@ import { es } from 'date-fns/locale';
 import { cn } from '../lib/utils';
 import { fetchExpediente } from '../lib/db';
 import { useAppContext } from '../lib/AppContext';
+import { letradoContraparteDesdeFicha, sembrarFichaConLetrado, ABOGADO_CONTRAPARTE_KEY } from '../lib/letradoBridge';
 import { ExpedienteForm } from './ExpedienteForm';
 import { ExpedienteDetail } from './ExpedienteDetail';
 import { ESTADO_COLORS } from '../data/juzgados';
@@ -108,7 +109,7 @@ export const MatterDetail = ({
   currentUser, currentUserRole,
 }: MatterDetailProps) => {
   const navigate = useNavigate();
-  const { clients, matters: allMatters, plazos: allPlazos, eventos: allEventos, hijos: allHijos, reconvenciones: allReconvenciones, cautelares: allCautelares, bienes: allBienes, cuotasAlimentarias: allCuotasAlim, controversias: allControversias, handleEditMatter, setEditMatterFocusField, handleArchiveMatter } = useAppContext();
+  const { clients, matters: allMatters, plazos: allPlazos, eventos: allEventos, hijos: allHijos, reconvenciones: allReconvenciones, cautelares: allCautelares, bienes: allBienes, cuotasAlimentarias: allCuotasAlim, controversias: allControversias, letrados: allLetrados, handleCreateLetrado, handleUpdateLetrado, handleEditMatter, setEditMatterFocusField, handleArchiveMatter } = useAppContext();
   // GAP 1 — sub-procesos: si este matter tiene padre, mostramos breadcrumb.
   const parentMatter = matter.parentMatterId ? allMatters.find(m => m.id === matter.parentMatterId) : undefined;
   const isSubProceso = matter.kind === 'incidente' || matter.kind === 'apelacion';
@@ -117,6 +118,40 @@ export const MatterDetail = ({
     : matter.kind === 'incidente'
       ? `Incidente${matter.incidenteTipo ? ' · ' + INCIDENTE_TIPO_LABELS[matter.incidenteTipo] : ''}`
       : null;
+
+  // Puente instrucciones → expediente: cuando se guarda la ficha con el
+  // abogado de la contraparte, lo reflejamos como LetradoParte vivo (crea o
+  // actualiza el vigente). Así el panel de Letrados deja de quedar vacío.
+  const sincronizarLetradoContraparte = async (caseData: Record<string, string>) => {
+    const datos = letradoContraparteDesdeFicha(caseData);
+    if (!datos) return;
+    const existente = allLetrados.find(
+      l => l.matterId === matter.id && l.representaA === 'contraparte' && l.estado === 'vigente',
+    );
+    if (existente) {
+      // Solo actualizamos si algo cambió, para no escribir de más en cada save.
+      if (
+        existente.nombre !== datos.nombre ||
+        (existente.matricula ?? '') !== (datos.matricula ?? '') ||
+        (existente.colegio ?? '') !== (datos.colegio ?? '')
+      ) {
+        await handleUpdateLetrado(existente.id, {
+          nombre: datos.nombre,
+          matricula: datos.matricula,
+          colegio: datos.colegio,
+        });
+      }
+    } else {
+      await handleCreateLetrado({
+        matterId: matter.id,
+        nombre: datos.nombre,
+        matricula: datos.matricula,
+        colegio: datos.colegio,
+        representaA: 'contraparte',
+        estado: 'vigente',
+      });
+    }
+  };
 
   // GAP 5 — parcialmente firme. Estado DERIVADO: si este matter es principal
   // y tiene al menos una apelación-hija con estado != Cerrado/Archivado,
@@ -2656,6 +2691,12 @@ export const MatterDetail = ({
       {fichaOpenStage && (() => {
         const tplStage = template?.stages?.find(s => s.name === fichaOpenStage);
         if (!tplStage?.fichaFields) return null;
+        // Solo aplicamos el puente de letrado si esta ficha tiene el campo del
+        // abogado de la contraparte (fichas de divorcio). Evita inyectar la
+        // clave en fichas de otro tipo.
+        const fichaTieneAbogado = tplStage.fichaFields.some(
+          sec => sec.fields.some(f => f.key === ABOGADO_CONTRAPARTE_KEY),
+        );
         return (
           <StageFicha
             isOpen={true}
@@ -2663,9 +2704,19 @@ export const MatterDetail = ({
             fichaTitle={tplStage.fichaTitle || fichaOpenStage}
             stageName={fichaOpenStage}
             sections={tplStage.fichaFields}
-            currentData={matter.caseData || {}}
+            // Dirección expediente → instrucciones: si ya cargaste el letrado
+            // de la contraparte en el panel de Letrados, la ficha lo muestra.
+            currentData={fichaTieneAbogado
+              ? sembrarFichaConLetrado(
+                  matter.caseData || {},
+                  allLetrados.filter(l => l.matterId === matter.id),
+                )
+              : (matter.caseData || {})}
             onSave={(newData) => {
               onUpdateMatter?.({ caseData: { ...(matter.caseData || {}), ...newData } } as Partial<Matter>);
+              // Dirección instrucciones → expediente: upsert del letrado de la
+              // contraparte como entidad viva del expediente.
+              if (fichaTieneAbogado) void sincronizarLetradoContraparte(newData);
             }}
           />
         );

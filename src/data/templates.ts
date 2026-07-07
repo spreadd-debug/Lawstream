@@ -152,7 +152,7 @@ export const MATTER_TEMPLATES: MatterTemplate[] = [
               { key: 'conyuge2_dni', label: 'DNI', type: 'text', placeholder: '12.345.678' },
               { key: 'conyuge2_domicilio', label: 'Domicilio actual', type: 'domicilio' },
               { key: 'conyuge2_abogado', label: 'Abogado/a de la contraparte', type: 'text', placeholder: 'Dr/Dra. Nombre' },
-              { key: 'conyuge2_abogado_matricula', label: 'Matrícula (T°/F°/Colegio)', type: 'text', placeholder: 'Ej: T° 89 F° 234 CPACF' },
+              { key: 'conyuge2_abogado_matricula', label: 'Matrícula (T°/F°/Colegio)', type: 'matricula' },
             ],
           },
           {
@@ -588,7 +588,7 @@ export const MATTER_TEMPLATES: MatterTemplate[] = [
               { key: 'conyuge2_dni', label: 'DNI', type: 'text', placeholder: '12.345.678' },
               { key: 'conyuge2_domicilio', label: 'Domicilio actual', type: 'domicilio' },
               { key: 'conyuge2_abogado', label: 'Abogado/a de la contraparte', type: 'text', placeholder: 'Dr/Dra. Nombre' },
-              { key: 'conyuge2_abogado_matricula', label: 'Matrícula (T°/F°/Colegio)', type: 'text', placeholder: 'Ej: T° 89 F° 234 CALP' },
+              { key: 'conyuge2_abogado_matricula', label: 'Matrícula (T°/F°/Colegio)', type: 'matricula' },
             ],
           },
           {
