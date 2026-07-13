@@ -34,6 +34,7 @@ import {
   TITULAR_ROL_LABELS,
 } from '../types';
 import { Modal, Button, Input, Textarea, Label, Badge } from './UI';
+import { conceptoSugeridoDesdeHijo } from '../lib/conceptoDesdeHijo';
 import { cn } from '../lib/utils';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -192,6 +193,34 @@ export const CuotasAlimentariasPanel: React.FC<CuotasAlimentariasPanelProps> = (
     () => hijosDelMatter.filter(h => h.terapiasDesc?.trim()),
     [hijosDelMatter],
   );
+
+  // Picker "traer gastos de un hijo": cuotaId destino.
+  const [traerGastosCuotaId, setTraerGastosCuotaId] = useState<string | null>(null);
+
+  // Conceptos en especie de todas las cuotas del matter (incluye la canasta
+  // borrador). Fuente del picker de "traer gastos".
+  const conceptosDelMatter = useMemo(
+    () => cuotaConceptosEspecie.filter(ce => cuotasDelMatter.some(c => c.id === ce.cuotaAlimentariaId)),
+    [cuotaConceptosEspecie, cuotasDelMatter],
+  );
+
+  // Gastos (con hijoId) que se pueden traer a la cuota destino: existen en
+  // otra cuota del matter y no están ya en la destino. Deduplicados por
+  // categoría + concepto + hijo.
+  const gastosTraiblesPara = (cuotaId: string): CuotaConceptoEspecie[] => {
+    const key = (ce: CuotaConceptoEspecie) => `${ce.categoria}|${ce.concepto.trim().toLowerCase()}|${ce.hijoId ?? ''}`;
+    const enDestino = new Set(conceptosDelMatter.filter(ce => ce.cuotaAlimentariaId === cuotaId).map(key));
+    const vistos = new Set<string>();
+    const out: CuotaConceptoEspecie[] = [];
+    for (const ce of conceptosDelMatter) {
+      if (!ce.hijoId || ce.cuotaAlimentariaId === cuotaId) continue;
+      const k = key(ce);
+      if (enDestino.has(k) || vistos.has(k)) continue;
+      vistos.add(k);
+      out.push(ce);
+    }
+    return out;
+  };
 
   const onDeleteCuota = async (c: CuotaAlimentaria) => {
     const conceptos = cuotaConceptosEspecie.filter(ce => ce.cuotaAlimentariaId === c.id).length;
@@ -367,10 +396,12 @@ export const CuotasAlimentariasPanel: React.FC<CuotasAlimentariasPanelProps> = (
                 conceptos={cuotaConceptosEspecie.filter(ce => ce.cuotaAlimentariaId === c.id)}
                 hijos={hijosDelMatter}
                 puedeImportarTerapias={hijosConTerapias.length > 0}
+                puedeTraerGastos={gastosTraiblesPara(c.id).length > 0}
                 onEdit={() => { setCuotaEditing(c); setCuotaFormOpen(true); }}
                 onDelete={() => onDeleteCuota(c)}
                 onAddConcepto={() => { setConceptoEditing(null); setConceptoCuotaId(c.id); setConceptoFormOpen(true); }}
                 onImportarTerapias={() => setImportarCuotaId(c.id)}
+                onTraerGastos={() => setTraerGastosCuotaId(c.id)}
                 onEditConcepto={(ce) => { setConceptoEditing(ce); setConceptoCuotaId(ce.cuotaAlimentariaId); setConceptoFormOpen(true); }}
                 onDeleteConcepto={onDeleteConcepto}
                 onConvertirBorrador={() => setConvertirBorrador(c)}
@@ -392,10 +423,12 @@ export const CuotasAlimentariasPanel: React.FC<CuotasAlimentariasPanelProps> = (
             conceptos={cuotaConceptosEspecie.filter(ce => ce.cuotaAlimentariaId === c.id)}
             hijos={hijosDelMatter}
             puedeImportarTerapias={hijosConTerapias.length > 0}
+            puedeTraerGastos={gastosTraiblesPara(c.id).length > 0}
             onEdit={() => { setCuotaEditing(c); setCuotaFormOpen(true); }}
             onDelete={() => onDeleteCuota(c)}
             onAddConcepto={() => { setConceptoEditing(null); setConceptoCuotaId(c.id); setConceptoFormOpen(true); }}
             onImportarTerapias={() => setImportarCuotaId(c.id)}
+            onTraerGastos={() => setTraerGastosCuotaId(c.id)}
             onEditConcepto={(ce) => { setConceptoEditing(ce); setConceptoCuotaId(ce.cuotaAlimentariaId); setConceptoFormOpen(true); }}
             onDeleteConcepto={onDeleteConcepto}
           />
@@ -448,6 +481,32 @@ export const CuotasAlimentariasPanel: React.FC<CuotasAlimentariasPanelProps> = (
         }}
       />
 
+      {/* Traer gastos ya cargados de un hijo (patrón "dato vivo"). */}
+      <TraerGastosHijoModal
+        isOpen={traerGastosCuotaId !== null}
+        gastos={traerGastosCuotaId ? gastosTraiblesPara(traerGastosCuotaId) : []}
+        hijos={hijosDelMatter}
+        onClose={() => setTraerGastosCuotaId(null)}
+        onImport={async (elegidos) => {
+          for (const g of elegidos) {
+            await handleCreateCuotaConceptoEspecie({
+              cuotaAlimentariaId: traerGastosCuotaId!,
+              categoria:      g.categoria,
+              concepto:       g.concepto,
+              prestador:      g.prestador,
+              montoEstimado:  g.montoEstimado,
+              moneda:         g.moneda,
+              frecuencia:     g.frecuencia,
+              pagador:        g.pagador,
+              pagadorDetalle: g.pagadorDetalle,
+              hijoId:         g.hijoId,
+              notas:          g.notas,
+            } as Omit<CuotaConceptoEspecie, 'id' | 'createdAt' | 'updatedAt'>);
+          }
+          setTraerGastosCuotaId(null);
+        }}
+      />
+
       {/* GAP UX-17: importar terapias del hijo como conceptos en especie. */}
       <ImportarTerapiasModal
         isOpen={importarCuotaId !== null}
@@ -482,17 +541,19 @@ const CuotaCard: React.FC<{
   conceptos: CuotaConceptoEspecie[];
   hijos: HijoCaso[];
   puedeImportarTerapias: boolean;
+  puedeTraerGastos: boolean;
   onEdit: () => void;
   onDelete: () => void;
   onAddConcepto: () => void;
   onImportarTerapias: () => void;
+  onTraerGastos: () => void;
   onEditConcepto: (ce: CuotaConceptoEspecie) => void;
   onDeleteConcepto: (ce: CuotaConceptoEspecie) => Promise<void>;
   /** GAP UX-29: solo se pasa cuando la cuota es un borrador. Abre el modal
    *  que pide los datos faltantes (efectivo, vigencia, fundamento) y muta
    *  el estado a provisoria/definitiva. */
   onConvertirBorrador?: () => void;
-}> = ({ cuota: c, conceptos, hijos, puedeImportarTerapias, onEdit, onDelete, onAddConcepto, onImportarTerapias, onEditConcepto, onDeleteConcepto, onConvertirBorrador }) => {
+}> = ({ cuota: c, conceptos, hijos, puedeImportarTerapias, puedeTraerGastos, onEdit, onDelete, onAddConcepto, onImportarTerapias, onTraerGastos, onEditConcepto, onDeleteConcepto, onConvertirBorrador }) => {
   const esBorrador = c.estado === 'borrador';
   // Cálculo orientativo del total de la cuota (efectivo + suma de conceptos
   // en la misma moneda y frecuencia que el efectivo). Si difieren, no se
@@ -622,6 +683,17 @@ const CuotaCard: React.FC<{
                 title="Importar terapias cargadas en el hijo como conceptos en especie"
               >
                 <Heart size={11} /> Importar terapias
+              </Button>
+            )}
+            {puedeTraerGastos && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={onTraerGastos}
+                className="text-[10px] h-7 gap-1.5 border-emerald-500/40 text-emerald-700 hover:bg-emerald-500/5"
+                title="Traer a esta cuota los gastos ya cargados en la ficha de los hijos"
+              >
+                <Sparkles size={11} /> Traer gastos de un hijo
               </Button>
             )}
             <Button size="sm" variant="outline" onClick={onAddConcepto} className="text-[10px] h-7 gap-1.5">
@@ -962,6 +1034,11 @@ const ConceptoForm: React.FC<ConceptoFormProps> = ({ isOpen, editing, cuotaId, h
   const [hijoId, setHijoId]                     = useState('');
   const [notas, setNotas]                       = useState('');
   const [saving, setSaving]                     = useState(false);
+  // Hint tenue cuando el concepto se pre-cargó desde la ficha del hijo.
+  const [prefillHint, setPrefillHint]           = useState('');
+  // Último valor auto-cargado: si el usuario no lo tocó, lo podemos reemplazar
+  // al cambiar de hijo/categoría; si lo editó, no lo pisamos (no destructivo).
+  const prefillRef = React.useRef('');
 
   React.useEffect(() => {
     if (!isOpen) return;
@@ -975,7 +1052,35 @@ const ConceptoForm: React.FC<ConceptoFormProps> = ({ isOpen, editing, cuotaId, h
     setPagadorDetalle(editing?.pagadorDetalle ?? '');
     setHijoId(editing?.hijoId ?? '');
     setNotas(editing?.notas ?? '');
+    setPrefillHint('');
+    prefillRef.current = '';
   }, [isOpen, editing]);
+
+  // Pre-carga el concepto desde los datos estructurados del hijo elegido.
+  // Solo actúa si el campo está vacío o contiene un pre-fill previo intacto,
+  // así nunca pisa lo que el usuario tipeó a mano.
+  const aplicarSugerencia = (cat: CategoriaConceptoEspecie, hid: string) => {
+    const hijo = hijos.find(h => h.id === hid);
+    if (!hijo) return;
+    const sug = conceptoSugeridoDesdeHijo(cat, hijo);
+    setConcepto(prev => {
+      const intacto = prev.trim() === '' || prev === prefillRef.current;
+      if (!intacto || !sug.concepto) {
+        // Si el campo quedó con un pre-fill viejo pero la nueva categoría no
+        // sugiere nada, limpiamos ese pre-fill (no lo dejamos colgado).
+        if (intacto && !sug.concepto && prev === prefillRef.current) {
+          prefillRef.current = '';
+          setPrefillHint('');
+          return '';
+        }
+        return prev;
+      }
+      prefillRef.current = sug.concepto;
+      setPrefillHint(`Traído de la ficha de ${hijo.nombre}`);
+      return sug.concepto;
+    });
+    if (sug.prestador) setPrestador(prev => (prev.trim() === '' ? sug.prestador! : prev));
+  };
 
   const puedeGuardar = concepto.trim().length > 0 && cuotaId.length > 0;
 
@@ -1057,7 +1162,15 @@ const ConceptoForm: React.FC<ConceptoFormProps> = ({ isOpen, editing, cuotaId, h
         <div className="grid grid-cols-2 gap-3">
           <div>
             <Label>Categoría *</Label>
-            <select value={categoria} onChange={e => setCategoria(e.target.value as CategoriaConceptoEspecie)} className="w-full h-10 px-3 bg-muted/50 border border-border/50 rounded-xl text-sm font-bold">
+            <select
+              value={categoria}
+              onChange={e => {
+                const nueva = e.target.value as CategoriaConceptoEspecie;
+                setCategoria(nueva);
+                if (hijoId) aplicarSugerencia(nueva, hijoId);
+              }}
+              className="w-full h-10 px-3 bg-muted/50 border border-border/50 rounded-xl text-sm font-bold"
+            >
               {(Object.keys(CATEGORIA_CONCEPTO_LABELS) as CategoriaConceptoEspecie[]).map(c => (
                 <option key={c} value={c}>{CATEGORIA_CONCEPTO_LABELS[c]}</option>
               ))}
@@ -1073,13 +1186,39 @@ const ConceptoForm: React.FC<ConceptoFormProps> = ({ isOpen, editing, cuotaId, h
           </div>
         </div>
 
+        {/* Selector de hijo arriba: al elegirlo pre-cargamos el concepto desde
+            su ficha (colegio, obra social, AT). Ver conceptoDesdeHijo.ts. */}
+        {hijos.length > 0 && (
+          <div>
+            <Label>Aplica a un hijo específico</Label>
+            <select
+              value={hijoId}
+              onChange={e => {
+                const nuevo = e.target.value;
+                setHijoId(nuevo);
+                if (nuevo) aplicarSugerencia(categoria, nuevo);
+              }}
+              className="w-full h-10 px-3 bg-muted/50 border border-border/50 rounded-xl text-sm font-bold"
+            >
+              <option value="">— Aplica a todos los hijos cubiertos —</option>
+              {hijos.map(h => <option key={h.id} value={h.id}>{h.nombre}</option>)}
+            </select>
+            <p className="text-[10px] text-muted-foreground italic mt-1">
+              Marcalo cuando el concepto sea por un hijo en particular. Al elegirlo se pre-cargan sus datos (colegio, obra social) según la categoría.
+            </p>
+          </div>
+        )}
+
         <div>
           <Label>Concepto *</Label>
           <Input
             value={concepto}
-            onChange={e => setConcepto(e.target.value)}
+            onChange={e => { setConcepto(e.target.value); setPrefillHint(''); }}
             placeholder='Ej: "Colegio Northlands" / "OSDE 410" / "Terapia ocupacional"'
           />
+          {prefillHint && (
+            <p className="text-[10px] text-emerald-700 dark:text-emerald-400 italic mt-1">{prefillHint} · editable</p>
+          )}
         </div>
 
         <div>
@@ -1122,23 +1261,113 @@ const ConceptoForm: React.FC<ConceptoFormProps> = ({ isOpen, editing, cuotaId, h
           </div>
         </div>
 
-        {hijos.length > 0 && (
-          <div>
-            <Label>Aplica a un hijo específico</Label>
-            <select value={hijoId} onChange={e => setHijoId(e.target.value)} className="w-full h-10 px-3 bg-muted/50 border border-border/50 rounded-xl text-sm font-bold">
-              <option value="">— Aplica a todos los hijos cubiertos —</option>
-              {hijos.map(h => <option key={h.id} value={h.id}>{h.nombre}</option>)}
-            </select>
-            <p className="text-[10px] text-muted-foreground italic mt-1">
-              Marcalo cuando el concepto sea por un hijo en particular (terapias por discapacidad, extracurricular específico, etc.).
-            </p>
-          </div>
-        )}
-
         <div>
           <Label>Notas</Label>
           <Textarea value={notas} onChange={e => setNotas(e.target.value)} className="min-h-[60px]" />
         </div>
+      </div>
+    </Modal>
+  );
+};
+
+// ─── Modal: traer gastos ya cargados de un hijo ────────────────
+// Patrón "dato vivo": los gastos que ya se cargaron en la ficha del hijo
+// (viven como CuotaConceptoEspecie con hijoId, típicamente en la canasta
+// borrador) se reusan en la cuota destino en vez de re-tipearlos.
+
+const TraerGastosHijoModal: React.FC<{
+  isOpen: boolean;
+  gastos: CuotaConceptoEspecie[];   // ya filtrados: con hijoId y no presentes en la cuota destino
+  hijos: HijoCaso[];
+  onClose: () => void;
+  onImport: (gastos: CuotaConceptoEspecie[]) => Promise<void>;
+}> = ({ isOpen, gastos, hijos, onClose, onImport }) => {
+  const [seleccion, setSeleccion] = useState<Record<string, boolean>>({});
+  const [saving, setSaving] = useState(false);
+
+  React.useEffect(() => {
+    if (!isOpen) return;
+    // Preseleccionamos todos.
+    setSeleccion(Object.fromEntries(gastos.map(g => [g.id, true])));
+  }, [isOpen, gastos]);
+
+  // Agrupamos por hijo para que el usuario vea "los gastos de Mateo".
+  const porHijo = useMemo(() => {
+    const map = new Map<string, CuotaConceptoEspecie[]>();
+    for (const g of gastos) {
+      const key = g.hijoId ?? '';
+      const arr = map.get(key) ?? [];
+      arr.push(g);
+      map.set(key, arr);
+    }
+    return Array.from(map.entries());
+  }, [gastos]);
+
+  const nombreHijo = (id: string) => hijos.find(h => h.id === id)?.nombre ?? 'Sin hijo asignado';
+  const elegidos = gastos.filter(g => seleccion[g.id]);
+
+  const handleImport = async () => {
+    if (elegidos.length === 0) return;
+    setSaving(true);
+    try {
+      await onImport(elegidos);
+      onClose();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={saving ? () => {} : onClose}
+      title="Traer gastos ya cargados de un hijo"
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose} disabled={saving}>Cancelar</Button>
+          <Button variant="primary" onClick={handleImport} disabled={saving || elegidos.length === 0}>
+            {saving ? 'Agregando…' : `Agregar ${elegidos.length} gasto${elegidos.length === 1 ? '' : 's'}`}
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <p className="text-[11px] text-muted-foreground">
+          Estos gastos ya los cargaste en la ficha de los hijos. Elegí cuáles incorporar a esta
+          cuota — se copian (la canasta original queda intacta).
+        </p>
+        {porHijo.map(([hid, items]) => (
+          <div key={hid} className="space-y-1.5">
+            <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+              {nombreHijo(hid)}
+            </div>
+            {items.map(g => (
+              <label
+                key={g.id}
+                className="flex items-center gap-3 p-2.5 rounded-xl border border-border/40 bg-card cursor-pointer hover:border-primary/40"
+              >
+                <input
+                  type="checkbox"
+                  checked={!!seleccion[g.id]}
+                  onChange={e => setSeleccion(s => ({ ...s, [g.id]: e.target.checked }))}
+                  className="shrink-0"
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Badge variant="outline" className="text-[9px]">{CATEGORIA_CONCEPTO_LABELS[g.categoria]}</Badge>
+                    <span className="text-sm font-bold">{g.concepto}</span>
+                  </div>
+                  <div className="text-[10px] text-muted-foreground">
+                    {g.prestador && <span>{g.prestador} · </span>}
+                    {g.montoEstimado != null
+                      ? `${formatMoneda(g.montoEstimado, g.moneda)} ${FRECUENCIA_CUOTA_LABELS[g.frecuencia].toLowerCase()}`
+                      : 'sin monto'}
+                  </div>
+                </div>
+              </label>
+            ))}
+          </div>
+        ))}
       </div>
     </Modal>
   );
